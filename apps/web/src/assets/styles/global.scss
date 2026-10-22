@@ -1,0 +1,26 @@
+@use './variables';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  min-height: 100vh;
+  color: var(--color-text);
+  font-family: var(--font-body);
+  background-color: var(--bg-mid);
+  background-image:
+    radial-gradient(circle at 30% 35%, rgb(var(--rgb-blue) / 0.22), transparent 45%),
+    radial-gradient(circle at 70% 60%, rgb(var(--rgb-orange) / 0.14), transparent 40%),
+    radial-gradient(circle at 50% 50%, rgb(var(--rgb-green) / 0.1), transparent 60%),
+    linear-gradient(110deg, var(--bg-start), var(--bg-mid) 55%, var(--bg-end));
+  background-attachment: fixed;
+}

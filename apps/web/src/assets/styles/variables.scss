@@ -1,0 +1,29 @@
+:root {
+  --color-blue: #4573f4;
+  --color-blue-light: #93b0f9;
+  --color-blue-dark: #2549c5;
+  --color-green: #5ba339;
+  --color-green-light: #7cc858;
+  --color-green-dark: #46872b;
+  --color-orange: #e98d34;
+  --color-orange-light: #eeb05e;
+  --color-orange-dark: #c67127;
+  --color-graphite: #3b404c;
+  --color-text: #1a2140;
+  --color-text-muted: #5c6584;
+  --color-white: #ffffff;
+
+  --rgb-blue: 69 115 244;
+  --rgb-green: 91 163 57;
+  --rgb-orange: 233 141 52;
+
+  --bg-start: #a6b6c3;
+  --bg-mid: #bedaed;
+  --bg-end: #d2e5f2;
+
+  // Масштаб Ната: px на единицу SVG. Корпус — 300 единиц, у всех Натов он одного размера
+  --nat-unit: min(0.6px, calc((100vw - 32px) / 710));
+
+  --font-display: 'Unbounded', 'Arial Black', system-ui, sans-serif;
+  --font-body: 'Onest', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}

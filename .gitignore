@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Build
+dist/
+.nuxt/
+.output/
+.data/
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Misc
+.DS_Store
+*.tsbuildinfo
+
+# Logs
+npm-debug.log*
+
+# Testing
+/coverage
+test-results/
+playwright-report/
+
+# Claude Code
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+
+# Playwright MCP
+.playwright-mcp/

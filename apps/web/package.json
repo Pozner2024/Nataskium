@@ -1,0 +1,19 @@
+{
+  "name": "@nataskium/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "nuxt build",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare"
+  },
+  "dependencies": {
+    "nuxt": "4.6.0"
+  },
+  "devDependencies": {
+    "@nuxt/fonts": "0.14.0",
+    "sass": "1.105.1"
+  }
+}
