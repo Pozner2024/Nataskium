@@ -213,9 +213,8 @@ ESLint правило `no-restricted-imports` проверяет и запрещ
 
 ```
 assets/styles/
-├── variables.scss          ← CSS-переменные (цвета бренда, шрифты, z-index, layout)
 ├── breakpoints.module.scss ← миксины tablet / desktop
-└── global.scss             ← глобальный сброс и базовые стили
+└── global.scss             ← CSS-переменные в :root (цвета бренда, шрифты, z-index, layout), сброс и базовые стили
 ```
 
 **Бренд:** цвета — из `docs/brand-colors.md`; шрифты — **Unbounded** (только короткие заголовки: логотип, таймер, оценка) и **Onest** (весь остальной текст, вопросы, варианты ответов).
@@ -423,6 +422,34 @@ packages/shared/
 ### Rate limiting
 
 Реализовано in-memory. **Требует одной реплики** `api` в docker-compose.
+
+### Деплой: Caddy, заголовки и CSP
+
+**Задача на деплой, обязательна до публикации.** Схема как в NatsDoll: Caddy стоит спереди, Hono и Nuxt за ним, страницы отдаёт только Nuxt.
+
+```
+браузер → Caddy ─┬─ /api/*     → Hono (api:3000)
+                 └─ остальное  → Nuxt (web:3000)
+```
+
+- Все заголовки страниц и CSP живут в `Caddyfile`, а не в коде приложения. Сейчас их нет: в приложении не настроено ни заголовков, ни CSP
+- Нужны: `Content-Security-Policy`, `Strict-Transport-Security`, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, `Cross-Origin-Opener-Policy`; убрать `X-Powered-By`
+- `Cross-Origin-Opener-Policy`: `same-origin-allow-popups`, иначе вход через Google во всплывающем окне может не работать
+- Caddy перезаписывает `X-Real-IP` адресом TCP-пира, иначе клиент подделает заголовок и обойдёт rate limiting
+- Hono ставит `secureHeaders` только на ответы API
+
+**CSP через hash, не nonce:** nonce несовместим с кешем HTML (`swr`). В `script-src` нет `'unsafe-inline'`; в `style-src` он нужен из-за атрибутов `style` и inline-тегов `<style>`. В `img-src` нужен `data:`, иначе пропадут CSS-маски в `WhyUs` и `HowToStart`.
+
+Hash не пишется вручную, в отличие от NatsDoll:
+
+1. После сборки скрипт считает hash inline-скриптов Nuxt (`importmap`, `__NUXT__`) и передаёт в Caddy через переменную окружения: `script-src 'self' {$CSP_SCRIPT_HASHES}`
+2. Playwright открывает за Caddy `/` и страницу с `ssr: false`; нарушения CSP останавливают деплой. Устаревший hash не ломает сборку, но блокирует скрипты, и сайт перестаёт быть интерактивным
+
+**Проверено на `/` и 404:** выполняются два одинаковых inline-скрипта, `importmap` и `__NUXT__`, стабильные между запросами. В `__NUXT__` есть `buildId`, поэтому hash меняется при каждой сборке.
+
+**Не проверено:** совпадают ли они на страницах с `ssr: false`, таких страниц пока нет. Если нет, для этих страниц придётся использовать отдельный hash или nonce на каждый запрос.
+
+Если `apps/api` окажется на другом домене, его нужно добавить в `connect-src`.
 
 ---
 

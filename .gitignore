@@ -30,3 +30,6 @@ playwright-report/
 
 # Playwright MCP
 .playwright-mcp/
+
+# Макеты из визуального компаньона Superpowers
+.superpowers/

@@ -1,6 +1,6 @@
 <template>
-  <button class="nat-students" type="button" aria-label="Два Ната-студента с ноутбуками. Нажми, чтобы они начали переписываться" @click="onPress">
-    <svg ref="svg" class="nat-students__svg" viewBox="0 40 960 440" aria-hidden="true">
+  <button ref="root" class="nat-students" :class="{ 'nat-students--paused': isPaused }" type="button" :style="{ '--scene-width': stage.width }" aria-label="Два Ната-студента с ноутбуками. Нажми, чтобы они начали переписываться" @click="onPress">
+    <svg ref="svg" class="nat-students__svg" :viewBox="`${stage.x} 40 ${stage.width} 440`" aria-hidden="true">
       <defs>
         <linearGradient :id="ids.lid" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stop-color="#E9EDF6" />
@@ -113,8 +113,8 @@
         </g>
       </g>
 
-      <rect x="40" y="412" width="880" height="14" rx="7" :fill="`url(#${ids.desk})`" />
-      <rect x="40" y="412" width="880" height="2" rx="1" fill="#4573F4" opacity=".5" />
+      <rect :x="stage.deskX" y="412" :width="stage.deskWidth" height="14" rx="7" :fill="`url(#${ids.desk})`" />
+      <rect :x="stage.deskX" y="412" :width="stage.deskWidth" height="2" rx="1" fill="#4573F4" opacity=".5" />
       <g :filter="`url(#${ids.softGlow})`">
         <text
           v-for="glyph in scene.glyphs"
@@ -139,15 +139,24 @@
 
 <script setup lang="ts">
 import { onUnmounted, ref, shallowRef, useId, type ComponentPublicInstance } from 'vue'
+import { useOffscreenPause } from '../../lib'
 import NatFigure from '../NatFigure.vue'
 import { aimAt, easeGaze, useSvgPointer, type Point } from '../lib/gaze'
 import { useFrameLoop } from '../lib/useFrameLoop'
+
+const props = defineProps<{
+  compact?: boolean
+}>()
 
 const SEATS = [
   { x: 262, hasHeadphones: true },
   { x: 698, hasHeadphones: false },
 ]
 const SCALE = 0.8
+// Сцена и стол; компактная — без пустых краёв, симметрично вокруг двух Натов (центр x 480)
+const WIDE_STAGE = { x: 0, width: 960, deskX: 40, deskWidth: 880 }
+const COMPACT_STAGE = { x: 88, width: 784, deskX: 98, deskWidth: 764 }
+const stage = props.compact ? COMPACT_STAGE : WIDE_STAGE
 const BODY_Y = 262
 const LID_Y = 412
 const GAZE_REACH = 220
@@ -164,6 +173,8 @@ const GLYPHS = [
 ]
 const MESSAGES = [['hi!', 'hey :)'], ['done?', 'yes ✓'], ['2 + 2?', '4!'], ['lunch?', 'sure'], ['gg', 'gg!'], ['help?', 'on it']]
 const BUBBLE_COLORS = ['#D2DEFD', '#DBF0D0']
+// Облачко целиком (с текстом и хвостиком) крупнее базового размера — чтобы слова читались
+const BUBBLE_SCALE = 1.8
 const BUBBLE_TAILS = ['M-8 14 L-16 26 L4 14', 'M8 14 L16 26 L-4 14']
 const REPLY_DELAY_S = 1.7
 const FLIGHT_S = 1.3
@@ -213,11 +224,14 @@ const ids = {
   softGlow: `${uid}-soft-glow`,
 }
 
+const root = ref<HTMLButtonElement | null>(null)
 const svg = ref<SVGSVGElement | null>(null)
+const { isPaused } = useOffscreenPause(root)
 const gazes = ref<Point[]>(SEATS.map(() => LAPTOP_GAZE))
 const figures: (InstanceType<typeof NatFigure> | null)[] = []
 const seatEls: (SVGGElement | null)[] = []
 const pingTimers: ReturnType<typeof setTimeout>[] = []
+const delayedPingTimers = new Set<ReturnType<typeof setTimeout>>()
 
 function setFigure(index: number, figure: Element | ComponentPublicInstance | null) {
   figures[index] = figure as InstanceType<typeof NatFigure> | null
@@ -280,7 +294,11 @@ function emitGlyph(index: number) {
 
 function send(from: number, text: string, delayS = 0) {
   if (delayS) {
-    setTimeout(() => ping(from), delayS * 1000)
+    const timer = setTimeout(() => {
+      delayedPingTimers.delete(timer)
+      ping(from)
+    }, delayS * 1000)
+    delayedPingTimers.add(timer)
   } else {
     ping(from)
   }
@@ -366,7 +384,7 @@ function calcScene() {
         width: 22 + flight.text.length * 10,
         color: BUBBLE_COLORS[flight.from]!,
         tail: BUBBLE_TAILS[flight.from]!,
-        transform: `translate(${point.x.toFixed(1)} ${point.y.toFixed(1)}) scale(${(0.7 + 0.3 * Math.sin(eased * Math.PI)).toFixed(2)})`,
+        transform: `translate(${point.x.toFixed(1)} ${point.y.toFixed(1)}) scale(${(BUBBLE_SCALE * (0.7 + 0.3 * Math.sin(eased * Math.PI))).toFixed(2)})`,
         opacity: flight.time < 0 ? 0 : Math.min(1, u * 6, (1 - u) * 6 + 0.001).toFixed(2),
       }
     }),
@@ -413,6 +431,8 @@ function playGiggle() {
 
 onUnmounted(() => {
   void audio?.close()
+  delayedPingTimers.forEach(clearTimeout)
+  pingTimers.forEach(clearTimeout)
 })
 
 // Клик: оба хихикают и подпрыгивают, тут же начинается переписка
@@ -431,7 +451,7 @@ function onPress() {
 // Наты здесь уменьшены до 0.8 (SCALE), поэтому сцена шире на 1 / 0.8 — тогда корпус того же размера, что у остальных
 .nat-students {
   display: block;
-  width: calc(var(--nat-unit) * 960 / 0.8);
+  width: calc(var(--nat-unit) * var(--scene-width) / 0.8);
   max-width: 100%;
   padding: 0;
   border: 0;
@@ -443,6 +463,12 @@ function onPress() {
     outline: 2px solid var(--color-blue);
     outline-offset: 8px;
     border-radius: 24px;
+  }
+
+  // За экраном CSS-анимации сцены стоят на паузе
+  &--paused,
+  &--paused :deep(*) {
+    animation-play-state: paused !important;
   }
 
   &__svg {

@@ -1,5 +1,5 @@
 <template>
-  <button class="nat-robot" type="button" :aria-label="label" :style="{ width: `calc(var(--nat-unit) * ${viewBoxWidth})` }" @click="onClick">
+  <button ref="root" class="nat-robot" :class="{ 'nat-robot--paused': isPaused }" type="button" :aria-label="label" :style="{ width: `calc(var(--nat-unit) * ${viewBoxWidth})` }" @click="onClick">
     <svg ref="svg" class="nat-robot__svg" :viewBox="viewBox" aria-hidden="true">
       <defs>
         <slot name="defs" />
@@ -27,6 +27,7 @@
 
 <script setup lang="ts">
 import { computed, ref, shallowRef } from 'vue'
+import { useOffscreenPause } from '../lib'
 import NatFigure from './NatFigure.vue'
 import { aimAt, easeGaze, NO_GAZE, useSvgPointer } from './lib/gaze'
 import { useFrameLoop } from './lib/useFrameLoop'
@@ -55,9 +56,11 @@ const emit = defineEmits<{
 
 const viewBoxWidth = computed(() => Number(props.viewBox.split(' ')[2]))
 
+const root = ref<HTMLButtonElement | null>(null)
 const svg = ref<SVGSVGElement | null>(null)
 const figure = ref<InstanceType<typeof NatFigure> | null>(null)
 const gaze = shallowRef(NO_GAZE)
+const { isPaused } = useOffscreenPause(root)
 
 if (props.followsCursor) {
   const getPointer = useSvgPointer(svg)
@@ -98,6 +101,12 @@ defineExpose({ rejoice, calm })
     outline: 2px solid var(--color-blue);
     outline-offset: 8px;
     border-radius: 24px;
+  }
+
+  // За экраном CSS-анимации сцены (в том числе из слотов) стоят на паузе
+  &--paused,
+  &--paused :deep(*) {
+    animation-play-state: paused !important;
   }
 
   &__svg {

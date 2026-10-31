@@ -76,7 +76,7 @@ import { shallowRef, useId } from 'vue'
 import NatRobot from '../NatRobot.vue'
 import NatAntennaBall from '../parts/NatAntennaBall.vue'
 import NatAntennaCap from '../parts/NatAntennaCap.vue'
-import { createSeededRandom } from '../lib/random'
+import { createSeededRandom } from '../../lib'
 import { createSpring, idleSway, kickSpring, MAX_SPRING_DT_S, stepSpring, type Spring } from '../lib/spring'
 import { useFrameLoop } from '../lib/useFrameLoop'
 
@@ -129,6 +129,9 @@ interface Pulse {
   progress: number
   color: string
 }
+
+// Цвет шарика антенны: первая буква blue / green / orange, по ней собираются id градиентов
+type BallColor = 'B' | 'G' | 'O'
 
 interface Dendrite {
   spring: Spring

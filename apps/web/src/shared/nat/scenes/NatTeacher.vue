@@ -94,7 +94,7 @@
             />
           </g>
           <rect x="-220" y="340" width="260" height="7" rx="3.5" fill="#DCE2EF" />
-          <rect x="-220" y="340" :width="board.timerWidth" height="7" rx="3.5" fill="#4573F4" />
+          <rect x="-220" y="340" :width="board.timerWidth ?? undefined" height="7" rx="3.5" fill="#4573F4" />
           <g>
             <rect v-for="piece in board.confetti" :key="piece.key" width="5" height="3" rx="1" :fill="piece.color" :transform="piece.transform" :opacity="piece.opacity" />
           </g>

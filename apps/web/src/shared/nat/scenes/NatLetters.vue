@@ -58,7 +58,7 @@
 import { computed, shallowRef, useId } from 'vue'
 import NatRobot from '../NatRobot.vue'
 import NatAntennaCap from '../parts/NatAntennaCap.vue'
-import { createSeededRandom } from '../lib/random'
+import { createSeededRandom } from '../../lib'
 import { createSpring, idleSway, kickSpring, MAX_SPRING_DT_S, RAD_TO_DEG, stepSpring } from '../lib/spring'
 import { useFrameLoop } from '../lib/useFrameLoop'
 

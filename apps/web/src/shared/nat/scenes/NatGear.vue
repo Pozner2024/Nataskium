@@ -1,5 +1,5 @@
 <template>
-  <NatRobot label="Нат-шестерёнка. Нажми, чтобы он улыбнулся" view-box="-95 -85 710 710" follows-cursor @press="onPress">
+  <NatRobot label="Нат-шестерёнка. Нажми, чтобы он улыбнулся" follows-cursor :view-box="compact ? COMPACT_VIEW_BOX : VIEW_BOX" @press="onPress">
     <template #defs>
       <radialGradient :id="ids.gearMain" cx="35%" cy="30%" r="85%">
         <stop offset="0" stop-color="#FFFFFF" />
@@ -81,8 +81,15 @@ import NatAntennaCap from '../parts/NatAntennaCap.vue'
 import { createSpring, idleSway, kickSpring, MAX_SPRING_DT_S, RAD_TO_DEG, stepSpring } from '../lib/spring'
 import { useFrameLoop } from '../lib/useFrameLoop'
 
+defineProps<{
+  compact?: boolean
+}>()
+
 // Все шестерни с одним модулем зуба, поэтому зацепляются; скорость малой = скорость большой × (N большой / N малой)
 const CENTER = { x: 255, y: 280.5 }
+const VIEW_BOX = '-95 -85 710 710'
+// Компактная сцена для узких блоков: только шестерёнки и антенна, без пустых полей вокруг
+const COMPACT_VIEW_BOX = '-45 5 610 500'
 const MODULE = 13.75
 const SPIN = 0.3
 const DEPTH = 7

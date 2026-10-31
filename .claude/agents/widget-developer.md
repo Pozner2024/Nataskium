@@ -43,7 +43,7 @@ Always read existing widgets that are closest to what you're building:
 - **Nat mascot** → `shared/nat/` (all variants on the `/nat` page); never change Nat animations without explicit request
 - If nothing similar exists yet — follow the patterns in this file exactly
 
-Read `apps/web/src/assets/styles/variables.scss` (colors, fonts) and `global.scss` (z-index `--z-*` block) to know the design tokens.
+Read the `:root` block in `apps/web/src/assets/styles/global.scss` to know the design tokens (colors, fonts, z-index `--z-*`).
 
 ---
 

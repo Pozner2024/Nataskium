@@ -1,8 +1,8 @@
 <template>
-  <NatRobot class="nat-music" label="Нат-музыкант. Нажми, чтобы он спел" view-box="-95 -40 710 620" follows-cursor @press="onPress">
+  <NatRobot class="nat-music" label="Нат-музыкант. Нажми, чтобы он спел" follows-cursor :view-box="bounds.viewBox" @press="onPress">
     <template #defs>
       <!-- стан гаснет к краям сцены -->
-      <linearGradient :id="ids.staffFade" x1="-95" y1="0" x2="615" y2="0" gradientUnits="userSpaceOnUse">
+      <linearGradient :id="ids.staffFade" :x1="bounds.left" y1="0" :x2="bounds.right" y2="0" gradientUnits="userSpaceOnUse">
         <stop offset="0" stop-color="#4573F4" stop-opacity="0" />
         <stop offset=".18" stop-color="#4573F4" stop-opacity=".55" />
         <stop offset=".82" stop-color="#4573F4" stop-opacity=".55" />
@@ -20,7 +20,7 @@
         <path v-for="(d, index) in scene.staffLines" :key="index" :d="d" />
       </g>
       <g>
-        <NatMusicNote v-for="note in scene.staffNotes" :key="note.key" v-bind="note" />
+        <NatMusicNote v-for="{ key, ...note } in scene.staffNotes" :key="key" v-bind="note" />
       </g>
       <path d="M104 262 Q100 108 255 104 Q410 108 406 262" fill="none" stroke="#2E3548" stroke-width="14" stroke-linecap="round" />
       <path d="M110 250 Q108 116 255 112 Q402 116 400 250" fill="none" stroke="#4573F4" stroke-width="3" stroke-opacity=".6" />
@@ -37,7 +37,7 @@
           <rect x="396" y="242" width="8" height="40" rx="4" fill="#fff" opacity=".4" />
         </g>
       </g>
-      <NatMusicNote v-for="note in scene.sungNotes" :key="note.key" v-bind="note" />
+      <NatMusicNote v-for="{ key, ...note } in scene.sungNotes" :key="key" v-bind="note" />
     </template>
   </NatRobot>
 </template>
@@ -49,12 +49,21 @@ import NatMusicNote from '../parts/NatMusicNote.vue'
 import { RAD_TO_DEG } from '../lib/spring'
 import { useFrameLoop } from '../lib/useFrameLoop'
 
+const props = defineProps<{
+  compact?: boolean
+}>()
+
 const CENTER = { x: 255, y: 280.5 }
 const STAFF = { y: 300, gap: 13, amplitude: 22, wave: 0.012, flow: 1.6 }
 const STAFF_LINE_COUNT = 5
 const STAFF_STEP_X = 14
-const LEFT = -95
-const RIGHT = 615
+// Нотный стан тянется от края до края сцены и растворяется к краям.
+// Компактная сцена для узких блоков: стан короче, без пустых полей сверху и снизу
+const WIDE_BOUNDS = { left: -95, right: 615, viewBox: '-95 -40 710 620' }
+const COMPACT_BOUNDS = { left: -45, right: 555, viewBox: '-45 70 600 380' }
+const bounds = props.compact ? COMPACT_BOUNDS : WIDE_BOUNDS
+const LEFT = bounds.left
+const RIGHT = bounds.right
 const COLORS = ['#2549C5', '#4573F4', '#5BA339', '#E98D34', '#B04FD8']
 const STAFF_NOTE_COUNT = 9
 // Высота ноты на стане: шаг = половина промежутка между линейками

@@ -17,7 +17,11 @@
 
 <script setup lang="ts">
 import type { Component } from 'vue'
-import { NatAtom, NatBrain, NatBulb, NatGalaxy, NatGear, NatGeometry, NatLetters, NatMusic, NatSaturn, NatStudents, NatTeacher } from '@/shared'
+import { useSeoMeta } from '#imports'
+import { NatAtom, NatBrain, NatBulb, NatCards, NatGalaxy, NatGear, NatGeometry, NatLetters, NatMusic, NatSaturn, NatStudents, NatTeacher } from '@/shared'
+
+// Служебная страница для просмотра Натов — поисковикам не нужна
+useSeoMeta({ robots: 'noindex, nofollow' })
 
 interface PreviewScene {
   name: string
@@ -26,6 +30,7 @@ interface PreviewScene {
 }
 
 const SCENES: PreviewScene[] = [
+  { name: 'Собирает задание', component: NatCards },
   { name: 'Атом', component: NatAtom },
   { name: 'Сатурн', component: NatSaturn },
   { name: 'Галактика', component: NatGalaxy },
