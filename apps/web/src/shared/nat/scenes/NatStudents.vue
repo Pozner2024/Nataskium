@@ -23,7 +23,6 @@
           <stop offset="0" stop-color="#5BA339" stop-opacity=".9" />
           <stop offset="1" stop-color="#5BA339" stop-opacity="0" />
         </radialGradient>
-        <!-- свет экрана, падающий на лицо Ната -->
         <radialGradient :id="ids.screenLight" cx="50%" cy="100%" r="70%">
           <stop offset="0" stop-color="#86ABFA" stop-opacity=".55" />
           <stop offset="1" stop-color="#86ABFA" stop-opacity="0" />
@@ -51,7 +50,6 @@
                   <rect x="396" y="242" width="8" height="40" rx="4" fill="#fff" opacity=".35" />
                 </template>
                 <template v-if="!seat.hasHeadphones" #front>
-                  <!-- антенна-пружинка с лампочкой вспыхивает, когда приходит сообщение -->
                   <g class="nat-students__antenna">
                     <ellipse cx="255" cy="137" rx="20" ry="7" fill="#2E3548" />
                     <path
@@ -183,7 +181,6 @@ const FLIGHT_ARC_HEIGHT = 210
 const FIRST_CHAT_S = 4
 const CHAT_PAUSE_AFTER_CLICK_S = 8
 const MAX_DT_S = 0.05
-// Смешок «хи-хи-хи»: у каждого Ната свой голос, второй вступает чуть позже
 const GIGGLE_VOICES = [
   { pitchHz: 620, delayS: 0 },
   { pitchHz: 820, delayS: 0.14 },
@@ -244,7 +241,6 @@ function setSeatEl(index: number, el: Element | ComponentPublicInstance | null) 
 const heads = SEATS.map((seat) => ({ x: seat.x, y: BODY_Y + 8 * SCALE }))
 let focus: Point | null = null
 
-// Летящее сообщение оба Ната провожают взглядом, иначе смотрят на курсор
 const getPointer = useSvgPointer(svg)
 const gazeLoop = useFrameLoop(() => {
   const pointer = getPointer()
@@ -259,7 +255,6 @@ function smile(index: number) {
   figures[index]?.rejoice(SMILE_MS)
 }
 
-// Вспышка антенны (у кого она есть) — когда приходит или уходит сообщение
 function ping(index: number) {
   const el = seatEls[index]
   if (!el || SEATS[index]!.hasHeadphones) return
@@ -330,7 +325,6 @@ function stepGlyphs(dt: number) {
   }
 }
 
-// Облачко летит по дуге над головами от одного ноутбука к другому, получатель радуется
 function stepFlights(dt: number) {
   untilChat -= dt
   if (untilChat <= 0) {
@@ -435,7 +429,6 @@ onUnmounted(() => {
   pingTimers.forEach(clearTimeout)
 })
 
-// Клик: оба хихикают и подпрыгивают, тут же начинается переписка
 function onPress() {
   SEATS.forEach((_, index) => smile(index))
   playGiggle()
@@ -460,12 +453,11 @@ function onPress() {
   -webkit-tap-highlight-color: transparent;
 
   &:focus-visible {
-    outline: 2px solid var(--color-blue);
+    outline: 2px solid var(--focus-color);
     outline-offset: 8px;
     border-radius: 24px;
   }
 
-  // За экраном CSS-анимации сцены стоят на паузе
   &--paused,
   &--paused :deep(*) {
     animation-play-state: paused !important;

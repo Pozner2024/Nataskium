@@ -1,7 +1,6 @@
 <template>
   <NatRobot ref="robot" label="Нат собирает задание. Нажми, чтобы он поздоровался" :view-box="layout.viewBox" @press="onPress">
     <template #defs>
-      <!-- У каждой карточки свой цвет бренда: оттенок стекла, тень и плашка с иконкой -->
       <linearGradient v-for="accent in ACCENTS" :id="ids.glass[accent.name]" :key="`glass-${accent.name}`" x1="0" y1="0" x2="0.4" y2="1">
         <stop offset="0" stop-color="#FFFFFF" stop-opacity=".85" />
         <stop offset="1" :stop-color="accent.glass" stop-opacity=".92" />
@@ -33,7 +32,6 @@
     </template>
 
     <template #front>
-      <!-- Карточка с картинкой: «добавить задание» -->
       <g v-if="cards[0]!.opacity > 0" :transform="cards[0]!.transform" :opacity="cards[0]!.opacity" data-testid="nat-card">
         <rect :width="CARDS[0]!.w" :height="CARDS[0]!.h" rx="22" :fill="`url(#${ids.glass.blue})`" stroke="#fff" stroke-width="2" :filter="`url(#${ids.shadow.blue})`" />
         <rect x="16" y="16" width="60" height="60" rx="16" :fill="`url(#${ids.tile.blue})`" />
@@ -47,7 +45,6 @@
         </g>
       </g>
 
-      <!-- Карточка-вопрос -->
       <g v-if="cards[1]!.opacity > 0" :transform="cards[1]!.transform" :opacity="cards[1]!.opacity" data-testid="nat-card">
         <rect :width="CARDS[1]!.w" :height="CARDS[1]!.h" rx="22" :fill="`url(#${ids.glass.orange})`" stroke="#fff" stroke-width="2" :filter="`url(#${ids.shadow.orange})`" />
         <rect x="16" y="14" width="58" height="58" rx="16" :fill="`url(#${ids.tile.orange})`" />
@@ -57,7 +54,6 @@
         <rect x="90" y="44" width="70" height="10" rx="5" fill="#FAE4CB" />
       </g>
 
-      <!-- Карточка сопоставления: пары соединяются по одной -->
       <g v-if="cards[2]!.opacity > 0" :transform="cards[2]!.transform" :opacity="cards[2]!.opacity" data-testid="nat-card">
         <rect :width="CARDS[2]!.w" :height="CARDS[2]!.h" rx="22" :fill="`url(#${ids.glass.green})`" stroke="#fff" stroke-width="2" :filter="`url(#${ids.shadow.green})`" />
         <g v-for="(match, k) in MATCHES" :key="match.number" :transform="`translate(0 ${30 + k * 42})`">
@@ -70,7 +66,6 @@
         </g>
       </g>
 
-      <!-- Карточка-ссылка: ученикам отправлено -->
       <g v-if="cards[3]!.opacity > 0" :transform="cards[3]!.transform" :opacity="cards[3]!.opacity" data-testid="nat-card">
         <rect :width="CARDS[3]!.w" :height="CARDS[3]!.h" rx="22" :fill="`url(#${ids.glass.navy})`" stroke="#fff" stroke-width="2" :filter="`url(#${ids.shadow.navy})`" />
         <rect x="16" y="16" width="60" height="60" rx="16" :fill="`url(#${ids.tile.navy})`" />
@@ -86,7 +81,6 @@
         </g>
       </g>
 
-      <!-- Карточка оценки: процент правильных ответов заполняется, выскакивает оценка -->
       <g v-if="cards[4]!.opacity > 0" :transform="cards[4]!.transform" :opacity="cards[4]!.opacity" data-testid="nat-card">
         <rect :width="CARDS[4]!.w" :height="CARDS[4]!.h" rx="22" :fill="`url(#${ids.glass.green})`" stroke="#fff" stroke-width="2" :filter="`url(#${ids.shadow.green})`" />
         <rect x="16" y="18" width="60" height="60" rx="16" :fill="`url(#${ids.tile.green})`" />
@@ -102,7 +96,6 @@
         </g>
       </g>
 
-      <!-- Карточка-видео: полоска просмотра заполняется -->
       <g v-if="cards[5]!.opacity > 0" :transform="cards[5]!.transform" :opacity="cards[5]!.opacity" data-testid="nat-card">
         <rect :width="CARDS[5]!.w" :height="CARDS[5]!.h" rx="22" :fill="`url(#${ids.glass.orange})`" stroke="#fff" stroke-width="2" :filter="`url(#${ids.shadow.orange})`" />
         <rect x="16" y="16" width="60" height="60" rx="16" :fill="`url(#${ids.tile.orange})`" />
@@ -112,7 +105,6 @@
         <rect x="92" y="52" width="56" height="10" rx="5" fill="#F6D2A8" />
       </g>
 
-      <!-- Приветствие по нажатию: карточки прячутся, облачко справа от Ната, хвостик тянется к лицу -->
       <g :transform="`translate(${layout.bubble.x} ${layout.bubble.y})`">
         <g class="nat-cards__bubble" :class="{ 'nat-cards__bubble--visible': isGreeting }">
           <path :d="BUBBLE_PATH" fill="#fff" stroke="#DCE5F9" stroke-width="2" :filter="`url(#${ids.shadow.blue})`" />
@@ -135,9 +127,6 @@ import NatAntennaCap from '../parts/NatAntennaCap.vue'
 import { createSpring, idleSway, kickSpring, MAX_SPRING_DT_S, RAD_TO_DEG, stepSpring, zigzag } from '../lib/spring'
 import { useFrameLoop } from '../lib/useFrameLoop'
 
-// Цикл: карточки по очереди вылетают из Ната, пары соединяются, на ссылке ставится галочка,
-// процент заполняется и выскакивает оценка — Нат радуется, задание висит собранным,
-// потом карточки тают и всё начинается заново
 const CYCLE_S = 12
 const APPEAR_S = 0.6
 const PAIR_DELAY_S = 0.6
@@ -167,7 +156,6 @@ const MATCHES = [
 const PAIR_LINE = 28
 
 const props = defineProps<{
-  // Для узких экранов: карточки над и под Натом, а не по бокам — сцена уже и выше, всё крупнее
   compact?: boolean
 }>()
 
@@ -223,7 +211,6 @@ const BUBBLE_HEIGHT = 142
 const BUBBLE_RADIUS = 24
 const BUBBLE_TAIL_BASE = { from: 60, to: 104 }
 
-// Хвостик выходит из нижнего края облачка и упирается в низ лица Ната, где был бы рот — будто Нат говорит
 function buildBubblePath({ x, y, w, tip }: SceneLayout['bubble']) {
   const h = BUBBLE_HEIGHT
   const r = BUBBLE_RADIUS
@@ -287,7 +274,6 @@ function easeOutCubic(t: number) {
   return 1 - Math.pow(1 - t, 3)
 }
 
-// Лёгкий перелёт за конечный размер — карточка «выпрыгивает»
 function easeOutBack(t: number) {
   const overshoot = 1.7
   return 1 + (overshoot + 1) * Math.pow(t - 1, 3) + overshoot * Math.pow(t - 1, 2)
@@ -371,7 +357,6 @@ const { requestFrame, isReducedMotion } = useFrameLoop((rawDt) => {
 const isGreeting = ref(false)
 let greetingTimer: ReturnType<typeof setTimeout> | undefined
 
-// После приветствия задание собирается заново, с первой карточки и новой оценкой
 function finishGreeting() {
   isGreeting.value = false
   hidden = 0
@@ -380,7 +365,6 @@ function finishGreeting() {
   requestFrame()
 }
 
-// Повторное нажатие продлевает приветствие на полный срок
 function greet() {
   isGreeting.value = true
   clearTimeout(greetingTimer)
@@ -397,12 +381,10 @@ onBeforeUnmount(() => clearTimeout(greetingTimer))
 </script>
 
 <style scoped lang="scss">
-// Облачко растёт из хвостика, который смотрит на Ната
 .nat-cards__bubble {
   opacity: 0;
   transform: scale(0.6);
   transform-box: fill-box;
-  // Низ рамки — это кончик хвостика у лица Ната: облачко «вылетает» из него
   transform-origin: 35% 100%;
   transition:
     opacity 0.2s ease,

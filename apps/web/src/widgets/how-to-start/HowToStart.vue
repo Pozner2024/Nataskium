@@ -25,29 +25,22 @@ import { NatGear } from '@/shared'
 </script>
 
 <style scoped lang="scss">
+@use '@/assets/styles/mixins' as *;
+
 .how-to-start {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  padding: 8px 20px 48px;
-  // Зелёные пятна боке «рамкой»; каждое не ближе своего радиуса к верху и низу блока — без обрезов на стыках
+  @include section;
+
   background:
-    radial-gradient(circle 150px at -14% 170px, rgb(var(--rgb-green) / 0.53), rgb(var(--rgb-green) / 0.21) 60%, transparent),
-    radial-gradient(circle 160px at 114% calc(100% - 170px), rgb(var(--rgb-green) / 0.45), rgb(var(--rgb-green) / 0.18) 60%, transparent),
+    bokeh(var(--rgb-green), 150px, -14% 170px, 0.53),
+    bokeh(var(--rgb-green), 160px, 114% bottom 170px, 0.45),
     var(--color-white);
 }
 
 .how-to-start__title {
-  margin: 0;
-  color: var(--color-text);
-  font-family: var(--font-display);
-  font-size: 26px;
-  font-weight: 700;
-  line-height: 1.2;
+  @include section-title;
 }
 
 .how-to-start__nat {
-  // Тот же масштаб, что у Ната-лампочки в префутере (PreFooter)
   --nat-unit: 0.34px;
 
   display: flex;
@@ -64,27 +57,10 @@ import { NatGear } from '@/shared'
   list-style: none;
 }
 
-// Номер шага — цифра «от руки» своим цветом бренда, как полоски бургера. Рисуется маской: цвет из переменной.
 // Тёмные оттенки зелёного и оранжевого — чтобы цифра читалась на белом (основной оранжевый даёт 2.5:1).
-// Ширина 26px — как галочки в «Почему выбирают»: текст обоих списков начинается с одной линии.
-// Сам номер для скринридеров даёт нумерованный список <ol>
 .how-to-start__step {
-  display: flex;
-  align-items: flex-start;
-  gap: 14px;
-  color: var(--color-text);
-  font-size: 16px;
-  line-height: 1.5;
-
-  &::before {
-    content: '';
-    flex: none;
-    width: 26px;
-    height: 26px;
-    margin-top: -1px;
-    background: var(--step-color);
-    mask: var(--step-digit) center / contain no-repeat;
-  }
+  @include body-text;
+  @include list-item(var(--step-color), var(--step-digit));
 }
 
 .how-to-start__step--blue {

@@ -103,7 +103,6 @@
     </template>
 
     <template #back>
-      <!-- стилус постукивает по варианту, который выбирает Нат -->
       <g class="nat-teacher__stylus" :class="{ 'nat-teacher__stylus--picking': isPicking }">
         <line x1="118" y1="372" x2="-4" y2="256" stroke="#2E3548" stroke-width="10" stroke-linecap="round" />
         <line x1="112" y1="364" x2="20" y2="277" stroke="#8C96B0" stroke-width="3" stroke-linecap="round" opacity=".6" />
@@ -248,7 +247,6 @@ function reveal() {
   throwConfetti()
 }
 
-// Плитки выскакивают по очереди, идёт таймер, стилус выбирает ответ, верная плитка загорается
 function stepPhase() {
   if (phase === 'ask' && phaseTime > ASK_S) {
     phase = 'pick'
@@ -286,7 +284,6 @@ function tileScale(index: number) {
   if (phase === 'pick' && isAnswer) return 1 + Math.sin(phaseTime * 22) * 0.04
   if (phase === 'reveal' && isAnswer) return 1 + Math.max(0, 0.12 - phaseTime * 0.3)
   const u = phase === 'ask' ? Math.max(0, Math.min(1, (phaseTime - index * 0.09) / 0.35)) : 1
-  // Плитка выскакивает пружинкой
   return u < 1 ? 1 - Math.pow(1 - u, 3) * Math.cos(u * 9) : 1
 }
 
@@ -339,7 +336,6 @@ const { requestFrame } = useFrameLoop((rawDt) => {
   board.value = { ...next, timerWidth: lastTimerWidth }
 })
 
-// Клик сразу открывает ответ, а если ответ уже открыт — переходит к следующему вопросу
 function onPress() {
   if (phase === 'ask' || phase === 'pick') {
     reveal()

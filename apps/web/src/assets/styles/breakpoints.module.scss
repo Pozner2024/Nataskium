@@ -1,13 +1,5 @@
-$phablet: 480px;
 $tablet: 768px;
 $desktop: 1200px;
 
-@mixin phablet { @media (width >= $phablet) { @content; } }
 @mixin tablet { @media (width >= $tablet) { @content; } }
 @mixin desktop { @media (width >= $desktop) { @content; } }
-
-:export {
-  phablet: 480;
-  tablet: 768;
-  desktop: 1200;
-}

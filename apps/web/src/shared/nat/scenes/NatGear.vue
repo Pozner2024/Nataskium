@@ -88,7 +88,6 @@ defineProps<{
 // Все шестерни с одним модулем зуба, поэтому зацепляются; скорость малой = скорость большой × (N большой / N малой)
 const CENTER = { x: 255, y: 280.5 }
 const VIEW_BOX = '-95 -85 710 710'
-// Компактная сцена для узких блоков: только шестерёнки и антенна, без пустых полей вокруг
 const COMPACT_VIEW_BOX = '-45 5 610 500'
 const MODULE = 13.75
 const SPIN = 0.3
@@ -176,7 +175,6 @@ function calcRotations() {
   return gears.map((gear) => `rotate(${((gear.ratio * angle + gear.offset) * RAD_TO_DEG).toFixed(2)})`)
 }
 
-// Витки пружины в объёме: задние полувитки темнее передних
 function calcAntenna() {
   const gap = COIL_GAP * spring.stretch
   const backCoils: string[] = []

@@ -16,14 +16,11 @@ withDefaults(defineProps<{
 </script>
 
 <style scoped lang="scss">
-// «Таблетка» с белым текстом и стрелкой. Белый на основных оранжевом и синем бренда — 2.5:1 и 4.2:1,
-// поэтому текст крупный и жирный (от 18.67px bold — норма 3:1), а оранжевый фон темнее основного
 .app-button {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  // Текст «Создать задание бесплатно» (18.7px bold) + стрелка и отступы — около 320px: в одну строку
   width: 320px;
   max-width: 100%;
   min-height: 60px;
@@ -34,6 +31,7 @@ withDefaults(defineProps<{
   font: inherit;
   font-size: 18.7px;
   font-weight: 700;
+  line-height: 1.25;
   text-align: center;
   text-decoration: none;
   cursor: pointer;
@@ -41,34 +39,23 @@ withDefaults(defineProps<{
     transform 0.2s ease,
     box-shadow 0.2s ease;
 
-  &:hover {
-    transform: translateY(-2px);
-  }
-
   &:active {
-    transform: translateY(0) scale(0.98);
-  }
-
-  &:focus-visible {
-    outline: 3px solid var(--color-text);
-    outline-offset: 3px;
+    transform: scale(0.98);
   }
 
   @media (prefers-reduced-motion: reduce) {
     transition: none;
 
-    &:hover,
     &:active {
       transform: none;
     }
   }
 }
 
-// #D9761C → тёмный оранжевый бренда: с белым крупным текстом 3.2–3.6:1
+// Решение пользователя (2026-11-01): фирменный оранжевый с белым текстом, контраст 2.52:1 ниже нормы 3:1 осознанно.
+// Блика нет: он снизил бы контраст ещё сильнее
 .app-button--orange {
-  background:
-    linear-gradient(180deg, rgb(255 255 255 / 0.2), transparent 55%),
-    linear-gradient(90deg, #d9761c, var(--color-orange-dark));
+  background: var(--color-orange);
   box-shadow: 0 10px 24px rgb(var(--rgb-orange) / 0.4);
 
   &:hover {
@@ -78,7 +65,7 @@ withDefaults(defineProps<{
 
 .app-button--blue {
   background:
-    linear-gradient(180deg, rgb(255 255 255 / 0.2), transparent 55%),
+    linear-gradient(180deg, rgb(var(--rgb-white) / 0.16), transparent 55%),
     var(--color-blue);
   box-shadow: 0 10px 24px rgb(var(--rgb-blue) / 0.4);
 
@@ -96,5 +83,12 @@ withDefaults(defineProps<{
   stroke-width: 2.4;
   stroke-linecap: round;
   stroke-linejoin: round;
+  transition: transform 0.2s ease;
+
+  @media (hover: hover) and (prefers-reduced-motion: no-preference) {
+    .app-button:hover & {
+      transform: translateX(4px);
+    }
+  }
 }
 </style>

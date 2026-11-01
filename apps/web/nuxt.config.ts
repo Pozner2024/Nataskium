@@ -1,6 +1,5 @@
 import { fileURLToPath } from 'node:url'
 
-// Служебная страница для просмотра Натов — только в режиме разработки
 const DEV_ONLY_PATHS = ['/nat']
 
 export default defineNuxtConfig({

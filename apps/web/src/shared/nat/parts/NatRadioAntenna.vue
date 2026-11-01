@@ -36,7 +36,6 @@ const props = defineProps<{
 
 const tip = computed(() => BASE.y - LENGTH * props.stretch)
 
-// Волны сигнала расходятся от шарика и гаснут по мере роста
 const waves = computed(() => Array.from({ length: WAVE_COUNT }, (_, index) => {
   const progress = (props.time * WAVE_RATE + index / WAVE_COUNT) % 1
   const radius = WAVE_MIN_RADIUS + progress * WAVE_GROWTH

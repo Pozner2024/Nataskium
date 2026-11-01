@@ -37,7 +37,6 @@ const bubbles = Array.from({ length: BUBBLE_COUNT }, (_, index) => {
 </script>
 
 <style scoped lang="scss">
-// По жидкости в колбе вверх-вниз ходит перелив света
 .city-flask__liquid {
   position: absolute;
   top: 54.6%;
@@ -45,8 +44,6 @@ const bubbles = Array.from({ length: BUBBLE_COUNT }, (_, index) => {
   width: 4.2%;
   height: 9.2%;
   clip-path: polygon(24% 0, 76% 0, 100% 100%, 0 100%);
-  // Верх трапеции растворяется: иначе полоса света, дойдя до него, упирается в ровный край
-  // и выглядит как плоский полупрозрачный слой поверх колбы
   mask-image: linear-gradient(to bottom, transparent, #000 55%);
   mix-blend-mode: screen;
 
@@ -67,7 +64,6 @@ const bubbles = Array.from({ length: BUBBLE_COUNT }, (_, index) => {
   to { transform: translateY(0); }
 }
 
-// Пузырёк поднимается со дна конуса к горлышку. Слой во всю сцену, чтобы сдвиг считался в процентах сцены
 .city-flask__bubble-lane {
   position: absolute;
   inset: 0;

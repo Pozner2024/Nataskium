@@ -12,7 +12,6 @@ import waterImage from '../images/water.webp'
 import { createRandomBetween } from '../sceneRandom'
 
 const RANDOM_SEED = 23
-// Полоса воды режется на слои, нижние (ближние к зрителю) качаются сильнее
 const WAVE_SLICES = 8
 const WAVE_BASE_AMPLITUDE = 0.12
 const WAVE_AMPLITUDE_STEP = 0.04
@@ -50,13 +49,12 @@ const glints = Array.from({ length: GLINT_COUNT }, (_, index) => {
 </script>
 
 <style scoped lang="scss">
-// Полоски воды качаются вбок с разной фазой — отражения огней «плывут»
 .city-water__wave {
   position: absolute;
   left: 0;
   width: 100%;
   overflow: hidden;
-  // по краям в воде стоят кусты и фонари — их не качаем
+  // Границы привязаны к кустам и фонарям на картинке: они стоят в воде и качаться не должны
   mask-image: linear-gradient(90deg, transparent 17%, #000 21%, #000 83%, transparent 87%);
   animation: wave ease-in-out infinite alternate;
 }
@@ -72,7 +70,6 @@ const glints = Array.from({ length: GLINT_COUNT }, (_, index) => {
   to { transform: translateX(var(--amplitude)); }
 }
 
-// Рябь двигается через transform: это делает видеокарта, без перерисовки каждый кадр
 .city-water__ripple {
   position: absolute;
   top: 79.5%;
@@ -98,7 +95,6 @@ const glints = Array.from({ length: GLINT_COUNT }, (_, index) => {
   to { transform: translateY(24px); }
 }
 
-// Короткие блики в отражениях огней под арками
 .city-water__glint {
   position: absolute;
   width: 2.4%;

@@ -26,31 +26,22 @@ import { NatStudents } from '@/shared'
 </script>
 
 <style scoped lang="scss">
+@use '@/assets/styles/mixins' as *;
+
 .how-it-works {
-  display: flex;
-  flex-direction: column;
-  // От заголовка до содержимого 24px, как в остальных блоках; между ролями — 40px (ниже)
-  gap: 24px;
-  // Сверху почти без отступа: у первого экрана над этим блоком уже свой нижний отступ
-  padding: 8px 20px 48px;
+  @include section;
+
   // Наезд на 1px на секцию выше: при дробной высоте той секции иначе проступает щель с фоном страницы
   margin-top: -1px;
-  // Голубые пятна боке «рамкой». Каждое стоит не ближе своего радиуса к верху и низу блока,
-  // иначе его обрежет ровной линией на стыке с соседней секцией
   background:
-    radial-gradient(circle 160px at -14% 200px, rgb(var(--rgb-blue) / 0.49), rgb(var(--rgb-blue) / 0.2) 60%, transparent),
-    radial-gradient(circle 140px at 114% 45%, rgb(var(--rgb-blue) / 0.45), rgb(var(--rgb-blue) / 0.18) 60%, transparent),
-    radial-gradient(circle 180px at -12% calc(100% - 190px), rgb(var(--rgb-blue) / 0.43), rgb(var(--rgb-blue) / 0.16) 60%, transparent),
+    bokeh(var(--rgb-blue), 160px, -14% 200px, 0.49),
+    bokeh(var(--rgb-blue), 140px, 114% 45%, 0.45),
+    bokeh(var(--rgb-blue), 180px, -12% bottom 190px, 0.43),
     var(--color-white);
 }
 
 .how-it-works__title {
-  margin: 0;
-  color: var(--color-text);
-  font-family: var(--font-display);
-  font-size: 26px;
-  font-weight: 700;
-  line-height: 1.2;
+  @include section-title;
 }
 
 .how-it-works__role + .how-it-works__role {
@@ -58,7 +49,6 @@ import { NatStudents } from '@/shared'
 }
 
 .how-it-works__nat {
-  // Тот же масштаб, что у музыкального Ната и Ната-лампочки
   --nat-unit: 0.34px;
 
   display: flex;
@@ -70,13 +60,11 @@ import { NatStudents } from '@/shared'
   margin-top: -10px;
 }
 
-// Цветная точка перед ролью — как у пунктов меню
 .how-it-works__role-title {
   display: flex;
   align-items: center;
   gap: 10px;
   margin: 0 0 10px;
-  color: var(--color-text);
   font-family: var(--font-display);
   font-size: 18px;
   font-weight: 700;
@@ -101,9 +89,6 @@ import { NatStudents } from '@/shared'
 }
 
 .how-it-works__text {
-  margin: 0;
-  color: var(--color-text);
-  font-size: 16px;
-  line-height: 1.5;
+  @include body-text;
 }
 </style>

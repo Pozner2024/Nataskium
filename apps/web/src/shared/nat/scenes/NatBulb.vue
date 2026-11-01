@@ -182,7 +182,6 @@ function calcLook() {
 
 function calcAntenna() {
   const top = 136 - ANTENNA_HEIGHT * spring.stretch
-  // Мини-лампочка на макушке горит вместе с большой
   const glow = 0.15 + light * 0.85
   return {
     angle: spring.angle,
@@ -205,7 +204,6 @@ function idea() {
   robot.value?.rejoice(IDEA_DURATION_MS)
 }
 
-// В покое колба тлеет и мерцает, а раз в 9–14 секунд сама вспыхивает «идеей»
 function updateLight(dt: number) {
   time += dt
   if (time > nextIdea) {
@@ -215,7 +213,6 @@ function updateLight(dt: number) {
   const isBright = isOn.value || time < ideaUntil
   const flicker = Math.random() < FLICKER_CHANCE ? 0.12 : 0
   const target = isBright ? 0.92 + 0.08 * Math.sin(time * 9) : 0.1 + 0.04 * Math.sin(time * 1.7) + flicker
-  // Загорается быстро, гаснет медленнее
   const fadeRate = isOn.value || ideaUntil > 0 ? 0.04 : 0.09
   light += (target - light) * (target > light ? 0.18 : fadeRate)
 }
@@ -229,7 +226,6 @@ const { requestFrame } = useFrameLoop((rawDt) => {
   antenna.value = calcAntenna()
 })
 
-// Клик — выключатель: включили — Нату пришла идея; выключили — лампочка гаснет
 function onPress() {
   kickSpring(spring)
   isOn.value = !isOn.value

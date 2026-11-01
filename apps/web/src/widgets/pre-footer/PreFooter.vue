@@ -38,12 +38,11 @@ const SMALL_STARS: StarPoint[] = [
 </script>
 
 <style scoped lang="scss">
-// Низ секции заходит на картинку футера и растворяется: у неба есть зерно и звёзды,
-// и стык гладкого градиента с ним без растворения виден как полоса.
+@use '@/assets/styles/mixins' as *;
+
 // --rgb-night-sky — цвет верха sky.webp
 .pre-footer {
   --overlap: 40px;
-  --padding-x: 20px;
   --padding-bottom: 24px;
 
   position: relative;
@@ -51,7 +50,7 @@ const SMALL_STARS: StarPoint[] = [
   // Наезд на 1px на секцию выше: при дробной высоте той секции иначе проступает щель с фоном страницы
   margin-top: -1px;
   margin-bottom: calc(-1 * var(--overlap));
-  padding: 32px var(--padding-x) calc(var(--padding-bottom) + var(--overlap));
+  padding: 32px var(--gutter) calc(var(--padding-bottom) + var(--overlap));
   text-align: center;
   background:
     linear-gradient(
@@ -64,10 +63,9 @@ const SMALL_STARS: StarPoint[] = [
       )
       // +1px: при дробной высоте секции между слоями иначе остаётся щель в пиксель
       bottom / 100% calc(var(--overlap) + 1px) no-repeat,
-    // Голубые пятна боке в светлой верхней части (ниже их съедает синий градиент); не ближе своего радиуса к верху блока
-    radial-gradient(circle 150px at -14% 190px, rgb(var(--rgb-blue) / 0.36), rgb(var(--rgb-blue) / 0.14) 60%, transparent) no-repeat,
-    radial-gradient(circle 140px at 114% 250px, rgb(var(--rgb-blue) / 0.36), rgb(var(--rgb-blue) / 0.14) 60%, transparent) no-repeat,
-    radial-gradient(circle 80px at 88% 90px, rgb(var(--rgb-blue) / 0.3), rgb(var(--rgb-blue) / 0.1) 60%, transparent) no-repeat,
+    bokeh(var(--rgb-blue), 150px, -14% 190px, 0.36) no-repeat,
+    bokeh(var(--rgb-blue), 140px, 114% 250px, 0.36) no-repeat,
+    bokeh(var(--rgb-blue), 80px, 88% 90px, 0.3) no-repeat,
     linear-gradient(
         to bottom,
         var(--color-white) 0%,
@@ -75,7 +73,7 @@ const SMALL_STARS: StarPoint[] = [
         var(--bg-end) 40%,
         #91b8e9 62%,
         var(--color-blue) 80%,
-        // Синий → небо по кривой smootherstep: к низу цвет меняется всё медленнее, без излома на стыке
+        // Стопы до конца подобраны по кривой smootherstep: иначе на стыке с небом виден излом
         #416fef 84%,
         #305dd9 88%,
         #1743bb 92%,
@@ -90,18 +88,15 @@ const SMALL_STARS: StarPoint[] = [
   // --color-blue на светлом верху градиента не дотягивает до контраста 4.5:1
   color: var(--color-blue-dark);
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
 .pre-footer__title {
+  @include section-title;
+
   margin: 16px 0;
-  color: var(--color-text);
-  font-family: var(--font-display);
-  // Как заголовки остальных блоков главной («Как начать» и др.)
-  font-size: 26px;
-  line-height: 1.1;
 }
 
 .pre-footer__accent {
@@ -109,9 +104,9 @@ const SMALL_STARS: StarPoint[] = [
 }
 
 .pre-footer__description {
-  margin: 0 0 32px;
-  color: var(--color-text-muted);
-  line-height: 1.6;
+  @include body-text;
+
+  margin-bottom: 32px;
 }
 
 .pre-footer__button {
@@ -119,9 +114,9 @@ const SMALL_STARS: StarPoint[] = [
 }
 
 .pre-footer__nat {
-  // Нат меньше, чем в остальных сценах: здесь он акцент, а не герой
   --nat-unit: 0.34px;
   --nat-gap: 32px;
+  --focus-color: var(--color-white);
 
   position: relative;
   display: flex;
@@ -129,15 +124,12 @@ const SMALL_STARS: StarPoint[] = [
   margin-top: var(--nat-gap);
 }
 
-// Звёзды неба футера продолжаются вверх по градиенту до кнопки и растворяются к ней
 .pre-footer__stars {
   --star-size: 18px;
   --star-small-size: 6px;
 
   position: absolute;
-  inset: calc(-1 * var(--nat-gap)) calc(-1 * var(--padding-x)) calc(-1 * var(--padding-bottom));
-  // stars.webp — звёзды с верха sky.webp на чёрном (фон неба вычтен), в масштабе сцены футера на мобильном.
-  // screen: чёрное не меняет градиент, звёзды светятся поверх
+  inset: calc(-1 * var(--nat-gap)) calc(-1 * var(--gutter)) calc(-1 * var(--padding-bottom));
   background: url('./images/stars.webp') top center / 266px auto;
   mix-blend-mode: screen;
   mask-image: linear-gradient(to bottom, transparent, var(--color-white) 35%);
@@ -147,5 +139,11 @@ const SMALL_STARS: StarPoint[] = [
 // Позиционирован, чтобы рисоваться поверх звёзд, которые идут раньше в разметке
 .pre-footer__robot {
   position: relative;
+
+  // Фон вокруг робота идёт от светлого к тёмному: ни один цвет рамки не даёт на нём 3:1,
+  // поэтому рамка лежит на тёмной подложке. 13px — отступ рамки 8px, её толщина 2px и край 3px
+  &:focus-visible {
+    box-shadow: 0 0 0 13px rgb(var(--rgb-night) / 0.5);
+  }
 }
 </style>

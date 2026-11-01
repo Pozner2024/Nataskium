@@ -26,8 +26,6 @@ const lamps = LAMPS.map(({ x, y, glowSize }) => {
 </script>
 
 <style scoped lang="scss">
-// Яркий ореол поверх нарисованного фонаря. Иногда ореол гаснет (остаётся только рисунок)
-// и снова загорается с коротким миганием
 .city-lamps__glow {
   position: absolute;
   aspect-ratio: 1;

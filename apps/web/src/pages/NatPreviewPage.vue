@@ -20,7 +20,6 @@ import type { Component } from 'vue'
 import { useSeoMeta } from '#imports'
 import { NatAtom, NatBrain, NatBulb, NatCards, NatGalaxy, NatGear, NatGeometry, NatLetters, NatMusic, NatSaturn, NatStudents, NatTeacher } from '@/shared'
 
-// Служебная страница для просмотра Натов — поисковикам не нужна
 useSeoMeta({ robots: 'noindex, nofollow' })
 
 interface PreviewScene {

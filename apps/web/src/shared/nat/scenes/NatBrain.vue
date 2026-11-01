@@ -181,7 +181,6 @@ for (let i = 0; i < NEURON_COUNT; i++) {
   })
 }
 
-// Синапсы: каждый нейрон — к двум-трём ближайшим соседям; ближние к Нату — ещё и к корпусу
 const edges: Edge[] = []
 function link(a: number, b: number) {
   const key = a < b ? `${a}-${b}` : `${b}-${a}`
@@ -258,7 +257,6 @@ let networkTime = 0
 let nextSpark = 0
 let speed = 1
 
-// Импульс дошёл до нейрона — тот вспыхивает и чаще всего передаёт сигнал соседу
 function stepNetwork(dt: number) {
   networkTime += dt
   for (const node of nodes) {
@@ -310,7 +308,6 @@ function calcNetwork() {
   return { edges: edgeViews, pulses: pulseViews, neurons: neuronViews }
 }
 
-// Три отростка с шариками цветов нейронов; сигналы мигают на них по очереди
 const DENDRITE_LAYOUTS: Omit<Dendrite, 'spring' | 'phase'>[] = [
   { direction: -0.5, length: 70, color: 'G', radius: 10 },
   { direction: 0.04, length: 92, color: 'B', radius: 11 },
@@ -326,7 +323,6 @@ let antennaTime = 0
 let nextDendrite = 0.6
 let dendriteIndex = 0
 
-// Гибкий отросток — квадратичная кривая от макушки к шарику
 function stalkCurve(angle: number, direction: number, length: number) {
   const tipAngle = direction + angle * 1.6
   const midAngle = direction + angle * 0.5
@@ -380,7 +376,6 @@ const { requestFrame } = useFrameLoop((rawDt) => {
   antenna.value = calcAntenna()
 })
 
-// Клик: залп импульсов из Ната во все стороны
 function onPress() {
   speed = JOY_SPEED
   for (const edge of neighbours[0]!) emitPulse(edge, 0)

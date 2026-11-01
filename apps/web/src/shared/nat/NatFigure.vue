@@ -104,7 +104,6 @@ const ids = {
 
 const leanTransform = computed(() => `rotate(${props.gaze.x * LEAN_DEG} ${HEAD_CENTER.x} ${HEAD_CENTER.y})`)
 
-// Визор едет по шару к курсору и сужается у края — как поворот головы
 const lookTransform = computed(() => {
   const { x, y } = props.gaze
   const scaleX = 1 - Math.abs(x) * VISOR_SQUEEZE.x

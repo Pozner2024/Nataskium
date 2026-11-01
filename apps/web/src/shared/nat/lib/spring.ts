@@ -29,7 +29,6 @@ export function idleSway(time: number, phase = 0, amplitude = IDLE_SWAY) {
   return amplitude * Math.sin(time * IDLE_SWAY_RATE + phase)
 }
 
-// Антенна качается к положению покоя idleAngle, длина пружинит к 1, вспышка затухает
 export function stepSpring(spring: Spring, dt: number, idleAngle: number, flashDecay = DEFAULT_FLASH_DECAY) {
   spring.angularVelocity += (-ANGLE_STIFFNESS * (spring.angle - idleAngle) - ANGLE_DAMPING * spring.angularVelocity) * dt
   spring.angle += spring.angularVelocity * dt

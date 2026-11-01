@@ -9,7 +9,6 @@
       <img class="footer-city__layer footer-city__layer--city" :src="cityImage" alt="" loading="lazy">
 
       <CityWater />
-      <CityWindows />
       <CityFlask />
 
       <div
@@ -54,7 +53,6 @@ import CityFlask from './CityFlask.vue'
 import CityLamps from './CityLamps.vue'
 import CityStars from './CityStars.vue'
 import CityWater from './CityWater.vue'
-import CityWindows from './CityWindows.vue'
 import cityImage from '../images/city.webp'
 import cloudsLeftImage from '../images/clouds-left.webp'
 import cloudsRightImage from '../images/clouds-right.webp'
@@ -69,14 +67,12 @@ const TRUCKS = [{ modifier: 'back' }, { modifier: 'front' }]
 </script>
 
 <style scoped lang="scss">
-// Видимая часть сцены — обрезанная картинка 2067×630. На узком экране сцена не сжимается мельче
-// минимальной ширины, а показывает середину города
 $scene-min-width: 800px;
 
 .footer-city {
   position: relative;
   width: max(100%, $scene-min-width);
-  // Когда экран уже сцены, отрицательный отступ сдвигает её влево на половину лишней ширины
+  // Когда экран уже сцены, отступ сдвигает её влево на половину лишней ширины: в кадре остаётся середина города
   margin-left: min(0px, calc((100% - #{$scene-min-width}) / 2));
   aspect-ratio: 2067 / 630;
   overflow: hidden;
@@ -112,7 +108,6 @@ $scene-min-width: 800px;
   inset: 0;
 }
 
-// Облака стоят за силуэтом города и «дышат»: раздуваются от своего края сцены к центру неба
 .footer-city__cloud {
   position: absolute;
   animation: breathe ease-in-out infinite;
@@ -141,7 +136,6 @@ $scene-min-width: 800px;
   50% { transform: translateY(-2%) scale(1.05, 1.065); opacity: 1; }
 }
 
-// Вертолёты летят навстречу друг другу. Без анимации (prefers-reduced-motion) висят в небе
 .footer-city__heli-lane--front {
   transform: translateX(25%);
   animation: fly-right 42s linear infinite;
@@ -181,7 +175,6 @@ $scene-min-width: 800px;
   transform: scaleX(-1) rotate(4deg);
 }
 
-// По кольцу винта бегает блик — кажется, что винт вращается
 .footer-city__rotor {
   position: absolute;
   top: 0;
@@ -224,7 +217,6 @@ $scene-min-width: 800px;
   to { rotate: 360deg; }
 }
 
-// Грузовички едут по мосту в разные стороны и прячутся за деревьями по краям
 .footer-city__truck-lane--front {
   transform: translateX(35%);
   animation: drive-right 36s linear infinite;

@@ -27,6 +27,8 @@ const currentYear = useState('footer-year', () => new Date().getFullYear())
 
 <style scoped lang="scss">
 .app-footer {
+  --focus-color: var(--color-white);
+
   overflow: hidden;
   background: var(--color-night);
 }
@@ -37,7 +39,7 @@ const currentYear = useState('footer-year', () => new Date().getFullYear())
 }
 
 .app-footer__nav {
-  padding: 24px 20px;
+  padding: 24px var(--gutter);
 }
 
 .app-footer__bottom {
@@ -45,7 +47,7 @@ const currentYear = useState('footer-year', () => new Date().getFullYear())
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  margin-inline: 20px;
+  margin-inline: var(--gutter);
   padding: 12px 0 16px;
   border-top: 1px solid rgb(var(--rgb-night-text) / 0.2);
 }
@@ -55,13 +57,11 @@ const currentYear = useState('footer-year', () => new Date().getFullYear())
   align-items: center;
   // Не меньше 120px: иначе глаза робо-«a» меньше 2px и моргание с улыбкой не читаются
   width: 120px;
-  // Лого всего ~23px в высоту — зону нажатия добираем до 44px
   min-height: 44px;
 }
 
 .app-footer__copyright {
   margin: 0;
-  // Центр строки совпадает с центром рамки лого, а её верх занимает антенна — опускаем © к буквам
   padding-top: 4px;
   color: var(--color-night-text);
   font-size: 14px;

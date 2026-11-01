@@ -11,7 +11,7 @@
           </NuxtLink>
         </li>
       </ul>
-      <button class="app-header__login" type="button">Войти</button>
+      <AppButton class="app-header__login" color="blue">Войти</AppButton>
     </nav>
 
     <div class="app-header__bar">
@@ -40,7 +40,7 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue'
 import { useRoute } from '#imports'
-import { AppLogo } from '@/shared'
+import { AppButton, AppLogo } from '@/shared'
 
 defineProps<{
   // Голубое пятно боке в правом углу — его продолжает фон первого экрана главной
@@ -121,13 +121,23 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped lang="scss">
+@use 'sass:math';
+@use '@/assets/styles/mixins' as *;
+
 $line-height: 4px;
 $line-gap: 6px;
 $line-step: $line-height + $line-gap;
+$line-width: 28px;
+$line-width-green: 18px;
+$line-width-orange: 24px;
+
+// Короткая полоска бургера: прижата влево, как раньше при обычной ширине
+@function shortened-line($width) {
+  @return translateX(($width - $line-width) * 0.5) scaleX(math.div($width, $line-width));
+}
 
 $menu-duration: 0.3s;
 
-// Шапка прилипает к верху экрана при прокрутке; шторка меню выезжает из-под неё в любом месте страницы
 .app-header {
   position: sticky;
   top: 0;
@@ -140,14 +150,13 @@ $menu-duration: 0.3s;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 12px 20px;
+  padding: 12px var(--gutter);
   background: var(--color-white);
 }
 
-// Центр пятна на 18px выше низа шапки — так же, как в HomeHero (at 112% -18px от его верха): шва нет
 .app-header--glow .app-header__bar {
   background:
-    radial-gradient(circle 200px at 112% calc(100% - 18px), rgb(var(--rgb-blue) / 0.38), rgb(var(--rgb-blue) / 0.16) 60%, transparent),
+    header-glow(),
     var(--color-white);
 }
 
@@ -168,7 +177,6 @@ $menu-duration: 0.3s;
   transition: opacity $menu-duration ease;
 }
 
-// Шторка выезжает из-под полосы шапки
 .app-header__menu {
   position: absolute;
   top: 100%;
@@ -213,9 +221,17 @@ $menu-duration: 0.3s;
   color: var(--color-text);
   font-weight: 500;
   text-decoration: none;
-  background: #f3f6fe;
+  background: rgb(var(--rgb-blue) / 0.065);
+  transition: background-color 0.2s ease;
 
-  // Цветная точка: синий → зелёный → оранжевый по кругу, как полоски бургера
+  &:hover {
+    background: rgb(var(--rgb-blue) / 0.13);
+  }
+
+  &:active {
+    background: rgb(var(--rgb-blue) / 0.2);
+  }
+
   &::before {
     content: '';
     flex: none;
@@ -223,11 +239,6 @@ $menu-duration: 0.3s;
     height: 10px;
     border-radius: 50%;
     background: var(--color-blue);
-  }
-
-  &:focus-visible {
-    outline: 3px solid var(--color-text);
-    outline-offset: 2px;
   }
 }
 
@@ -240,24 +251,13 @@ li:nth-child(3n + 3) > .app-header__item::before {
 }
 
 .app-header__item--active {
-  background: #e6edfe;
+  background: rgb(var(--rgb-blue) / 0.13);
   box-shadow: inset 0 0 0 2px var(--color-blue);
 }
 
-.app-header__login {
-  min-height: 50px;
-  border: 0;
-  border-radius: 999px;
-  color: var(--color-white);
-  font: inherit;
-  font-weight: 600;
-  background: var(--color-blue-dark);
-  cursor: pointer;
-
-  &:focus-visible {
-    outline: 3px solid var(--color-text);
-    outline-offset: 3px;
-  }
+// Селектор сильнее: ширина самой кнопки задана в AppButton, а порядок scoped-стилей не гарантирован
+.app-header__menu .app-header__login {
+  width: 100%;
 }
 
 .app-header__logo {
@@ -265,11 +265,9 @@ li:nth-child(3n + 3) > .app-header__item::before {
   align-items: center;
   // Не меньше 120px: иначе глаза робо-«a» меньше 2px и моргание с улыбкой не читаются
   width: 120px;
-  // Лого всего ~23px в высоту — зону нажатия добираем до 44px
   min-height: 44px;
 }
 
-// Полоски разной длины, выровнены по левому краю — цвета бренда
 .app-header__burger {
   display: flex;
   flex-direction: column;
@@ -277,8 +275,7 @@ li:nth-child(3n + 3) > .app-header__item::before {
   justify-content: center;
   gap: $line-gap;
   width: 44px;
-  // Полоски прижаты влево внутри кнопки с отступом 8px — сдвигаем кнопку, чтобы полоски
-  // заканчивались в 20px от края экрана, как лого начинается в 20px слева
+  // Компенсирует padding: полоски заканчиваются в 20px от края экрана, как лого начинается слева
   margin-right: -8px;
   height: 44px;
   padding: 0 8px;
@@ -287,40 +284,41 @@ li:nth-child(3n + 3) > .app-header__item::before {
   background: none;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.2s ease;
 
-  &:focus-visible {
-    outline: 3px solid var(--color-text);
-    outline-offset: 2px;
+  // На телефоне :hover залипает после тапа, и подложка осталась бы после закрытия меню
+  @media (hover: hover) {
+    &:hover {
+      background: rgb(var(--rgb-blue) / 0.1);
+    }
+  }
+
+  &:active {
+    background: rgb(var(--rgb-blue) / 0.2);
   }
 }
 
 .app-header__line {
+  width: $line-width;
   height: $line-height;
   border-radius: $line-height;
   transition:
-    width 0.25s ease,
     transform 0.25s ease,
     opacity 0.2s ease;
 }
 
 .app-header__line--blue {
-  width: 28px;
   background: var(--color-blue);
 }
 
 .app-header__line--green {
-  width: 18px;
   background: var(--color-green);
+  transform: shortened-line($line-width-green);
 }
 
 .app-header__line--orange {
-  width: 24px;
   background: var(--color-orange);
-}
-
-// Открыто: синяя и оранжевая сходятся в крестик через место зелёной, зелёная исчезает
-.app-header__burger--open .app-header__line {
-  width: 28px;
+  transform: shortened-line($line-width-orange);
 }
 
 .app-header__burger--open .app-header__line--blue {
@@ -336,6 +334,8 @@ li:nth-child(3n + 3) > .app-header__item::before {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .app-header__item,
+  .app-header__burger,
   .app-header__line,
   .app-header__dim,
   .app-header__menu {

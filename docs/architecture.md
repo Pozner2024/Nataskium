@@ -214,6 +214,7 @@ ESLint правило `no-restricted-imports` проверяет и запрещ
 ```
 assets/styles/
 ├── breakpoints.module.scss ← миксины tablet / desktop
+├── mixins.scss             ← заголовок, текст, секция, пункт списка, боке
 └── global.scss             ← CSS-переменные в :root (цвета бренда, шрифты, z-index, layout), сброс и базовые стили
 ```
 

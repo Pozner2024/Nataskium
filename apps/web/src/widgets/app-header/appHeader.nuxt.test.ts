@@ -79,6 +79,15 @@ describe('AppHeader', () => {
       expect(wrapper.find('.app-header__logo').attributes('href')).toBe('/')
     })
 
+    it('«Войти» — AppButton со стрелкой', async () => {
+      await mountHeader()
+
+      const login = wrapper.find('.app-header__login')
+      expect(login.element.tagName).toBe('BUTTON')
+      expect(login.classes()).toEqual(expect.arrayContaining(['app-button', 'app-button--blue']))
+      expect(login.find('.app-button__arrow').exists()).toBe(true)
+    })
+
     it('включает пятно боке только по пропу hasGlow', async () => {
       await mountHeader()
       expect(wrapper.find('.app-header').classes()).not.toContain('app-header--glow')

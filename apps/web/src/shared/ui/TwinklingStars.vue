@@ -45,9 +45,6 @@ const stars = [
 </script>
 
 <style scoped lang="scss">
-// Звёзды почти всё время горят тускло, потом резко вспыхивают и гаснут.
-// Крупные — с лучами-крестиком, мелкие — точки.
-// Размер по умолчанию — доля ширины родителя; задаётся снаружи через --star-size и --star-small-size
 .twinkling-stars__star {
   position: absolute;
   width: var(--star-size, 2.2%);

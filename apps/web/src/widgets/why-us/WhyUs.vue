@@ -35,30 +35,23 @@ const REASONS: Reason[] = [
 </script>
 
 <style scoped lang="scss">
+@use '@/assets/styles/mixins' as *;
+
 .why-us {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  padding: 8px 20px 48px;
-  // Оранжевые пятна боке «рамкой»; каждое не ближе своего радиуса к верху и низу блока — без обрезов на стыках
+  @include section;
+
   background:
-    radial-gradient(circle 150px at 114% 180px, rgb(var(--rgb-orange) / 0.49), rgb(var(--rgb-orange) / 0.2) 60%, transparent),
-    radial-gradient(circle 140px at -14% 50%, rgb(var(--rgb-orange) / 0.45), rgb(var(--rgb-orange) / 0.18) 60%, transparent),
-    radial-gradient(circle 170px at 112% calc(100% - 180px), rgb(var(--rgb-orange) / 0.43), rgb(var(--rgb-orange) / 0.16) 60%, transparent),
+    bokeh(var(--rgb-orange), 150px, 114% 180px, 0.49),
+    bokeh(var(--rgb-orange), 140px, -14% 50%, 0.45),
+    bokeh(var(--rgb-orange), 170px, 112% bottom 180px, 0.43),
     var(--color-white);
 }
 
 .why-us__title {
-  margin: 0;
-  color: var(--color-text);
-  font-family: var(--font-display);
-  font-size: 26px;
-  font-weight: 700;
-  line-height: 1.2;
+  @include section-title;
 }
 
 .why-us__nat {
-  // Тот же масштаб, что у Ната-лампочки в префутере (PreFooter)
   --nat-unit: 0.34px;
 
   display: flex;
@@ -74,31 +67,14 @@ const REASONS: Reason[] = [
   list-style: none;
 }
 
-// Галочка «от руки»: несимметричная, с чуть изогнутым длинным штрихом, как карандашом;
-// толщина 4.5 — как у оранжевой волны под заголовком первого экрана.
-// Рисуется маской, чтобы цвет брался из переменной бренда. Ширина 26px — как кружки номеров
-// «Как начать»: текст обоих списков начинается с одной линии
 .why-us__item {
-  display: flex;
-  align-items: flex-start;
-  gap: 14px;
+  --check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 26' fill='none' stroke='black' stroke-width='4.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.6 14.4c1.7.5 3.4 2 4.6 4.1.5.8.9 1.6 1.2 2.3'/%3E%3Cpath d='M9.4 20.6c1.8-4.6 4.9-9.4 8.6-13.1 1.6-1.6 3.1-2.8 4.6-3.7'/%3E%3C/svg%3E");
 
-  &::before {
-    content: '';
-    flex: none;
-    width: 26px;
-    height: 26px;
-    margin-top: -1px;
-    background: var(--color-green);
-    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 26' fill='none' stroke='black' stroke-width='4.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.6 14.4c1.7.5 3.4 2 4.6 4.1.5.8.9 1.6 1.2 2.3'/%3E%3Cpath d='M9.4 20.6c1.8-4.6 4.9-9.4 8.6-13.1 1.6-1.6 3.1-2.8 4.6-3.7'/%3E%3C/svg%3E") center / contain no-repeat;
-  }
+  @include list-item(var(--color-green), var(--check));
 }
 
 .why-us__text {
-  margin: 0;
-  color: var(--color-text);
-  font-size: 16px;
-  line-height: 1.5;
+  @include body-text;
 }
 
 .why-us__lead {

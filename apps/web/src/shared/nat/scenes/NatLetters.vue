@@ -216,7 +216,6 @@ function stepLetter(letter: Letter, dt: number) {
   } else {
     letter.blend = Math.max(0, letter.blend - dt / SCATTER_S)
   }
-  // Переворот: буква сжимается по ширине, меняется и разжимается
   if (letter.flip < 1) {
     letter.flip = Math.min(1, letter.flip + dt / FLIP_S)
     if (letter.flip >= 0.5 && letter.nextChar) {
@@ -239,7 +238,6 @@ function calcLetter(letter: Letter) {
   if (letter.target || letter.blend > 0) {
     const targetX = letter.target ? letter.target.x : orbitX
     const targetY = letter.target ? letter.target.y : orbitY
-    // Собранная фраза подпрыгивает волной
     const hop = letter.slot >= 0 && letter.blend === 1 ? -9 * Math.max(0, Math.sin(time * 6 - letter.slot * 0.5)) : 0
     x = orbitX + (targetX - orbitX) * k
     y = orbitY + (targetY + hop - orbitY) * k
@@ -257,7 +255,6 @@ function calcLetter(letter: Letter) {
   }
 }
 
-// Пока фраза складывается, курсор горит ровно и подпрыгивает, будто печатает; когда собрана — вспыхивает
 function stepAntenna(dt: number) {
   antennaTime += dt
   if (typingTime >= 0) {

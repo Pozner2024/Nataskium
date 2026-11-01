@@ -98,12 +98,11 @@ defineExpose({ rejoice, calm })
   -webkit-tap-highlight-color: transparent;
 
   &:focus-visible {
-    outline: 2px solid var(--color-blue);
+    outline: 2px solid var(--focus-color);
     outline-offset: 8px;
     border-radius: 24px;
   }
 
-  // За экраном CSS-анимации сцены (в том числе из слотов) стоят на паузе
   &--paused,
   &--paused :deep(*) {
     animation-play-state: paused !important;

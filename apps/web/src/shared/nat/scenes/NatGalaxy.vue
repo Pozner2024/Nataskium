@@ -144,7 +144,6 @@ const ids = {
 
 const spiral = (arm: number, r: number) => arm * 2 * Math.PI / ARMS + Math.log(r / 150) * WIND
 
-// Звёзды на логарифмических спиралях с разбросом; ближе к ядру — гуще и крупнее.
 // Порядок вызовов random задаёт раскладку, поэтому звёзды диска, крупные и дальние считаются строго по очереди
 const random = createSeededRandom(RANDOM_SEED)
 
@@ -264,7 +263,6 @@ function addGlint(isBig: boolean) {
   })
 }
 
-// Звезда вспыхивает: лучи вырастают, чуть поворачиваются и гаснут
 function updateGlints(dt: number) {
   untilGlint -= dt * speed
   if (untilGlint <= 0) {

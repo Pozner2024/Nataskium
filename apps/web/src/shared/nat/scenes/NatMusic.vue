@@ -1,7 +1,6 @@
 <template>
   <NatRobot class="nat-music" label="Нат-музыкант. Нажми, чтобы он спел" follows-cursor :view-box="bounds.viewBox" @press="onPress">
     <template #defs>
-      <!-- стан гаснет к краям сцены -->
       <linearGradient :id="ids.staffFade" :x1="bounds.left" y1="0" :x2="bounds.right" y2="0" gradientUnits="userSpaceOnUse">
         <stop offset="0" stop-color="#4573F4" stop-opacity="0" />
         <stop offset=".18" stop-color="#4573F4" stop-opacity=".55" />
@@ -57,8 +56,6 @@ const CENTER = { x: 255, y: 280.5 }
 const STAFF = { y: 300, gap: 13, amplitude: 22, wave: 0.012, flow: 1.6 }
 const STAFF_LINE_COUNT = 5
 const STAFF_STEP_X = 14
-// Нотный стан тянется от края до края сцены и растворяется к краям.
-// Компактная сцена для узких блоков: стан короче, без пустых полей сверху и снизу
 const WIDE_BOUNDS = { left: -95, right: 615, viewBox: '-95 -40 710 620' }
 const COMPACT_BOUNDS = { left: -45, right: 555, viewBox: '-45 70 600 380' }
 const bounds = props.compact ? COMPACT_BOUNDS : WIDE_BOUNDS
@@ -235,7 +232,6 @@ function onPress() {
 </script>
 
 <style scoped lang="scss">
-// Нат покачивается в такт — примерно 110 ударов в минуту, чашки наушников пульсируют на каждый удар
 .nat-music {
   :deep(.nat-robot__float) {
     transform-origin: 50% 80%;

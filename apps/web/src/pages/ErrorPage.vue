@@ -35,12 +35,14 @@ useSeoMeta({ title: () => text.value.title, robots: 'noindex, nofollow' })
 </script>
 
 <style scoped lang="scss">
+@use '@/assets/styles/mixins' as *;
+
 .error-page {
   display: flex;
   flex: 1;
   flex-direction: column;
   align-items: center;
-  padding: 32px 20px 48px;
+  padding: 32px var(--gutter) 48px;
   text-align: center;
   background: var(--color-white);
 }
@@ -54,16 +56,15 @@ useSeoMeta({ title: () => text.value.title, robots: 'noindex, nofollow' })
 }
 
 .error-page__title {
+  @include section-title;
+
   margin: 12px 0;
-  color: var(--color-text);
-  font-family: var(--font-display);
-  font-size: 26px;
-  line-height: 1.1;
 }
 
 .error-page__description {
-  margin: 0 0 32px;
+  @include body-text;
+
+  margin-bottom: 32px;
   color: var(--color-text-muted);
-  line-height: 1.6;
 }
 </style>

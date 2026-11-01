@@ -1,0 +1,89 @@
+@use 'sass:list';
+@use 'sass:math';
+@use 'sass:meta';
+
+$list-marker-size: 26px;
+$list-marker-gap: 14px;
+$bokeh-middle-share: 0.4;
+$seam-glow-center: 18px;
+
+@mixin body-text {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+@mixin section-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.2;
+  overflow-wrap: break-word;
+}
+
+@mixin section {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 8px var(--gutter) 48px;
+}
+
+// $mask — картинка маркера: цвет идёт из $color, поэтому один файл SVG подходит к любому цвету бренда
+@mixin list-item($color, $mask) {
+  display: flex;
+  align-items: flex-start;
+  gap: $list-marker-gap;
+
+  &::before {
+    content: '';
+    flex: none;
+    width: $list-marker-size;
+    height: $list-marker-size;
+    margin-top: -1px;
+    background: $color;
+    mask: $mask center / contain no-repeat;
+  }
+}
+
+// $position: «x y» от верха блока или «x bottom отступ» от низа. Пятно ближе своего радиуса к краю блока
+// обрезается ровной линией на стыке секций — это ошибка сборки. Позиция в процентах зависит от высоты
+// блока и не проверяется, другие единицы запрещены. $crosses-edge — для пятна, которое продолжается в соседнем блоке
+@function bokeh($rgb, $radius, $position, $alpha, $crosses-edge: false) {
+  @if not list.index(2 3, list.length($position)) or (list.length($position) == 3 and list.nth($position, 2) != bottom) {
+    @error 'Позиция боке: нужно «x y» или «x bottom отступ», получено #{$position}';
+  }
+
+  $x: list.nth($position, 1);
+  $y: list.nth($position, 2);
+  $edge-distance: list.nth($position, -1);
+
+  @if meta.type-of($edge-distance) != number or not list.index(px '%', math.unit($edge-distance)) or math.unit($radius) != px {
+    @error 'Боке: отступ в px или %, радиус в px, получено #{$edge-distance} и #{$radius}';
+  }
+
+  @if list.length($position) == 3 {
+    $y: calc(100% - $edge-distance);
+  }
+
+  @if not $crosses-edge and math.unit($edge-distance) == px and $edge-distance < $radius {
+    @error 'Пятно боке обрежется: #{$edge-distance} до края блока меньше радиуса #{$radius}';
+  }
+
+  $middle-alpha: $alpha * $bokeh-middle-share;
+
+  @return radial-gradient(circle $radius at $x $y, rgb(#{$rgb} / #{$alpha}), rgb(#{$rgb} / #{$middle-alpha}) 60%, transparent);
+}
+
+// Шапка и первый экран рисуют один круг, каждый со своей привязкой по высоте: так на стыке нет шва
+@function -seam-glow($position) {
+  @return bokeh(var(--rgb-blue), 200px, $position, 0.38, $crosses-edge: true);
+}
+
+@function header-glow() {
+  @return -seam-glow(112% bottom $seam-glow-center);
+}
+
+@function hero-glow() {
+  @return -seam-glow(112% (-$seam-glow-center));
+}

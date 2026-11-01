@@ -24,12 +24,9 @@
 import { onBeforeUnmount, onMounted, useTemplateRef } from 'vue'
 
 defineProps<{
-  // Лого стоит на тёмном фоне (например, в футере) — светлая версия
   onDark?: boolean
 }>()
 
-// Глаза робо-«a» ведут себя как у Ната: моргают через случайные промежутки, иногда дважды,
-// а время от времени улыбаются
 const BLINK_MIN_DELAY_MS = 1800
 const BLINK_RANDOM_DELAY_MS = 3200
 const DOUBLE_BLINK_CHANCE = 0.25
@@ -93,11 +90,8 @@ onBeforeUnmount(() => {
 
 <style scoped lang="scss">
 $happy-eye-width: 16;
-// Светлое на тёмном кажется жирнее (иррадиация), хотя контуры те же.
-// Светлую версию подрезаем по краям обводкой цвета фона на столько единиц viewBox
 $on-dark-thinning: 6;
 
-// Размер задаёт родитель через width, высота подстраивается по viewBox
 .app-logo {
   --logo-nat: var(--color-text);
   --logo-askium: var(--color-blue);

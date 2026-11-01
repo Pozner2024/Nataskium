@@ -26,7 +26,6 @@ const route = useRoute()
   min-height: 100vh;
 }
 
-// Колонка, чтобы страница могла растянуться до футера (flex: 1)
 .default-layout__content {
   display: flex;
   flex: 1;

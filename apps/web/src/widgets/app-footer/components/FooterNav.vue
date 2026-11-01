@@ -83,13 +83,11 @@ const GROUPS: FooterGroup[] = [
   list-style: none;
 }
 
-// #9FA9D6 на ночном фоне — 7.4:1; строки не ниже 32px, чтобы по ссылкам было удобно попадать пальцем
 .footer-nav__link,
 .footer-nav__text {
   display: flex;
   align-items: center;
-  min-height: 32px;
-  // Пункты в две строки не слипаются с соседними
+  min-height: 44px;
   padding-block: 4px;
   color: var(--color-night-text);
   font-size: 14px;
@@ -98,16 +96,15 @@ const GROUPS: FooterGroup[] = [
 }
 
 .footer-nav__link {
+  border-radius: 4px;
   text-decoration: none;
 
   &:hover {
     color: var(--color-white);
   }
 
-  &:focus-visible {
-    outline: 2px solid var(--color-white);
-    outline-offset: 2px;
-    border-radius: 4px;
+  &:active {
+    color: var(--color-blue-light);
   }
 }
 </style>

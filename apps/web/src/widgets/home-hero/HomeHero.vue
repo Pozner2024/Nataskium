@@ -60,33 +60,30 @@ import { AppButton, NatCards } from '@/shared'
 </script>
 
 <style scoped lang="scss">
-// Пятна боке «рамкой»: крупные по краям, центр с текстом чистый.
-// Верхнее голубое продолжает пятно в углу шапки (AppHeader, hasGlow) — его центр и цвета должны совпадать.
-// Нижние стоят на радиус выше низа блока: иначе их обрежет ровной линией на стыке со следующей секцией
+@use '@/assets/styles/mixins' as *;
+
 .home-hero {
   // «Искорки» у заголовка на экранах 320px выступают за край — без горизонтальной прокрутки страницы
   overflow-x: clip;
-  padding: 32px 20px 48px;
+  padding: 32px var(--gutter) 48px;
   background:
-    radial-gradient(circle 200px at 112% -18px, rgb(var(--rgb-blue) / 0.38), rgb(var(--rgb-blue) / 0.16) 60%, transparent),
-    radial-gradient(circle 145px at -14% 170px, rgb(var(--rgb-orange) / 0.33), rgb(var(--rgb-orange) / 0.12) 60%, transparent),
-    radial-gradient(circle 155px at -16% 42%, rgb(var(--rgb-green) / 0.43), rgb(var(--rgb-green) / 0.18) 60%, transparent),
-    radial-gradient(circle 145px at 114% 50%, rgb(var(--rgb-orange) / 0.4), rgb(var(--rgb-orange) / 0.15) 60%, transparent),
-    radial-gradient(circle 220px at -16% calc(100% - 230px), rgb(var(--rgb-blue) / 0.36), rgb(var(--rgb-blue) / 0.14) 60%, transparent),
-    radial-gradient(circle 225px at 116% calc(100% - 235px), rgb(var(--rgb-green) / 0.4), rgb(var(--rgb-green) / 0.15) 60%, transparent),
+    hero-glow(),
+    bokeh(var(--rgb-orange), 145px, -14% 170px, 0.33),
+    bokeh(var(--rgb-green), 155px, -16% 42%, 0.43),
+    bokeh(var(--rgb-orange), 145px, 114% 50%, 0.4),
+    bokeh(var(--rgb-blue), 220px, -16% bottom 230px, 0.36),
+    bokeh(var(--rgb-green), 225px, 116% bottom 235px, 0.4),
     var(--color-white);
 }
 
 .home-hero__title {
   margin: 0 0 24px;
-  color: var(--color-text);
   font-family: var(--font-display);
   font-size: 32px;
   font-weight: 700;
   line-height: 1.15;
 }
 
-// Слово-акцент: оранжевая волна под ним и «искорки» справа сверху
 .home-hero__title-mark {
   position: relative;
   display: inline-block;
@@ -132,8 +129,6 @@ import { AppButton, NatCards } from '@/shared'
   gap: 14px;
 }
 
-// Плашки как у карточек Ната: градиент от светлого цвета бренда к основному, значок белый.
-// color — основной цвет, им же рисуются детали значка на белом
 .home-hero__icon {
   display: flex;
   flex: none;
@@ -141,7 +136,6 @@ import { AppButton, NatCards } from '@/shared'
   justify-content: center;
   width: 36px;
   height: 36px;
-  // Верх плашки — на уровне верха букв первой строки, а не верха её строчного блока
   margin-top: 4px;
   border-radius: 10px;
   background: linear-gradient(135deg, var(--icon-light), var(--icon-base));
@@ -158,7 +152,6 @@ import { AppButton, NatCards } from '@/shared'
 
   color: var(--color-blue);
 
-  // Документ с плюсом визуально мельче столбиков и лампочки — выравниваем
   svg {
     width: 23px;
     height: 23px;
@@ -180,10 +173,7 @@ import { AppButton, NatCards } from '@/shared'
 }
 
 .home-hero__text {
-  margin: 0;
-  color: var(--color-text);
-  font-size: 16px;
-  line-height: 1.35;
+  @include body-text;
 }
 
 .home-hero__button {
@@ -191,7 +181,6 @@ import { AppButton, NatCards } from '@/shared'
 }
 
 .home-hero__nat {
-  // Компактная сцена 640 единиц в ширину → около 295px
   --nat-unit: 0.46px;
 
   display: flex;
