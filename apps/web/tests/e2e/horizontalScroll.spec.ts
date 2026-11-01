@@ -9,6 +9,15 @@ async function waitForHydration(page: Page) {
   await page.waitForFunction(() => window.useNuxtApp?.().isHydrating === false)
 }
 
+// Координаты панели имеют смысл только после окончания выезда
+async function waitForPanel(page: Page) {
+  await page.locator('.app-header__menu').evaluate(async (panel) => {
+    // Без чтения стиля браузер ещё не начал анимацию и getAnimations() пуст
+    void getComputedStyle(panel).transform
+    await Promise.all(panel.getAnimations().map(animation => animation.finished))
+  })
+}
+
 function horizontalOverflow(page: Page) {
   return page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
 }
@@ -32,6 +41,7 @@ test.describe('Нет горизонтальной прокрутки', () => {
 
       await page.locator('.app-header__burger').click()
       await expect(page.locator('.app-header__login')).toBeVisible()
+      await waitForPanel(page)
 
       expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0)
       const box = await page.locator('.app-header__login').boundingBox()

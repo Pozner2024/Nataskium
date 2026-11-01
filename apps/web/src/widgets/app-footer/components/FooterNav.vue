@@ -5,8 +5,7 @@
       <ul class="footer-nav__list">
         <li v-for="item in group.items" :key="item.label" class="footer-nav__item">
           <NuxtLink v-if="item.to" class="footer-nav__link" :to="item.to">{{ item.label }}</NuxtLink>
-          <a v-else-if="item.href" class="footer-nav__link" :href="item.href">{{ item.label }}</a>
-          <span v-else class="footer-nav__text">{{ item.label }}</span>
+          <a v-else class="footer-nav__link" :href="item.href">{{ item.label }}</a>
         </li>
       </ul>
     </nav>
@@ -14,49 +13,42 @@
 </template>
 
 <script setup lang="ts">
-interface FooterItem {
-  label: string
-  // Внутренняя страница, которая уже есть
-  to?: string
-  // Страница, которой ещё нет, внешняя ссылка или mailto: — обычная ссылка без проверки маршрута
-  href?: string
-}
+import { SITE_LINKS } from '@/shared'
+import type { SiteLink } from '@/shared'
 
 interface FooterGroup {
   id: string
   title: string
-  items: FooterItem[]
+  items: SiteLink[]
 }
 
 // Заглушка: заменить на настоящий адрес проекта. Личную почту здесь не публикуем — адрес видят все, включая спам-ботов
 const CONTACT_EMAIL = 'hello@nataskium.com'
 
-// Страниц, кроме главной, пока нет: ссылки на будущие адреса идут через href, иначе роутер ругается
-// на несуществующий маршрут. Когда страница появится — заменить href на to
 const GROUPS: FooterGroup[] = [
   {
     id: 'navigation',
     title: 'Навигация',
     items: [
-      { label: 'Главная', to: '/' },
-      { label: 'Войти', href: '/login' },
-      { label: 'Зарегистрироваться', href: '/register' },
-      { label: 'Библиотека заданий', href: '/library' },
-      { label: 'Тарифные планы', href: '/pricing' },
-      // Переключатель появится вместе с переводами сайта
-      { label: 'Язык: Русский' },
+      SITE_LINKS.home,
+      SITE_LINKS.login,
+      SITE_LINKS.register,
+      SITE_LINKS.library,
+      SITE_LINKS.pricing,
+      SITE_LINKS.language,
     ],
   },
   {
     id: 'about',
     title: 'О проекте',
     items: [
-      { label: 'Вопросы и ответы', href: '/faq' },
-      { label: 'Создано Натальей Позняк' },
+      SITE_LINKS.faq,
+      // Заглушка: заменить на настоящий адрес
+      { label: 'Создано Натальей Позняк', href: '/author' },
       { label: 'Политика конфиденциальности', href: '/privacy' },
       { label: 'Условия возврата', href: '/refund' },
       { label: `Связаться: ${CONTACT_EMAIL}`, href: `mailto:${CONTACT_EMAIL}` },
-      { label: 'Центр помощи', href: '/help' },
+      SITE_LINKS.help,
     ],
   },
 ]
@@ -83,8 +75,7 @@ const GROUPS: FooterGroup[] = [
   list-style: none;
 }
 
-.footer-nav__link,
-.footer-nav__text {
+.footer-nav__link {
   display: flex;
   align-items: center;
   min-height: 44px;
@@ -93,9 +84,6 @@ const GROUPS: FooterGroup[] = [
   font-size: 14px;
   line-height: 1.3;
   overflow-wrap: anywhere;
-}
-
-.footer-nav__link {
   border-radius: 4px;
   text-decoration: none;
 

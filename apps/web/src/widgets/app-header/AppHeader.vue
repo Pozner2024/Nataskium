@@ -4,14 +4,27 @@
     <div class="app-header__dim" aria-hidden="true" @click="closeMenu" />
 
     <nav id="app-header-menu" ref="menu" class="app-header__menu" aria-label="Меню" :inert="!isMenuOpen">
-      <ul class="app-header__list">
-        <li v-for="item in MENU_ITEMS" :key="item.to">
-          <NuxtLink class="app-header__item" exact-active-class="app-header__item--active" :to="item.to" @click="closeMenu">
-            {{ item.label }}
-          </NuxtLink>
-        </li>
-      </ul>
-      <AppButton class="app-header__login" color="blue">Войти</AppButton>
+      <div ref="groups" class="app-header__groups">
+        <ul v-for="(group, index) in MENU_GROUPS" :key="index" class="app-header__list">
+          <li v-for="item in group" :key="item.label">
+            <component :is="item.to ? NuxtLink : 'a'" class="app-header__item" v-bind="linkProps(item)" @click="closeMenu">
+              {{ item.label }}
+            </component>
+          </li>
+        </ul>
+      </div>
+
+      <div class="app-header__auth">
+        <AppButton class="app-header__login" color="blue">Войти</AppButton>
+        <component
+          :is="REGISTER_LINK.to ? NuxtLink : 'a'"
+          class="app-header__register"
+          v-bind="linkProps(REGISTER_LINK)"
+          @click="closeMenu"
+        >
+          {{ REGISTER_LINK.label }}
+        </component>
+      </div>
     </nav>
 
     <div class="app-header__bar">
@@ -39,26 +52,28 @@
 
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue'
+import { NuxtLink } from '#components'
 import { useRoute } from '#imports'
-import { AppButton, AppLogo } from '@/shared'
+import { AppButton, AppLogo, SITE_LINKS } from '@/shared'
+import type { SiteLink } from '@/shared'
 
 defineProps<{
   // Голубое пятно боке в правом углу — его продолжает фон первого экрана главной
   hasGlow?: boolean
 }>()
 
-interface MenuItem {
-  label: string
-  to: string
-}
+const MENU_GROUPS: SiteLink[][] = [
+  [SITE_LINKS.home, SITE_LINKS.library, SITE_LINKS.pricing],
+  [SITE_LINKS.faq, SITE_LINKS.help, SITE_LINKS.language],
+]
 
-// Пункты добавятся вместе со страницами
-const MENU_ITEMS: MenuItem[] = [{ label: 'Главная', to: '/' }]
+const REGISTER_LINK: SiteLink = SITE_LINKS.register
 
 const FOCUSABLE = 'a[href], button:not([disabled])'
 
 const isMenuOpen = ref(false)
 const menu = useTemplateRef<HTMLElement>('menu')
+const groups = useTemplateRef<HTMLElement>('groups')
 const burger = useTemplateRef<HTMLButtonElement>('burger')
 const route = useRoute()
 
@@ -68,6 +83,10 @@ function toggleMenu() {
 
 function closeMenu() {
   isMenuOpen.value = false
+}
+
+function linkProps({ to, href }: SiteLink) {
+  return to ? { to, exactActiveClass: 'app-header__item--active' } : { href }
 }
 
 function lockPageScroll(isLocked: boolean) {
@@ -83,7 +102,8 @@ function trapFocus(event: KeyboardEvent) {
   const current = focusable.indexOf(document.activeElement as HTMLElement)
   const step = event.shiftKey ? -1 : 1
   const next = (current + step + focusable.length) % focusable.length
-  focusable[next]?.focus({ preventScroll: true })
+  // Без preventScroll: на низком экране пункт может быть за краем прокрутки панели
+  focusable[next]?.focus()
 }
 
 function onKeydown(event: KeyboardEvent) {
@@ -105,6 +125,8 @@ watch(isMenuOpen, async (isOpen) => {
   listenKeydown(isOpen)
   await nextTick()
   if (isOpen) {
+    // Иначе после прошлого открытия первый пункт остался бы за краем прокрутки
+    if (groups.value) groups.value.scrollTop = 0
     // Без прокрутки: шапка липкая, а шторка в этот момент ещё выезжает — браузер прокрутил бы страницу к ней
     menu.value?.querySelector<HTMLElement>(FOCUSABLE)?.focus({ preventScroll: true })
     return
@@ -136,7 +158,10 @@ $line-width-orange: 24px;
   @return translateX(($width - $line-width) * 0.5) scaleX(math.div($width, $line-width));
 }
 
-$menu-duration: 0.3s;
+$menu-duration: 0.45s;
+$menu-easing: cubic-bezier(0.4, 0, 0.2, 1);
+$menu-divider: 1px solid rgb(var(--rgb-blue) / 0.13);
+$bar-height: 68px;
 
 .app-header {
   position: sticky;
@@ -150,6 +175,7 @@ $menu-duration: 0.3s;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  min-height: $bar-height;
   padding: 12px var(--gutter);
   background: var(--color-white);
 }
@@ -178,50 +204,76 @@ $menu-duration: 0.3s;
 }
 
 .app-header__menu {
-  position: absolute;
-  top: 100%;
+  position: fixed;
+  top: $bar-height;
   right: 0;
-  left: 0;
+  bottom: 0;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 18px 16px 22px;
-  border-radius: 0 0 26px 26px;
+  width: min(320px, 85%);
+  overflow: hidden;
+  border-radius: 0 0 0 26px;
   background: var(--color-white);
-  box-shadow: 0 18px 34px rgb(var(--rgb-night) / 0.22);
-  transform: translateY(-105%);
+  box-shadow: -18px 0 34px rgb(var(--rgb-night) / 0.22);
+  transform: translateX(100%);
   visibility: hidden;
+  will-change: transform;
   transition:
-    transform $menu-duration cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform $menu-duration $menu-easing,
     visibility 0s $menu-duration;
 }
 
 .app-header--menu-open .app-header__menu {
-  transform: translateY(0);
+  transform: translateX(0);
   visibility: visible;
-  transition: transform $menu-duration cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: transform $menu-duration $menu-easing;
+}
+
+.app-header--glow .app-header__menu {
+  background:
+    menu-glow(),
+    var(--color-white);
+}
+
+// Прокручиваются только разделы: «Войти» на низком экране всегда на виду
+.app-header__groups {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  padding: 16px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .app-header__list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 2px;
   margin: 0;
   padding: 0;
   list-style: none;
+
+  // Линия на всю ширину панели, как над «Войти»
+  & + & {
+    margin-inline: -16px;
+    padding: 12px 16px 0;
+    border-top: $menu-divider;
+  }
 }
 
 .app-header__item {
   display: flex;
   align-items: center;
-  gap: 14px;
-  min-height: 52px;
-  padding: 0 16px;
+  gap: 12px;
+  min-height: 46px;
+  padding: 8px 12px;
   border-radius: 14px;
   color: var(--color-text);
   font-weight: 500;
+  line-height: 1.25;
   text-decoration: none;
-  background: rgb(var(--rgb-blue) / 0.065);
   transition: background-color 0.2s ease;
 
   &:hover {
@@ -255,9 +307,38 @@ li:nth-child(3n + 3) > .app-header__item::before {
   box-shadow: inset 0 0 0 2px var(--color-blue);
 }
 
+.app-header__auth {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 16px 10px;
+  border-top: $menu-divider;
+}
+
 // Селектор сильнее: ширина самой кнопки задана в AppButton, а порядок scoped-стилей не гарантирован
 .app-header__menu .app-header__login {
   width: 100%;
+}
+
+.app-header__register {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  border-radius: 14px;
+  color: var(--color-blue-dark);
+  font-weight: 500;
+  text-decoration: none;
+  transition: background-color 0.2s ease;
+
+  &:hover {
+    background: rgb(var(--rgb-blue) / 0.065);
+  }
+
+  &:active {
+    background: rgb(var(--rgb-blue) / 0.13);
+  }
 }
 
 .app-header__logo {
@@ -335,6 +416,7 @@ li:nth-child(3n + 3) > .app-header__item::before {
 
 @media (prefers-reduced-motion: reduce) {
   .app-header__item,
+  .app-header__register,
   .app-header__burger,
   .app-header__line,
   .app-header__dim,

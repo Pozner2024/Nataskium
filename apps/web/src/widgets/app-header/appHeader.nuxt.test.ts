@@ -6,6 +6,18 @@ import { useRouter } from '#imports'
 import { AppHeader } from '@/widgets/app-header'
 
 const OTHER_ROUTE = '/nat'
+const MENU_GROUPS = [
+  [['Главная', '/'], ['Библиотека заданий', '/library'], ['Тарифные планы', '/pricing']],
+  [['Вопросы и ответы', '/faq'], ['Центр помощи', '/help'], ['Язык: Русский', '/language']],
+]
+const HREF_LINKS = [
+  'Библиотека заданий',
+  'Тарифные планы',
+  'Вопросы и ответы',
+  'Центр помощи',
+  'Язык: Русский',
+  'Зарегистрироваться',
+]
 
 let wrapper: VueWrapper
 
@@ -77,6 +89,30 @@ describe('AppHeader', () => {
       expect(wrapper.find('.app-header__item').attributes('href')).toBe('/')
       expect(wrapper.find('.app-header__login').text()).toBe('Войти')
       expect(wrapper.find('.app-header__logo').attributes('href')).toBe('/')
+    })
+
+    it('показывает два списка ссылок в нужном порядке', async () => {
+      await mountHeader()
+
+      const lists = wrapper.findAll('.app-header__list').map(list =>
+        list.findAll('.app-header__item').map(item => [item.text(), item.attributes('href')]),
+      )
+      expect(lists).toEqual(MENU_GROUPS)
+    })
+
+    it('все пункты меню — ссылки', async () => {
+      await mountHeader()
+
+      const tags = wrapper.findAll('.app-header__item').map(item => item.element.tagName)
+      expect(new Set(tags)).toEqual(new Set(['A']))
+    })
+
+    it('внизу панели «Войти», под ней ссылка на регистрацию', async () => {
+      await mountHeader()
+
+      const auth = wrapper.find('.app-header__auth')
+      expect(auth.findAll('a, button').map(element => element.text())).toEqual(['Войти', 'Зарегистрироваться'])
+      expect(auth.find('.app-header__register').attributes('href')).toBe('/register')
     })
 
     it('«Войти» — AppButton со стрелкой', async () => {
@@ -234,6 +270,21 @@ describe('AppHeader', () => {
     })
   })
 
+  describe('ссылка на страницу, которой пока нет', () => {
+    it.each(HREF_LINKS)('клик по %s закрывает меню', async (label) => {
+      await mountHeader()
+      await openMenu()
+      const link = wrapper.findAll('a').find(element => element.text() === label)!
+      link.element.addEventListener('click', event => event.preventDefault())
+
+      await link.trigger('click')
+      await nextTick()
+
+      expect(isMenuOpen()).toBe(false)
+      expect(document.documentElement.style.overflow).toBe('')
+    })
+  })
+
   describe('ссылка на текущую страницу', () => {
     it.each([
       ['«Главная»', '.app-header__item'],
@@ -269,10 +320,10 @@ describe('AppHeader', () => {
     it('Tab с последнего элемента шторки ведёт на бургер', async () => {
       await mountHeader()
       await openMenu()
-      const login = wrapper.find<HTMLElement>('.app-header__login').element
-      login.focus()
+      const register = wrapper.find<HTMLElement>('.app-header__register').element
+      register.focus()
 
-      const event = pressKey(login, { key: 'Tab' })
+      const event = pressKey(register, { key: 'Tab' })
 
       expect(event.defaultPrevented).toBe(true)
       expect(document.activeElement).toBe(wrapper.find('.app-header__burger').element)
@@ -286,7 +337,7 @@ describe('AppHeader', () => {
 
       pressKey(burger, { key: 'Tab', shiftKey: true })
 
-      expect(document.activeElement).toBe(wrapper.find('.app-header__login').element)
+      expect(document.activeElement).toBe(wrapper.find('.app-header__register').element)
     })
   })
 })

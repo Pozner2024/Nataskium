@@ -87,3 +87,8 @@ $seam-glow-center: 18px;
 @function hero-glow() {
   @return -seam-glow(112% (-$seam-glow-center));
 }
+
+// Панель уже экрана: 12vw вместо 12%, чтобы круг совпал с кругом шапки
+@function menu-glow() {
+  @return -seam-glow(calc(100% + 12vw) (-$seam-glow-center));
+}

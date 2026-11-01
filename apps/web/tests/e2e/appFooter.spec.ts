@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
 const HYDRATION_MESSAGE = /hydrat/i
-const ROWS = '.footer-nav__link, .footer-nav__text'
+const ROWS = '.footer-nav__list li > *'
 const ROWS_COUNT = 12
 const MIN_ROW_HEIGHT_PX = 44
 const NARROW_WIDTHS = [320, 375]
@@ -46,6 +46,18 @@ test.describe('AppFooter', () => {
       await expectRowsTallEnough(page)
     })
   }
+
+  test('строка языка — ссылка и отзывается на наведение', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'нужна мышь')
+    await page.goto('/')
+    const language = page.locator('.footer-nav__link', { hasText: 'Язык: Русский' })
+    await language.scrollIntoViewIfNeeded()
+    await expect(language).toHaveAttribute('href', '/language')
+
+    await language.hover()
+
+    await expect(language).toHaveCSS('color', WHITE)
+  })
 
   test('ссылка футера отзывается на наведение и нажатие', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', 'нужна мышь')
