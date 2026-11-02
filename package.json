@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "workspaces": [
-    "apps/web"
+    "apps/web",
+    "packages/*"
   ],
   "scripts": {
     "dev": "npm run dev -w apps/web",
