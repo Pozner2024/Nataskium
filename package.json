@@ -5,20 +5,22 @@
   "type": "module",
   "workspaces": [
     "apps/web",
+    "apps/api",
     "packages/*"
   ],
   "scripts": {
     "dev": "npm run dev -w apps/web",
     "build": "npm run build -w apps/web",
-    "lint": "npm run lint -w apps/web",
-    "typecheck": "npm run typecheck -w apps/web",
-    "test": "npm run test -w apps/web"
+    "lint": "npm run lint -w apps/web && eslint apps/api packages/shared",
+    "typecheck": "npm run typecheck --workspaces",
+    "test": "npm run test --workspaces"
   },
   "overrides": {
     "typescript": "$typescript"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",
+    "@typescript-eslint/parser": "8.72.1",
     "typescript": "^6.0.3"
   }
 }
