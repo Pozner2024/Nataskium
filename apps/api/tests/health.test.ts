@@ -2,8 +2,6 @@ import { Server } from 'node:net'
 import { describe, expect, it, vi } from 'vitest'
 import { createApp } from '../src/app'
 
-const INTERNAL_DETAILS = /stack|error|node_modules|\/src\/|\.ts\b|\bat\s/i
-
 describe('GET /health', () => {
   it('отвечает 200 и только статусом ok', async () => {
     const response = await createApp().request('/health')
@@ -30,7 +28,7 @@ describe('неизвестный адрес', () => {
     const response = await createApp().request('/no-such-route')
 
     expect(response.status).toBe(404)
-    expect(await response.text()).not.toMatch(INTERNAL_DETAILS)
+    expect(await response.text()).toBe('{"error":"Not Found"}')
   })
 })
 
