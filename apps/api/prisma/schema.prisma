@@ -6,3 +6,18 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+// Аккаунт удаляется полностью (GDPR), поэтому без deletedAt.
+// CHECK добавлены вручную в миграции create_teachers: email в нижнем регистре, непустой и без пробелов
+// по краям, есть способ входа, password_hash и google_id не пустые
+model Teacher {
+  id              String    @id @default(uuid()) @db.Uuid
+  email           String    @unique
+  passwordHash    String?   @map("password_hash")
+  googleId        String?   @unique @map("google_id")
+  emailVerifiedAt DateTime? @map("email_verified_at") @db.Timestamptz
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("teachers")
+}
