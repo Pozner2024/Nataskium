@@ -7,6 +7,9 @@ dist/
 .output/
 .data/
 
+# Prisma Client генерируется в postinstall
+apps/api/src/generated/
+
 # Env
 .env
 .env.*

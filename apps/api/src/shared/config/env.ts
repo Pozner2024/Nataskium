@@ -4,6 +4,7 @@ const DEFAULT_API_PORT = 3001
 const MIN_PORT = 1
 const MAX_PORT = 65535
 const PORT_ERROR = `must be an integer from ${MIN_PORT} to ${MAX_PORT}`
+const DATABASE_URL_PROTOCOL = /^postgres(ql)?$/
 
 const envSchema = z.object({
   // production по умолчанию: вне разработки стек ошибок в лог не пишется
@@ -17,6 +18,12 @@ const envSchema = z.object({
     .transform(Number)
     .pipe(z.number().min(MIN_PORT, { error: PORT_ERROR }).max(MAX_PORT, { error: PORT_ERROR }))
     .default(DEFAULT_API_PORT),
+  DATABASE_URL: z.url({
+    protocol: DATABASE_URL_PROTOCOL,
+    // Без проверки хоста прошли бы 'postgresql:' и 'postgresql:///db'
+    hostname: /.+/,
+    error: (issue) => (issue.input === undefined ? 'is required' : 'must be a postgresql:// or postgres:// URL'),
+  }),
 })
 
 export type Env = z.infer<typeof envSchema>

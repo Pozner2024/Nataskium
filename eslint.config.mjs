@@ -2,6 +2,7 @@
 import tsParser from '@typescript-eslint/parser'
 
 export default [
+  { ignores: ['apps/api/src/generated/**'] },
   {
     files: ['apps/api/**/*.ts', 'packages/shared/**/*.ts'],
     languageOptions: { parser: tsParser },
