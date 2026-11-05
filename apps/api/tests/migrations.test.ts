@@ -34,6 +34,17 @@ const MANUAL_CHECKS = [
   ],
   ['pending_registrations', 'pending_registrations_token_hash_format_check', `CHECK ("token_hash" ~ '^[0-9a-f]{64}$')`],
   ['pending_registrations', 'pending_registrations_expires_after_created_check', 'CHECK ("expires_at" > "created_at")'],
+  ['pending_registrations', 'pending_registrations_display_name_length_check', 'CHECK (char_length("display_name") BETWEEN 1 AND 100)'],
+  [
+    'pending_registrations',
+    'pending_registrations_display_name_trimmed_check',
+    String.raw`CHECK ("display_name" = btrim("display_name", E' \t\r\n'))`,
+  ],
+  [
+    'pending_registrations',
+    'pending_registrations_display_name_no_control_chars_check',
+    String.raw`CHECK ("display_name" !~ '[\x01-\x1f\x7f-\x9f]')`,
+  ],
 ]
 // Без каскада удаление учителя оставило бы его сессии в базе (GDPR)
 const REFRESH_TOKENS_CASCADE =

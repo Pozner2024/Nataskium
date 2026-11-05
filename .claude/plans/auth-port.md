@@ -397,7 +397,7 @@ dev-БД при этом не затрагивается никогда. Нов�
 - `googleClient.ts` **переписать**, `googleapis` не берём: Authorization Code + **PKCE** (`code_verifier`) + `state` + `nonce`; обмен кода — `fetch` к token endpoint с таймаутом; профиль — из `id_token`, проверенного `jose` (`createRemoteJWKSet`; `iss`, `aud`, `exp`, `nonce`, `email_verified`); `googleId = sub`. Альтернатива — `google-auth-library` 11.3.3 (`OAuth2Client.verifyIdToken`), вопрос 8.
 - Email из `id_token` → `emailSchema.parse()` до `findByEmail`.
 - Генерация URL и обмен кода — функции, которые `app.ts` передаёт в роутер (роутер не импортирует infrastructure).
-- `googleAuth.ts` **с адаптацией** (неподтверждённых учителей по 1.2а нет):
+- `googleAuth.ts` **с адаптацией** (неподтверждённых учителей по 1.2а нет). Транзакция начинается с `lockEmail(tx, email)` из `pendingRegistrationRepository` — иначе вход через Google и подтверждение регистрации того же email взаимно заблокируются на удалении записей `pending_registrations`:
   - найден по `googleId` → вход;
   - найден учитель по email → привязать `googleId`, отправить письмо «к аккаунту привязан Google», отозвать остальные семьи сессий. Пароль сохраняется: по 1.2а он подтверждён владельцем почты (ссылка + ввод пароля);
   - есть записи `PendingRegistration` на этот email → в одной транзакции создать учителя с `googleId` **без пароля** и удалить **все** записи email (пароли, заданные до подтверждения, отбрасываются — reviewer, сценарий 2);
@@ -417,7 +417,7 @@ dev-БД при этом не затрагивается никогда. Нов�
 
 ## 6. Шаг 6 — удаление аккаунта (GDPR), кратко
 
-- Use-case `deleteAccount`: подтверждение паролем (`loginPasswordSchema`) или свежим входом через Google; физическое удаление `Teacher` и в той же транзакции `pending_registrations` с его email (у них нет FK на `Teacher`, каскад их не удалит); каскад на токены, сбросы, а позже задания и шкалы (`onDelete: Cascade` на каждом FK от `Teacher`); удаление cookie.
+- Use-case `deleteAccount`: подтверждение паролем (`loginPasswordSchema`) или свежим входом через Google; первой командой транзакции `lockEmail(tx, email)`, затем физическое удаление `Teacher` и в той же транзакции `pending_registrations` с его email (у них нет FK на `Teacher`, каскад их не удалит); каскад на токены, сбросы, а позже задания и шкалы (`onDelete: Cascade` на каждом FK от `Teacher`); удаление cookie.
 - Access JWT удалённого учителя живёт до 15 мин: все use-case-ы за `requireAuth` отвечают 401, если учителя нет (1.5, `getMe`).
 - Маршрут `DELETE /api/auth/me`, `requireAuth`, rate limit. Когда делать — решение пользователя (вопрос 9); каскады закладываются уже в шагах 1–3.
 

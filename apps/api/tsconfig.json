@@ -5,9 +5,10 @@
     "moduleResolution": "bundler",
     "strict": true,
     "noEmit": true,
+    "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["src", "tests"]
+  "include": ["src", "tests", "vitest.config.ts", "vitest.integration.config.ts"]
 }
