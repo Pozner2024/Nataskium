@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./grading": "./grading/index.ts"
+    "./grading": "./grading/index.ts",
+    "./schemas": "./schemas/index.ts"
   },
   "scripts": {
     "test": "vitest run",
@@ -12,5 +13,8 @@
   },
   "devDependencies": {
     "vitest": "^5.0.5"
+  },
+  "dependencies": {
+    "zod": "^4.6.7"
   }
 }
