@@ -15,9 +15,49 @@ model Teacher {
   email           String    @unique
   passwordHash    String?   @map("password_hash")
   googleId        String?   @unique @map("google_id")
+  // Необязательное имя для писем и кабинета; длина и пробелы по краям — CHECK в миграции add_auth_sessions
+  displayName     String?   @map("display_name")
   emailVerifiedAt DateTime? @map("email_verified_at") @db.Timestamptz
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
+  refreshTokens RefreshToken[]
+
   @@map("teachers")
+}
+
+// Сырой токен — у клиента в cookie, в базе только HMAC-SHA256 (hex).
+// Семья — все токены одного входа: ротация продолжает семью, вход начинает новую.
+// family_expires_at — абсолютный срок сессии, при ротации не продлевается
+model RefreshToken {
+  id              String    @id @default(uuid()) @db.Uuid
+  teacherId       String    @map("teacher_id") @db.Uuid
+  familyId        String    @map("family_id") @db.Uuid
+  familyExpiresAt DateTime  @map("family_expires_at") @db.Timestamptz
+  tokenHash       String    @unique @map("token_hash")
+  expiresAt       DateTime  @map("expires_at") @db.Timestamptz
+  revokedAt       DateTime? @map("revoked_at") @db.Timestamptz
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  teacher Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@index([teacherId])
+  @@index([familyId])
+  // cleanup удаляет по expires_at < now
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+// Учителя ещё нет: строка Teacher создаётся только при подтверждении email, с паролем этой записи.
+// На один email может быть несколько записей — у каждой свой токен и свой пароль
+model PendingRegistration {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String
+  passwordHash String   @map("password_hash")
+  tokenHash    String   @unique @map("token_hash")
+  expiresAt    DateTime @map("expires_at") @db.Timestamptz
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([email])
+  @@map("pending_registrations")
 }

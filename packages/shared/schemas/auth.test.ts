@@ -1,12 +1,34 @@
 import { describe, expect, it } from 'vitest'
 import type { ZodType } from 'zod'
-import { emailSchema, passwordSchema } from './index'
+import * as schemas from './index'
+import {
+  authTokenSchema,
+  displayNameSchema,
+  emailSchema,
+  loginPasswordSchema,
+  loginSchema,
+  passwordSchema,
+  registerSchema,
+  verifyEmailSchema,
+} from './index'
 import { COMMON_PASSWORDS } from './passwordBlocklist'
 
 const MAX_EMAIL_LENGTH = 254
 const MIN_PASSWORD_LENGTH = 4
 const MAX_PASSWORD_LENGTH = 128
 const MAX_LOCAL_PART_LENGTH = 64
+const DISPLAY_NAME_MAX_LENGTH = 100
+const AUTH_TOKEN_BYTES = 32
+const AUTH_TOKEN_LENGTH = 43
+const LOGIN_PASSWORD_REQUIRED = 'Password is required'
+const DISPLAY_NAME_EMPTY = 'Display name must not be empty'
+const DISPLAY_NAME_TOO_LONG = `Display name must be at most ${DISPLAY_NAME_MAX_LENGTH} characters`
+const DISPLAY_NAME_INVALID_CHARS = 'Display name contains invalid characters'
+const DISPLAY_NAME_NOT_STRING = 'Display name must be a string'
+const INVALID_TOKEN = 'Invalid token'
+// Пароль, который проходит passwordSchema: не популярный, не последовательность
+const GOOD_PASSWORD = 'xk7#mQ'
+const NAME_SECRET = 'qa-secret-name'
 const PASSWORD_TOO_SHORT = `Password must be at least ${MIN_PASSWORD_LENGTH} characters`
 const PASSWORD_TOO_LONG = `Password must be at most ${MAX_PASSWORD_LENGTH} characters`
 const PASSWORD_INVALID_CHARS = 'Password contains invalid characters'
@@ -64,6 +86,24 @@ function distinctEmoji(count: number) {
 
 function messagesOf(schema: ZodType, value: unknown) {
   return schema.safeParse(value).error?.issues.map((issue) => issue.message)
+}
+
+function randomBytes(count: number) {
+  return crypto.getRandomValues(new Uint8Array(count))
+}
+
+// base64url без '=' через Web Crypto и btoa: в shared нет типов Node, как и в браузере
+function toBase64Url(bytes: Uint8Array) {
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+function newAuthToken() {
+  return toBase64Url(randomBytes(AUTH_TOKEN_BYTES))
+}
+
+// Путь и сообщение каждой ошибки объекта: 'displayName: Display name must not be empty'
+function fieldMessagesOf(schema: ZodType, value: unknown) {
+  return schema.safeParse(value).error?.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`)
 }
 
 function issuesText(result: { success: boolean; error?: { issues: unknown[] } }) {
@@ -553,5 +593,469 @@ describe('emailSchema: невидимые символы и другие точ�
     ['bücher.de в NFD: комбинирующий знак — не невидимый символ', 'a@bu\u0308cher.de', 'a@xn--bcher-kva.de'],
   ])('принимает: %s', (_name, input, expected) => {
     expect(emailSchema.parse(input)).toBe(expected)
+  })
+})
+
+describe('схемы auth: публичный API', () => {
+  it('index.ts экспортирует константы с ожидаемыми значениями', () => {
+    expect({
+      MAX_EMAIL_LENGTH: schemas.MAX_EMAIL_LENGTH,
+      MIN_PASSWORD_LENGTH: schemas.MIN_PASSWORD_LENGTH,
+      MAX_PASSWORD_LENGTH: schemas.MAX_PASSWORD_LENGTH,
+      DISPLAY_NAME_MAX_LENGTH: schemas.DISPLAY_NAME_MAX_LENGTH,
+      AUTH_TOKEN_BYTES: schemas.AUTH_TOKEN_BYTES,
+      AUTH_TOKEN_LENGTH: schemas.AUTH_TOKEN_LENGTH,
+    }).toEqual({
+      MAX_EMAIL_LENGTH,
+      MIN_PASSWORD_LENGTH,
+      MAX_PASSWORD_LENGTH,
+      DISPLAY_NAME_MAX_LENGTH,
+      AUTH_TOKEN_BYTES,
+      AUTH_TOKEN_LENGTH,
+    })
+  })
+
+  it('AUTH_TOKEN_LENGTH совпадает с длиной настоящего токена из AUTH_TOKEN_BYTES байт', () => {
+    expect(toBase64Url(randomBytes(schemas.AUTH_TOKEN_BYTES))).toHaveLength(schemas.AUTH_TOKEN_LENGTH)
+  })
+
+  it('index.ts экспортирует все схемы', () => {
+    const exported = Object.keys(schemas).filter((name) => name.endsWith('Schema')).sort()
+
+    expect(exported).toEqual([
+      'authTokenSchema',
+      'displayNameSchema',
+      'emailSchema',
+      'loginPasswordSchema',
+      'loginSchema',
+      'passwordSchema',
+      'registerSchema',
+      'verifyEmailSchema',
+    ])
+  })
+})
+
+describe('loginPasswordSchema', () => {
+  // Вход со старым паролем: минимум и список популярных при регистрации могли измениться
+  it.each([
+    ['один символ', 'x'],
+    ['популярный пароль', 'qwerty'],
+    ['повтор одного символа', 'aaaa'],
+    ['последовательность', '1234'],
+    ['короче минимума регистрации', 'abc'],
+    ['ровно максимум', 'x'.repeat(MAX_PASSWORD_LENGTH - 1) + 'k'],
+    [`${MAX_PASSWORD_LENGTH} эмодзи`, '😀'.repeat(MAX_PASSWORD_LENGTH)],
+  ])('принимает: %s', (_name, password) => {
+    expect(loginPasswordSchema.parse(password)).toBe(password)
+  })
+
+  it.each([
+    ['пробелы по краям', '  my secret  '],
+    ['регистр', 'MySecret'],
+  ])('не изменяет пароль: %s', (_name, password) => {
+    expect(loginPasswordSchema.parse(password)).toBe(password)
+  })
+
+  it('NFD и NFC дают один и тот же пароль, как при регистрации', () => {
+    const nfd = 'cafe\u0301'
+
+    expect(loginPasswordSchema.parse(nfd)).toBe('café')
+    expect(loginPasswordSchema.parse(nfd)).toBe(passwordSchema.parse(nfd))
+  })
+
+  it('длина считается после NFC', () => {
+    const password = 'x'.repeat(MAX_PASSWORD_LENGTH - 1) + 'e\u0301'
+
+    expect([...password]).toHaveLength(MAX_PASSWORD_LENGTH + 1)
+    expect(loginPasswordSchema.parse(password)).toHaveLength(MAX_PASSWORD_LENGTH)
+  })
+
+  it('пустая строка — Password is required', () => {
+    expect(messagesOf(loginPasswordSchema, '')).toEqual([LOGIN_PASSWORD_REQUIRED])
+  })
+
+  it.each([
+    ['латиница', 'x'.repeat(MAX_PASSWORD_LENGTH + 1)],
+    ['эмодзи', '😀'.repeat(MAX_PASSWORD_LENGTH + 1)],
+  ])(`длиннее ${MAX_PASSWORD_LENGTH}: %s`, (_name, password) => {
+    expect(messagesOf(loginPasswordSchema, password)).toEqual([PASSWORD_TOO_LONG])
+  })
+
+  it.each([
+    ['старший суррогат', 'ab\uD800'],
+    ['младший суррогат', '\uDC00ab'],
+    ['только суррогат', '\uD800'],
+  ])('одиночный суррогат: %s', (_name, password) => {
+    expect(messagesOf(loginPasswordSchema, password)).toEqual([PASSWORD_INVALID_CHARS])
+  })
+
+  it.each([...NON_STRINGS, ...STRING_LIKE])('%s — ошибка типа без исключения', (_name, value) => {
+    expect(messagesOf(loginPasswordSchema, value)?.[0]).toBe('Password must be a string')
+  })
+
+  it('в ошибке нет введённого пароля', () => {
+    expect(issuesText(loginPasswordSchema.safeParse(`${PASSWORD_SECRET}\uD800`))).not.toContain(PASSWORD_SECRET)
+  })
+})
+
+describe('displayNameSchema: нормализация', () => {
+  it.each([
+    ['пробелы по краям', '  Анна Ли  ', 'Анна Ли'],
+    ['NBSP и BOM по краям', '\u00a0\ufeffАнна\ufeff\u00a0', 'Анна'],
+    ['\t, \r, \n по краям', '\t\r\nАнна\n', 'Анна'],
+    ['U+3000 по краям', '\u3000Анна\u3000', 'Анна'],
+    ['NFD → NFC', 'Jose\u0301', 'José'],
+    ['один символ после обрезки', ' а ', 'а'],
+  ])('%s', (_name, input, expected) => {
+    expect(displayNameSchema.parse(input)).toBe(expected)
+  })
+
+  it.each([
+    ['латиница', 'a'.repeat(DISPLAY_NAME_MAX_LENGTH)],
+    ['кириллица', 'я'.repeat(DISPLAY_NAME_MAX_LENGTH)],
+    // Длина в code points, как char_length в CHECK базы
+    ['эмодзи', '😀'.repeat(DISPLAY_NAME_MAX_LENGTH)],
+  ])(`ровно ${DISPLAY_NAME_MAX_LENGTH} символов: %s`, (_name, name) => {
+    expect(displayNameSchema.parse(name)).toBe(name)
+  })
+
+  it('длина считается после обрезки пробелов', () => {
+    const name = 'я'.repeat(DISPLAY_NAME_MAX_LENGTH)
+
+    expect(displayNameSchema.parse(`   ${name}   `)).toBe(name)
+  })
+
+  it('длина считается после NFC', () => {
+    const name = 'я'.repeat(DISPLAY_NAME_MAX_LENGTH - 1) + 'e\u0301'
+
+    expect([...name]).toHaveLength(DISPLAY_NAME_MAX_LENGTH + 1)
+    expect([...displayNameSchema.parse(name)]).toHaveLength(DISPLAY_NAME_MAX_LENGTH)
+  })
+
+  it.each([
+    ['пробел внутри', 'Анна Ли'],
+    ['NBSP внутри', 'Анна\u00a0Ли'],
+    ['апостроф, тире, эмодзи', "O'Neil – учитель 😀"],
+    // Не весь \p{Cf}: ZWJ и селекторы вариантов нужны составным эмодзи
+    ['семья через ZWJ', '👨\u200d👩\u200d👧'],
+    ['VS16', '❤\ufe0f'],
+    ['ZWNJ в персидском слове', 'می\u200cخواهم'],
+    ['арабский', 'آنا'],
+    ['иврит', 'חנה'],
+    ['китайский', '安娜'],
+    ['корейский', '한나'],
+    ['деванагари с диакритикой', 'नमस्ते'],
+    ['тайский', 'ไทย'],
+    ['только цифры', '42'],
+    ['одна цифра', '7'],
+    ['одна точка', '.'],
+    ['одно тире', '—'],
+    ["O'Neil", "O'Neil"],
+    ['флаг и имя', '🇷🇺 Анна'],
+    ['корейское имя', '김민지'],
+    ['латиница и ZWSP', 'A\u200b'],
+    ['только эмодзи', '😀'],
+    ['буква и невидимый символ', 'А\u200b'],
+    ['буква и Hangul Filler', 'А\u3164'],
+    ['диакритика перед буквой', '\u0301а'],
+  ])('принимает: %s', (_name, name) => {
+    expect(displayNameSchema.parse(name)).toBe(name)
+  })
+})
+
+describe('displayNameSchema: отклоняемые значения', () => {
+  it.each([
+    ['пустая строка', ''],
+    ['только пробелы', '   '],
+    ['только NBSP и BOM', '\u00a0\ufeff'],
+    ['только переводы строк', '\n\r\n'],
+  ])('пусто после обрезки: %s', (_name, name) => {
+    expect(messagesOf(displayNameSchema, name)).toEqual([DISPLAY_NAME_EMPTY])
+  })
+
+  it.each([
+    ['латиница', 'a'.repeat(DISPLAY_NAME_MAX_LENGTH + 1)],
+    ['кириллица', 'я'.repeat(DISPLAY_NAME_MAX_LENGTH + 1)],
+    ['эмодзи', '😀'.repeat(DISPLAY_NAME_MAX_LENGTH + 1)],
+  ])(`длиннее ${DISPLAY_NAME_MAX_LENGTH}: %s`, (_name, name) => {
+    expect(messagesOf(displayNameSchema, name)).toEqual([DISPLAY_NAME_TOO_LONG])
+  })
+
+  // Категория Cc целиком: U+0000–U+001F и U+007F–U+009F
+  it.each([
+    ['U+0000', '\u0000'],
+    ['U+0001', '\u0001'],
+    ['\t', '\t'],
+    ['\n', '\n'],
+    ['\r', '\r'],
+    ['ESC', '\u001b'],
+    ['U+001F', '\u001f'],
+    ['DEL', '\u007f'],
+    ['NEL U+0085', '\u0085'],
+    ['U+009F', '\u009f'],
+  ])('управляющий символ внутри: %s', (_name, char) => {
+    expect(messagesOf(displayNameSchema, `Анна${char}Ли`)).toEqual([DISPLAY_NAME_INVALID_CHARS])
+  })
+
+  // \p{Bidi_Control}: перевернули бы текст вокруг имени в письмах и кабинете
+  it.each([
+    ['ALM U+061C', '\u061c'],
+    ['LRM U+200E', '\u200e'],
+    ['RLM U+200F', '\u200f'],
+    ['LRE U+202A', '\u202a'],
+    ['RLE U+202B', '\u202b'],
+    ['PDF U+202C', '\u202c'],
+    ['LRO U+202D', '\u202d'],
+    ['RLO U+202E', '\u202e'],
+    ['LRI U+2066', '\u2066'],
+    ['RLI U+2067', '\u2067'],
+    ['FSI U+2068', '\u2068'],
+    ['PDI U+2069', '\u2069'],
+  ])('символ направления текста: %s', (_name, char) => {
+    expect(messagesOf(displayNameSchema, `Анна${char}Ли`)).toEqual([DISPLAY_NAME_INVALID_CHARS])
+    expect(messagesOf(displayNameSchema, `${char}Анна`)).toEqual([DISPLAY_NAME_INVALID_CHARS])
+  })
+
+  it.each([
+    ['старший суррогат', 'Анна\uD800'],
+    ['младший суррогат', '\uDC00Анна'],
+  ])('одиночный суррогат: %s', (_name, name) => {
+    expect(messagesOf(displayNameSchema, name)).toEqual([DISPLAY_NAME_INVALID_CHARS])
+  })
+
+  // Имя должно быть видно: буква, цифра, символ или знак препинания после удаления невидимых
+  it.each([
+    ['ZWJ', '\u200d'],
+    ['ZWSP', '\u200b'],
+    ['мягкий перенос', '\u00ad'],
+    ['VS16 без эмодзи', '\ufe0f'],
+    ['CGJ U+034F', '\u034f'],
+    ['Hangul Filler U+3164', '\u3164'],
+    ['Hangul Choseong Filler U+115F', '\u115f'],
+    ['Hangul Jungseong Filler U+1160', '\u1160'],
+    ['Halfwidth Hangul Filler U+FFA0', '\uffa0'],
+    ['Hangul Filler и RLO', '\u3164\u202e'],
+    ['пустой знак Брайля U+2800', '\u2800\u2800'],
+    ['одна комбинирующая диакритика', '\u0301'],
+    ['несколько невидимых подряд', '\u200b\u200d\u2060'],
+  ])('без видимых символов: %s', (_name, name) => {
+    expect(messagesOf(displayNameSchema, name)).toEqual([DISPLAY_NAME_INVALID_CHARS])
+  })
+
+  it.each([
+    ['слишком длинное и RLO', 'я'.repeat(DISPLAY_NAME_MAX_LENGTH + 1) + '\u202e', DISPLAY_NAME_TOO_LONG],
+    ['пустое после обрезки', '\u00a0', DISPLAY_NAME_EMPTY],
+  ])('ошибка символов не добавляется к другим: %s', (_name, name, message) => {
+    expect(messagesOf(displayNameSchema, name)).toEqual([message])
+  })
+
+  it('несколько запрещённых символов — одно сообщение', () => {
+    expect(messagesOf(displayNameSchema, 'А\u0001\u202e\uD800')).toEqual([DISPLAY_NAME_INVALID_CHARS])
+  })
+
+  it.each([...NON_STRINGS, ...STRING_LIKE])('%s — ошибка типа без исключения', (_name, value) => {
+    expect(messagesOf(displayNameSchema, value)?.[0]).toBe(DISPLAY_NAME_NOT_STRING)
+  })
+
+  it.each([
+    ['управляющий символ', `${NAME_SECRET}\u0001`],
+    ['направление текста', `${NAME_SECRET}\u202e`],
+    ['слишком длинное', NAME_SECRET.repeat(10)],
+  ])('в ошибке нет введённого имени: %s', (_name, name) => {
+    const result = displayNameSchema.safeParse(name)
+
+    expect(result.success).toBe(false)
+    expect(issuesText(result)).not.toContain(NAME_SECRET)
+  })
+})
+
+describe('authTokenSchema', () => {
+  it('принимает настоящие токены из AUTH_TOKEN_BYTES случайных байт', () => {
+    const tokens = Array.from({ length: 50 }, newAuthToken)
+
+    expect(tokens.filter((token) => !authTokenSchema.safeParse(token).success)).toEqual([])
+  })
+
+  it.each([
+    ['все символы base64url', 'AZaz09_-'.repeat(5) + 'abc'],
+    ['только _ и -', '_-'.repeat(21) + '_'],
+  ])('принимает: %s', (_name, token) => {
+    expect(token).toHaveLength(AUTH_TOKEN_LENGTH)
+    expect(authTokenSchema.parse(token)).toBe(token)
+  })
+
+  it.each([
+    ['пустая строка', () => ''],
+    [`${AUTH_TOKEN_LENGTH - 1} символ`, () => newAuthToken().slice(1)],
+    [`${AUTH_TOKEN_LENGTH + 1} символ`, () => `${newAuthToken()}A`],
+    ['с = в конце', () => `${newAuthToken()}=`],
+    ['+ из обычного base64', () => `${newAuthToken().slice(1)}+`],
+    ['/ из обычного base64', () => `${newAuthToken().slice(1)}/`],
+    ['пробел в начале', () => ` ${newAuthToken().slice(1)}`],
+    ['перевод строки в конце', () => `${newAuthToken()}\n`],
+    ['кириллица', () => `${newAuthToken().slice(1)}я`],
+    ['токен в hex', () => Array.from(randomBytes(AUTH_TOKEN_BYTES), (byte) => byte.toString(16).padStart(2, '0')).join('')],
+  ])('отклоняет: %s', (_name, makeToken) => {
+    expect(messagesOf(authTokenSchema, makeToken())).toEqual([INVALID_TOKEN])
+  })
+
+  it.each([...NON_STRINGS, ...STRING_LIKE])('%s — ошибка типа без исключения', (_name, value) => {
+    expect(messagesOf(authTokenSchema, value)).toEqual(['Token must be a string'])
+  })
+
+  it('в ошибке нет введённого токена', () => {
+    const token = newAuthToken()
+
+    expect(issuesText(authTokenSchema.safeParse(`${token}=`))).not.toContain(token)
+  })
+})
+
+describe('registerSchema', () => {
+  it('нормализует email и имя, пароль не меняет', () => {
+    expect(registerSchema.parse({ email: ' Anna@Example.COM ', password: GOOD_PASSWORD, displayName: '  Jose\u0301 Ли\ufeff ' })).toEqual({
+      email: 'anna@example.com',
+      password: GOOD_PASSWORD,
+      displayName: 'José Ли',
+    })
+  })
+
+  it.each([
+    ['без displayName', { email: 'a@b.co', password: GOOD_PASSWORD }],
+    ['displayName: undefined', { email: 'a@b.co', password: GOOD_PASSWORD, displayName: undefined }],
+  ])('имя необязательно: %s', (_name, input) => {
+    expect(registerSchema.parse(input)).toEqual({ email: 'a@b.co', password: GOOD_PASSWORD })
+  })
+
+  it.each([
+    ['пустое', '', 'displayName: ' + DISPLAY_NAME_EMPTY],
+    ['из пробелов', '   ', 'displayName: ' + DISPLAY_NAME_EMPTY],
+    ['null', null, 'displayName: ' + DISPLAY_NAME_NOT_STRING],
+    ['RLO', 'Анна\u202e', 'displayName: ' + DISPLAY_NAME_INVALID_CHARS],
+  ])('неверное имя: %s', (_name, displayName, message) => {
+    expect(fieldMessagesOf(registerSchema, { email: 'a@b.co', password: GOOD_PASSWORD, displayName })).toEqual([message])
+  })
+
+  it.each([
+    ['популярный пароль', 'qwerty', 'password: ' + PASSWORD_TOO_COMMON],
+    ['короткий пароль', 'xk7', 'password: ' + PASSWORD_TOO_SHORT],
+  ])('при регистрации действуют правила пароля: %s', (_name, password, message) => {
+    expect(fieldMessagesOf(registerSchema, { email: 'a@b.co', password })).toEqual([message])
+  })
+
+  it('сообщает обо всех неверных полях с путями', () => {
+    expect(fieldMessagesOf(registerSchema, { email: 'x', password: 'q', displayName: '' })).toEqual([
+      'email: Invalid email',
+      'password: ' + PASSWORD_TOO_SHORT,
+      'displayName: ' + DISPLAY_NAME_EMPTY,
+    ])
+  })
+
+  it('без email и пароля — ошибки обоих полей', () => {
+    expect(fieldMessagesOf(registerSchema, {})).toEqual(['email: Email must be a string', 'password: Password must be a string'])
+  })
+
+  it.each([
+    ['роль', { role: 'admin' }],
+    ['id', { id: '00000000-0000-0000-0000-000000000001' }],
+    ['подтверждение email', { emailVerified: true }],
+  ])('лишние поля отбрасываются: %s', (_name, extra) => {
+    expect(registerSchema.parse({ email: 'a@b.co', password: GOOD_PASSWORD, ...extra })).toEqual({
+      email: 'a@b.co',
+      password: GOOD_PASSWORD,
+    })
+  })
+
+  it('__proto__ из JSON не попадает в результат и не меняет прототип', () => {
+    const input: unknown = JSON.parse(`{"email":"a@b.co","password":"${GOOD_PASSWORD}","__proto__":{"admin":true}}`)
+    const result = registerSchema.parse(input)
+
+    expect(Object.keys(result)).toEqual(['email', 'password'])
+    expect(Object.getPrototypeOf(result)).toBe(Object.prototype)
+    expect('admin' in result).toBe(false)
+  })
+
+  it.each([
+    ['null', null],
+    ['массив', []],
+    ['строка', 'a@b.co'],
+    ['число', 42],
+  ])('не объект: %s', (_name, value) => {
+    expect(registerSchema.safeParse(value).success).toBe(false)
+  })
+})
+
+describe('loginSchema', () => {
+  it('нормализует email, пароль не меняет', () => {
+    expect(loginSchema.parse({ email: ' A@B.CO ', password: '  x  ' })).toEqual({ email: 'a@b.co', password: '  x  ' })
+  })
+
+  it.each(['qwerty', 'x', '1234'])('пароль без правил регистрации: %j', (password) => {
+    expect(loginSchema.parse({ email: 'a@b.co', password }).password).toBe(password)
+  })
+
+  it('пустой пароль', () => {
+    expect(fieldMessagesOf(loginSchema, { email: 'a@b.co', password: '' })).toEqual(['password: ' + LOGIN_PASSWORD_REQUIRED])
+  })
+
+  it('без полей — ошибки обоих', () => {
+    expect(fieldMessagesOf(loginSchema, {})).toEqual(['email: Email must be a string', 'password: Password must be a string'])
+  })
+
+  it('лишние поля отбрасываются', () => {
+    expect(loginSchema.parse({ email: 'a@b.co', password: 'x', remember: true, displayName: 'Анна' })).toEqual({
+      email: 'a@b.co',
+      password: 'x',
+    })
+  })
+})
+
+describe('verifyEmailSchema', () => {
+  it('принимает токен и пароль', () => {
+    const token = newAuthToken()
+
+    expect(verifyEmailSchema.parse({ token, password: GOOD_PASSWORD })).toEqual({ token, password: GOOD_PASSWORD })
+  })
+
+  it('пароль проверяется как при входе: без правил регистрации', () => {
+    expect(verifyEmailSchema.parse({ token: newAuthToken(), password: 'qwerty' }).password).toBe('qwerty')
+  })
+
+  // Без пароля посторонний подтвердил бы чужой email своим паролем
+  it.each([
+    ['без пароля', () => ({ token: newAuthToken() }), 'password: Password must be a string'],
+    ['пустой пароль', () => ({ token: newAuthToken(), password: '' }), 'password: ' + LOGIN_PASSWORD_REQUIRED],
+    ['без токена', () => ({ password: GOOD_PASSWORD }), 'token: Token must be a string'],
+    ['неверный токен', () => ({ token: 'short', password: GOOD_PASSWORD }), 'token: ' + INVALID_TOKEN],
+  ])('%s', (_name, makeInput, message) => {
+    expect(fieldMessagesOf(verifyEmailSchema, makeInput())).toEqual([message])
+  })
+
+  it('лишние поля отбрасываются: email из запроса не используется', () => {
+    const token = newAuthToken()
+
+    expect(verifyEmailSchema.parse({ token, password: 'x', email: 'evil@example.com' })).toEqual({ token, password: 'x' })
+  })
+})
+
+describe('регистрация и вход: один пароль в NFC и NFD', () => {
+  it.each([
+    ['é', 'caf\u00e9-1957', 'cafe\u0301-1957'],
+    ['й', '\u0439\u0446\u0443\u043a\u0435\u043d-1957', '\u0438\u0306\u0446\u0443\u043a\u0435\u043d-1957'],
+    ['ñ и ü', 'ma\u00f1ana-b\u00fcch', 'man\u0303ana-bu\u0308ch'],
+  ])('%s: регистрация в одной форме, вход в другой — один и тот же пароль', (_name, nfc, nfd) => {
+    const variants = [nfc, nfd]
+    const registered = variants.map((password) => registerSchema.parse({ email: 'a@b.co', password }).password)
+    const loggedIn = variants.map((password) => loginSchema.parse({ email: 'a@b.co', password }).password)
+    const verified = variants.map((password) => verifyEmailSchema.parse({ token: newAuthToken(), password }).password)
+
+    expect(nfd).not.toBe(nfc)
+    expect(new Set([...registered, ...loggedIn, ...verified])).toEqual(new Set([nfc]))
+  })
+
+  it('email в разном регистре и с пробелами — один адрес при регистрации и входе', () => {
+    const registered = registerSchema.parse({ email: ' Anna@Example.COM ', password: GOOD_PASSWORD }).email
+    const loggedIn = loginSchema.parse({ email: 'anna@EXAMPLE.com\n', password: 'x' }).email
+
+    expect(loggedIn).toBe(registered)
   })
 })

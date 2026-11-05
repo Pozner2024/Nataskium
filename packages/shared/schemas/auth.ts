@@ -1,15 +1,32 @@
 import { z } from 'zod'
 import { isCommonPassword } from './passwordBlocklist'
 
-const MAX_EMAIL_LENGTH = 254
+export const MAX_EMAIL_LENGTH = 254
 // RFC 5321: имя ящика до 64 октетов; оно только из ASCII, поэтому символы = октеты
 const MAX_LOCAL_PART_LENGTH = 64
-const MIN_PASSWORD_LENGTH = 4
-const MAX_PASSWORD_LENGTH = 128
+export const MIN_PASSWORD_LENGTH = 4
+export const MAX_PASSWORD_LENGTH = 128
+// Длина в code points, как char_length в CHECK teachers_display_name_length_check
+export const DISPLAY_NAME_MAX_LENGTH = 100
+// Случайные байты одноразовых токенов (подтверждение email, refresh, сброс пароля); API генерирует их по этой константе
+export const AUTH_TOKEN_BYTES = 32
+const BITS_PER_BYTE = 8
+const BITS_PER_BASE64_CHAR = 6
+// base64url без '=': 32 байта → 43 символа
+export const AUTH_TOKEN_LENGTH = Math.ceil((AUTH_TOKEN_BYTES * BITS_PER_BYTE) / BITS_PER_BASE64_CHAR)
 const INVALID_EMAIL_MESSAGE = 'Invalid email'
 // С флагом u пара суррогатов — один code point, поэтому диапазон совпадает только с одиночными.
 // Не isWellFormed(): его нет в Safari до 16.4, а схемы работают и в браузере
 const LONE_SURROGATE = /[\uD800-\uDFFF]/u
+// Категория Cc, как в CHECK teachers_display_name_no_control_chars_check (там без U+0000: в text его не бывает)
+const CONTROL_CHARS = /[\x00-\x1f\x7f-\x9f]/
+// U+061C, U+200E, U+200F, U+202A–U+202E, U+2066–U+2069: переворачивают текст вокруг имени в письмах и кабинете.
+// Не весь \p{Cf}: ZWJ (U+200D) нужен в составных эмодзи
+const BIDI_CONTROL_CHARS = /\p{Bidi_Control}/u
+const VISIBLE_CHAR = /[\p{L}\p{N}\p{S}\p{P}]/u
+// Невидимые, хотя часть из них формально буквы: ZWSP, Hangul Filler U+3164 и др., пустой знак Брайля U+2800
+const INVISIBLE_CHARS = /[\p{Default_Ignorable_Code_Point}\u2800]/gu
+const AUTH_TOKEN_PATTERN = new RegExp(`^[A-Za-z0-9_-]{${AUTH_TOKEN_LENGTH}}$`)
 
 // Имя ящика как у z.email(); домен — буквенная зона или punycode-зона xn--, поэтому IP-адрес не пройдёт
 const ASCII_EMAIL_PATTERN =
@@ -80,3 +97,56 @@ export const passwordSchema = z
     error: 'Password is too common',
     when: (payload) => payload.issues.length === 0,
   })
+
+// Для входа и подтверждения: тот же NFC, что при регистрации, но без минимума и блок-листа —
+// иначе учитель со старым паролем не войдёт, если список популярных паролей расширится
+export const loginPasswordSchema = z
+  .string({ error: 'Password must be a string' })
+  .normalize('NFC')
+  .min(1, { error: 'Password is required' })
+  .max(MAX_PASSWORD_LENGTH, { error: `Password must be at most ${MAX_PASSWORD_LENGTH} characters` })
+  // В UTF-8 одиночный суррогат совпал бы с U+FFFD в сохранённом пароле
+  .refine((password) => !LONE_SURROGATE.test(password), { error: 'Password contains invalid characters' })
+
+function hasOnlyAllowedChars(name: string): boolean {
+  const hasForbidden = CONTROL_CHARS.test(name) || BIDI_CONTROL_CHARS.test(name) || LONE_SURROGATE.test(name)
+  return !hasForbidden && VISIBLE_CHAR.test(name.replace(INVISIBLE_CHARS, ''))
+}
+
+// Обрезка как String.prototype.trim (все \s, включая NBSP и BOM); NFC до проверки длины
+export const displayNameSchema = z
+  .string({ error: 'Display name must be a string' })
+  .trim()
+  .normalize('NFC')
+  .min(1, { error: 'Display name must not be empty' })
+  .max(DISPLAY_NAME_MAX_LENGTH, { error: `Display name must be at most ${DISPLAY_NAME_MAX_LENGTH} characters` })
+  // Только для имени без других ошибок: пустое — это «пустое», а не «без видимых символов»
+  .refine(hasOnlyAllowedChars, {
+    error: 'Display name contains invalid characters',
+    when: (payload) => payload.issues.length === 0,
+  })
+
+export const authTokenSchema = z
+  .string({ error: 'Token must be a string' })
+  .regex(AUTH_TOKEN_PATTERN, { error: 'Invalid token' })
+
+export const registerSchema = z.object({
+  email: emailSchema,
+  password: passwordSchema,
+  displayName: displayNameSchema.optional(),
+})
+
+export const loginSchema = z.object({
+  email: emailSchema,
+  password: loginPasswordSchema,
+})
+
+// Пароль обязателен: иначе посторонний регистрирует чужой email своим паролем, владелец почты жмёт ссылку — и аккаунт с паролем постороннего
+export const verifyEmailSchema = z.object({
+  token: authTokenSchema,
+  password: loginPasswordSchema,
+})
+
+export type RegisterInput = z.infer<typeof registerSchema>
+export type LoginInput = z.infer<typeof loginSchema>
+export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>
