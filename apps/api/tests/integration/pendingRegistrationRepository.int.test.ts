@@ -67,7 +67,7 @@ describe('activate', () => {
   it('создаёт учителя с паролем, именем и временем подтверждения этой записи', async () => {
     const { registration, tokenHash } = await register()
 
-    const result = await repository.activate(registration, tokenHash)
+    const result = await repository.activate(registration, tokenHash, new Date())
 
     expect(result.status).toBe('activated')
     const teacher = await prisma.teacher.findUnique({ where: { email: EMAIL } })
@@ -76,10 +76,28 @@ describe('activate', () => {
     if (result.status === 'activated') expect(result.teacher).toMatchObject({ id: teacher?.id, email: EMAIL })
   })
 
+  it('emailVerifiedAt — переданное now', async () => {
+    const { registration, tokenHash } = await register()
+    const now = fromNow(hours(1))
+
+    await repository.activate(registration, tokenHash, now)
+
+    expect((await prisma.teacher.findUnique({ where: { email: EMAIL } }))?.emailVerifiedAt).toEqual(now)
+  })
+
+  it('срок записи сверяется с переданным now: запись, живая по часам, но истёкшая к now → alreadyUsed', async () => {
+    const { registration, tokenHash } = await register()
+
+    const result = await repository.activate(registration, tokenHash, fromNow(REGISTRATION_TTL_MS + hours(1)))
+
+    expect(result).toEqual({ status: 'alreadyUsed' })
+    expect(await prisma.teacher.count()).toBe(0)
+  })
+
   it('без имени — displayName null', async () => {
     const { registration, tokenHash } = await register({ displayName: null })
 
-    await repository.activate(registration, tokenHash)
+    await repository.activate(registration, tokenHash, new Date())
 
     expect((await prisma.teacher.findUnique({ where: { email: EMAIL } }))?.displayName).toBeNull()
   })
@@ -90,7 +108,7 @@ describe('activate', () => {
     await register()
     await register({ email: OTHER_EMAIL })
 
-    await repository.activate(registration, tokenHash)
+    await repository.activate(registration, tokenHash, new Date())
 
     expect(await prisma.pendingRegistration.count({ where: { email: EMAIL } })).toBe(0)
     expect(await prisma.pendingRegistration.count({ where: { email: OTHER_EMAIL } })).toBe(1)
@@ -100,16 +118,16 @@ describe('activate', () => {
     await register({ passwordHash: `${ARGON2ID_HASH}-first` })
     const { registration, tokenHash } = await register({ passwordHash: `${ARGON2ID_HASH}-second` })
 
-    await repository.activate(registration, tokenHash)
+    await repository.activate(registration, tokenHash, new Date())
 
     expect((await prisma.teacher.findUnique({ where: { email: EMAIL } }))?.passwordHash).toBe(`${ARGON2ID_HASH}-second`)
   })
 
   it('повторное подтверждение тем же токеном → alreadyUsed', async () => {
     const { registration, tokenHash } = await register()
-    await repository.activate(registration, tokenHash)
+    await repository.activate(registration, tokenHash, new Date())
 
-    expect(await repository.activate(registration, tokenHash)).toEqual({ status: 'alreadyUsed' })
+    expect(await repository.activate(registration, tokenHash, new Date())).toEqual({ status: 'alreadyUsed' })
   })
 
   it('истёкшая запись → alreadyUsed, учитель не создаётся', async () => {
@@ -124,7 +142,7 @@ describe('activate', () => {
       },
     })
 
-    expect(await repository.activate({ ...expired, displayName: null }, tokenHash)).toEqual({ status: 'alreadyUsed' })
+    expect(await repository.activate({ ...expired, displayName: null }, tokenHash, new Date())).toEqual({ status: 'alreadyUsed' })
     expect(await prisma.teacher.count()).toBe(0)
   })
 
@@ -132,7 +150,7 @@ describe('activate', () => {
     const own = await register()
     const foreign = await register({ email: OTHER_EMAIL })
 
-    expect(await repository.activate(own.registration, foreign.tokenHash)).toEqual({ status: 'alreadyUsed' })
+    expect(await repository.activate(own.registration, foreign.tokenHash, new Date())).toEqual({ status: 'alreadyUsed' })
     expect(await prisma.pendingRegistration.count()).toBe(2)
     expect(await prisma.teacher.count()).toBe(0)
   })
@@ -141,7 +159,7 @@ describe('activate', () => {
     const existing = await createTeacher(prisma, EMAIL)
     const { registration, tokenHash } = await register()
 
-    expect(await repository.activate(registration, tokenHash)).toEqual({ status: 'emailTaken' })
+    expect(await repository.activate(registration, tokenHash, new Date())).toEqual({ status: 'emailTaken' })
     expect(await prisma.teacher.findUnique({ where: { email: EMAIL } })).toEqual(existing)
   })
 
@@ -152,8 +170,8 @@ describe('activate', () => {
       const second = await register()
 
       const results = await Promise.allSettled([
-        repository.activate(first.registration, first.tokenHash),
-        repository.activate(second.registration, second.tokenHash),
+        repository.activate(first.registration, first.tokenHash, new Date()),
+        repository.activate(second.registration, second.tokenHash, new Date()),
       ])
 
       const statuses = results.map((result) => (result.status === 'fulfilled' ? result.value.status : `error: ${String(result.reason).slice(0, 120)}`))
@@ -169,8 +187,8 @@ describe('activate', () => {
       const { registration, tokenHash } = await register()
 
       const results = await Promise.all([
-        repository.activate(registration, tokenHash),
-        repository.activate(registration, tokenHash),
+        repository.activate(registration, tokenHash, new Date()),
+        repository.activate(registration, tokenHash, new Date()),
       ])
 
       expect(results.map((result) => result.status).sort()).toEqual(['activated', 'alreadyUsed'])

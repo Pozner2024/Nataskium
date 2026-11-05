@@ -52,6 +52,10 @@ export async function makePasswordHasher(): Promise<PasswordHasher> {
   return {
     hasCapacity: () => pendingJobs < MAX_PENDING_HASH_JOBS,
 
+    assertCapacity() {
+      if (pendingJobs >= MAX_PENDING_HASH_JOBS) throw new ServiceBusyError(HASH_QUEUE_RETRY_AFTER_SECONDS)
+    },
+
     hash: (password) => runJob(() => hash(password, ARGON2_OPTIONS)),
 
     verify: (storedHash, password) =>

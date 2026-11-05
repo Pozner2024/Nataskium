@@ -96,7 +96,7 @@ describe('createFamily', () => {
   it('семья с ротацией считается одной и удаляется вместе со всеми своими токенами', async () => {
     const [oldest] = await createFamilies(1)
     const successor = newToken({ familyId: oldest?.familyId })
-    expect(await repository.rotate(await idOf(oldest?.tokenHash ?? ''), successor)).toBe(true)
+    expect(await repository.rotate(await idOf(oldest?.tokenHash ?? ''), successor, new Date())).toBe(true)
     await wait(CREATED_AT_GAP_MS)
 
     const younger = await createFamilies(MAX_FAMILIES)
@@ -110,7 +110,7 @@ describe('createFamily', () => {
     let current = rotated?.tokenHash ?? ''
     for (let rotation = 0; rotation < MAX_FAMILIES; rotation++) {
       const next = newToken({ familyId: rotated?.familyId })
-      await repository.rotate(await idOf(current), next)
+      await repository.rotate(await idOf(current), next, new Date())
       current = next.tokenHash
     }
 
@@ -159,7 +159,7 @@ describe('rotate', () => {
     await repository.createFamily(token, MAX_FAMILIES)
     const next = newToken({ familyId: token.familyId })
 
-    expect(await repository.rotate(await idOf(token.tokenHash), next)).toBe(true)
+    expect(await repository.rotate(await idOf(token.tokenHash), next, new Date())).toBe(true)
 
     expect((await repository.findByHash(token.tokenHash))?.revokedAt).toBeInstanceOf(Date)
     expect(await repository.findByHash(next.tokenHash)).toMatchObject({ familyId: token.familyId, revokedAt: null })
@@ -169,15 +169,25 @@ describe('rotate', () => {
     const token = newToken()
     await repository.createFamily(token, MAX_FAMILIES)
     const oldId = await idOf(token.tokenHash)
-    await repository.rotate(oldId, newToken({ familyId: token.familyId }))
+    await repository.rotate(oldId, newToken({ familyId: token.familyId }), new Date())
     const late = newToken({ familyId: token.familyId })
 
-    expect(await repository.rotate(oldId, late)).toBe(false)
+    expect(await repository.rotate(oldId, late, new Date())).toBe(false)
     expect(await repository.findByHash(late.tokenHash)).toBeNull()
   })
 
+  it('время отзыва — переданное now, а не часы базы или процесса', async () => {
+    const token = newToken()
+    await repository.createFamily(token, MAX_FAMILIES)
+    const revokedAt = fromNow(hours(1))
+
+    await repository.rotate(await idOf(token.tokenHash), newToken({ familyId: token.familyId }), revokedAt)
+
+    expect((await repository.findByHash(token.tokenHash))?.revokedAt).toEqual(revokedAt)
+  })
+
   it('несуществующий токен → false', async () => {
-    expect(await repository.rotate(randomUUID(), newToken())).toBe(false)
+    expect(await repository.rotate(randomUUID(), newToken(), new Date())).toBe(false)
   })
 
   it('CAS: из двух параллельных ротаций одного токена проходит ровно одна', async () => {
@@ -187,7 +197,7 @@ describe('rotate', () => {
       const oldId = await idOf(token.tokenHash)
       const successors = [newToken({ familyId: token.familyId }), newToken({ familyId: token.familyId })]
 
-      const results = await Promise.all(successors.map((next) => repository.rotate(oldId, next)))
+      const results = await Promise.all(successors.map((next) => repository.rotate(oldId, next, new Date())))
 
       expect(results.filter(Boolean)).toHaveLength(1)
       expect(await prisma.refreshToken.count({ where: { familyId: token.familyId } })).toBe(2)
@@ -201,7 +211,7 @@ describe('rotate', () => {
     // Повтор token_hash нарушает уникальность: транзакция ротации должна откатиться целиком
     const clash = { ...newToken({ familyId: token.familyId }), tokenHash: token.tokenHash }
 
-    await expect(repository.rotate(await idOf(token.tokenHash), clash)).rejects.toThrow()
+    await expect(repository.rotate(await idOf(token.tokenHash), clash, new Date())).rejects.toThrow()
 
     expect((await repository.findByHash(token.tokenHash))?.revokedAt).toBeNull()
   })
@@ -210,7 +220,7 @@ describe('rotate', () => {
 describe('deleteFamily и deleteAllForTeacher', () => {
   it('deleteFamily удаляет только эту семью', async () => {
     const [first, second] = await createFamilies(2)
-    await repository.rotate(await idOf(first?.tokenHash ?? ''), newToken({ familyId: first?.familyId }))
+    await repository.rotate(await idOf(first?.tokenHash ?? ''), newToken({ familyId: first?.familyId }), new Date())
 
     await repository.deleteFamily(first?.familyId ?? '')
 
@@ -248,7 +258,7 @@ describe('deleteExpired', () => {
   it('не удаляет отозванные неистёкшие: по ним ловится повторное использование', async () => {
     const token = newToken()
     await repository.createFamily(token, MAX_FAMILIES)
-    await repository.rotate(await idOf(token.tokenHash), newToken({ familyId: token.familyId }))
+    await repository.rotate(await idOf(token.tokenHash), newToken({ familyId: token.familyId }), new Date())
 
     expect(await repository.deleteExpired(new Date())).toBe(0)
     expect((await repository.findByHash(token.tokenHash))?.revokedAt).toBeInstanceOf(Date)

@@ -33,11 +33,11 @@ export function makeRefreshTokenRepository(prisma: PrismaClient): RefreshTokenRe
 
     findByHash: (tokenHash) => prisma.refreshToken.findUnique({ where: { tokenHash }, select: REFRESH_SESSION_SELECT }),
 
-    rotate(oldTokenId, next) {
+    rotate(oldTokenId, next, now) {
       return prisma.$transaction(async (tx) => {
         const { count } = await tx.refreshToken.updateMany({
           where: { id: oldTokenId, revokedAt: null },
-          data: { revokedAt: new Date() },
+          data: { revokedAt: now },
         })
         if (count === 0) return false
 

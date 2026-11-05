@@ -27,14 +27,14 @@ export function makePendingRegistrationRepository(prisma: PrismaClient): Pending
     findByTokenHash: (tokenHash) =>
       prisma.pendingRegistration.findUnique({ where: { tokenHash }, select: PENDING_REGISTRATION_SELECT }),
 
-    async activate(registration, tokenHash): Promise<ActivationResult> {
+    async activate(registration, tokenHash, now): Promise<ActivationResult> {
       try {
         return await prisma.$transaction(async (tx): Promise<ActivationResult> => {
           await lockEmail(tx, registration.email)
 
           // CAS: из двух параллельных подтверждений одним токеном запись удалит только одно
           const { count } = await tx.pendingRegistration.deleteMany({
-            where: { id: registration.id, tokenHash, expiresAt: { gt: new Date() } },
+            where: { id: registration.id, tokenHash, expiresAt: { gt: now } },
           })
           if (count !== 1) return { status: 'alreadyUsed' }
 
@@ -49,7 +49,7 @@ export function makePendingRegistrationRepository(prisma: PrismaClient): Pending
               email: registration.email,
               passwordHash: registration.passwordHash,
               displayName: registration.displayName,
-              emailVerifiedAt: new Date(),
+              emailVerifiedAt: now,
             },
             select: TEACHER_ACCOUNT_SELECT,
           })
