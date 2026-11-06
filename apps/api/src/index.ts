@@ -1,11 +1,20 @@
 import { serve } from '@hono/node-server'
 import { createApp, createAuthCleanup } from './app'
-import { PRODUCTION_LIMITS, makePasswordHasher, makeUnconfiguredEmailSender, startCleanupSchedule } from './features/auth'
+import {
+  PENDING_REGISTRATION_TTL_MS,
+  PRODUCTION_LIMITS,
+  type EmailSender,
+  makePasswordHasher,
+  makeResendEmailSender,
+  makeUnconfiguredEmailSender,
+  startCleanupSchedule,
+} from './features/auth'
 import { parseEnv, type Env } from './shared/config'
 import { createPrismaClient } from './shared/infrastructure'
 
 const API_HOST = '127.0.0.1'
 const MS_PER_HOUR = 60 * 60 * 1000
+const VERIFICATION_LINK_TTL_HOURS = PENDING_REGISTRATION_TTL_MS / MS_PER_HOUR
 // Регистрации живут 24 часа, refresh — 14 дней: раз в час истёкшие данные не задерживаются надолго
 const CLEANUP_INTERVAL_MS = MS_PER_HOUR
 
@@ -20,16 +29,20 @@ function readEnv(): Env {
 
 const env = readEnv()
 
-// Без почты учитель не подтвердит регистрацию: в production такой сервер бесполезен. Снимается в части F (Resend)
-if (env.NODE_ENV === 'production') {
-  console.error('Email sending is not configured yet: refusing to start in production')
-  process.exit(1)
+// В production env.ts требует RESEND_API_KEY и EMAIL_FROM; вне production без них письма не уходят (заглушка)
+function makeEmailSender(): EmailSender {
+  if (env.RESEND_API_KEY === undefined || env.EMAIL_FROM === undefined) return makeUnconfiguredEmailSender()
+  return makeResendEmailSender({
+    apiKey: env.RESEND_API_KEY,
+    from: env.EMAIL_FROM,
+    webOrigin: env.WEB_ORIGIN,
+    verificationLinkTtlHours: VERIFICATION_LINK_TTL_HOURS,
+  })
 }
 const prisma = createPrismaClient(env.DATABASE_URL)
 // До createApp: dummy-хэш для сверки при отсутствии учителя считается один раз при старте
 const passwordHasher = await makePasswordHasher()
-// Часть F заменит заглушку отправкой через Resend
-const emailSender = makeUnconfiguredEmailSender()
+const emailSender = makeEmailSender()
 // Всегда PRODUCTION_LIMITS, независимо от NODE_ENV: ослабленные лимиты передают только тесты через createApp
 const app = createApp({ env, prisma, limits: PRODUCTION_LIMITS, passwordHasher, emailSender })
 

@@ -8,6 +8,7 @@ export { PENDING_REGISTRATION_TTL_MS, makeRegister } from './application/registe
 export { makeVerifyEmail } from './application/verifyEmail'
 export { makeAuthLimiters } from './infrastructure/authLimiters'
 export { makeCleanupExpiredAuthRecords, startCleanupSchedule } from './infrastructure/cleanup'
+export { SIGN_IN_PATH, VERIFY_EMAIL_PATH, makeResendEmailSender } from './infrastructure/emailService'
 export type { CleanupScheduleOptions } from './infrastructure/cleanup'
 export type { AuthLimiters } from './infrastructure/authLimiters'
 export { makePasswordHasher } from './infrastructure/passwordHasher'

@@ -14,6 +14,9 @@ const TEST_HMAC_SECRET = 'qa-fake-hmac-secret-0123456789abcdef'
 const PROD_ORIGIN = 'https://nataskium.example'
 const DEV_ORIGIN = 'http://localhost:3000'
 const TEST_PROXY_IP = '172.18.0.2'
+// Выдуманный ключ Resend: настоящий ключ в тестах не используется, письма не отправляются
+const TEST_RESEND_KEY = 're_qa_fake_key_0123456789abcdef'
+const TEST_EMAIL_FROM = 'noreply@nataskium.example'
 // Полное окружение production: NODE_ENV по умолчанию — production
 const VALID = {
   DATABASE_URL: TEST_DATABASE_URL,
@@ -21,9 +24,12 @@ const VALID = {
   HMAC_SECRET: TEST_HMAC_SECRET,
   WEB_ORIGIN: PROD_ORIGIN,
   TRUSTED_PROXY_IPS: TEST_PROXY_IP,
+  RESEND_API_KEY: TEST_RESEND_KEY,
+  EMAIL_FROM: TEST_EMAIL_FROM,
 }
 // Для development и test: http-адрес, без списка прокси
-const VALID_LOCAL = { ...VALID, WEB_ORIGIN: DEV_ORIGIN, TRUSTED_PROXY_IPS: undefined }
+// Вне production почта необязательна: локально её обычно нет
+const VALID_LOCAL = { ...VALID, WEB_ORIGIN: DEV_ORIGIN, TRUSTED_PROXY_IPS: undefined, RESEND_API_KEY: undefined, EMAIL_FROM: undefined }
 const DEFAULT_ENV = {
   NODE_ENV: 'production',
   API_PORT: 3001,
@@ -32,6 +38,8 @@ const DEFAULT_ENV = {
   HMAC_SECRET: TEST_HMAC_SECRET,
   WEB_ORIGIN: PROD_ORIGIN,
   TRUSTED_PROXY_IPS: [TEST_PROXY_IP],
+  RESEND_API_KEY: TEST_RESEND_KEY,
+  EMAIL_FROM: TEST_EMAIL_FROM,
 }
 const DATABASE_URL_REQUIRED = '  DATABASE_URL: is required'
 const DATABASE_URL_PROBLEM = '  DATABASE_URL: must be a postgresql:// or postgres:// URL'
@@ -554,6 +562,135 @@ describe('parseEnv: секретов нет в ошибке', () => {
 
   it('секрет с пробелом по краю: значения нет в ошибке', () => {
     const error = parseError({ ...VALID, JWT_SECRET: ` ${LEAK_MARKER}` })
+
+    expect(error.message).not.toContain('qa-leak')
+    expect(inspect(error)).not.toContain('qa-leak')
+  })
+})
+
+describe('parseEnv: RESEND_API_KEY и EMAIL_FROM', () => {
+  const KEY_REQUIRED = '  RESEND_API_KEY: is required in production'
+  const FROM_REQUIRED = '  EMAIL_FROM: is required in production'
+  const TEST_DOMAIN = '  EMAIL_FROM: must not use the resend.dev test domain in production'
+  const TOGETHER = '  EMAIL_FROM: RESEND_API_KEY and EMAIL_FROM must be set together'
+  const KEY_WHITESPACE = '  RESEND_API_KEY: must not start or end with whitespace'
+  const FROM_NOT_EMAIL = '  EMAIL_FROM: must be an email address'
+  const DEVELOPMENT = { ...VALID_LOCAL, NODE_ENV: 'development' }
+
+  it('production: оба заданы — возвращаются как есть', () => {
+    expect(parseEnv(VALID)).toMatchObject({ RESEND_API_KEY: TEST_RESEND_KEY, EMAIL_FROM: TEST_EMAIL_FROM })
+  })
+
+  it.each([
+    ['ключ не задан', { RESEND_API_KEY: undefined }, KEY_REQUIRED],
+    ['ключ — пустая строка, как в .env.example', { RESEND_API_KEY: '' }, KEY_REQUIRED],
+    ['оба не заданы — сначала ключ', { RESEND_API_KEY: undefined, EMAIL_FROM: undefined }, KEY_REQUIRED],
+    ['оба пустые', { RESEND_API_KEY: '', EMAIL_FROM: '' }, KEY_REQUIRED],
+    ['отправитель не задан', { EMAIL_FROM: undefined }, FROM_REQUIRED],
+    ['отправитель — пустая строка', { EMAIL_FROM: '' }, FROM_REQUIRED],
+  ])('production: %s', (_name, override, problem) => {
+    expectOnly({ ...VALID, ...override }, problem)
+  })
+
+  it('production по умолчанию: без NODE_ENV почта тоже обязательна', () => {
+    expectOnly({ ...VALID, NODE_ENV: undefined, RESEND_API_KEY: undefined }, KEY_REQUIRED)
+  })
+
+  it.each(['onboarding@resend.dev', 'qa@mail.resend.dev', 'QA@RESEND.DEV'])('production: тестовый домен %s запрещён', (from) => {
+    expectOnly({ ...VALID, EMAIL_FROM: from }, TEST_DOMAIN)
+  })
+
+  it.each(['qa@notresend.dev', 'qa@resend.dev.example.com'])('production: похожий, но другой домен %s допустим', (from) => {
+    expect(parseEnv({ ...VALID, EMAIL_FROM: from }).EMAIL_FROM).toBe(from)
+  })
+
+  it.each([
+    ['ничего не задано', {}],
+    ['оба пустые', { RESEND_API_KEY: '', EMAIL_FROM: '' }],
+  ])('вне production почта необязательна: %s', (_name, override) => {
+    const env = parseEnv({ ...DEVELOPMENT, ...override })
+
+    expect(env.RESEND_API_KEY).toBeUndefined()
+    expect(env.EMAIL_FROM).toBeUndefined()
+  })
+
+  it.each(['development', 'test'])('вне production (%s) тестовый домен resend.dev допустим', (nodeEnv) => {
+    const env = parseEnv({ ...VALID_LOCAL, NODE_ENV: nodeEnv, RESEND_API_KEY: TEST_RESEND_KEY, EMAIL_FROM: 'onboarding@resend.dev' })
+
+    expect(env.EMAIL_FROM).toBe('onboarding@resend.dev')
+  })
+
+  it.each([
+    ['только ключ', { RESEND_API_KEY: TEST_RESEND_KEY }],
+    ['только отправитель', { EMAIL_FROM: TEST_EMAIL_FROM }],
+    ['ключ и пустой отправитель', { RESEND_API_KEY: TEST_RESEND_KEY, EMAIL_FROM: '' }],
+  ])('вне production — оба или ни одного: %s', (_name, override) => {
+    expectOnly({ ...DEVELOPMENT, ...override }, TOGETHER)
+  })
+
+  it.each([' ', '\t', '\n', '\r\n', '\u00a0'])(
+    'ключ с пробельным символом по краю — ошибка: %j',
+    (char) => {
+      expectOnly({ ...VALID, RESEND_API_KEY: `${char}${TEST_RESEND_KEY}` }, KEY_WHITESPACE)
+      expectOnly({ ...VALID, RESEND_API_KEY: `${TEST_RESEND_KEY}${char}` }, KEY_WHITESPACE)
+    },
+  )
+
+  const KEY_FORMAT = '  RESEND_API_KEY: must start with re_ and be at least 20 characters'
+  const MIN_KEY_LENGTH = 20
+
+  it.each([
+    ['ровно 20 символов', `re_${'k'.repeat(MIN_KEY_LENGTH - 3)}`],
+    ['длинный', `re_${'k'.repeat(60)}`],
+  ])('ключ Resend принимается: %s', (_name, key) => {
+    expect(key.length).toBeGreaterThanOrEqual(MIN_KEY_LENGTH)
+    expect(parseEnv({ ...VALID, RESEND_API_KEY: key }).RESEND_API_KEY).toBe(key)
+  })
+
+  it.each([
+    ['19 символов', `re_${'k'.repeat(MIN_KEY_LENGTH - 4)}`],
+    ['только префикс', 're_'],
+    ['без префикса', 'k'.repeat(MIN_KEY_LENGTH + 10)],
+    ['RE_ в верхнем регистре', `RE_${'k'.repeat(MIN_KEY_LENGTH)}`],
+    ['префикс не в начале', `k_re_${'k'.repeat(MIN_KEY_LENGTH)}`],
+    ['плейсхолдер из документации', 'your-resend-api-key'],
+  ])('ключ Resend неверного формата: %s', (_name, key) => {
+    expectOnly({ ...VALID, RESEND_API_KEY: key }, KEY_FORMAT)
+  })
+
+  it('ключ неверного формата вне production — та же ошибка', () => {
+    expectOnly({ ...DEVELOPMENT, RESEND_API_KEY: 'short', EMAIL_FROM: TEST_EMAIL_FROM }, KEY_FORMAT)
+  })
+
+  it('ключ с пробелом по краю — только ошибка пробела, без ошибки формата', () => {
+    expectOnly({ ...VALID, RESEND_API_KEY: ' short' }, KEY_WHITESPACE)
+  })
+
+  it.each([
+    ['короткий', `re_${LEAK_MARKER.slice(0, 10)}`],
+    ['без префикса', LEAK_MARKER],
+  ])('значения ключа неверного формата нет в ошибке: %s', (_name, key) => {
+    const error = parseError({ ...VALID, RESEND_API_KEY: key })
+
+    expect(error.message).not.toContain(key)
+    expect(error.message).not.toContain('qa-leak')
+    expect(inspect(error)).not.toContain('qa-leak')
+  })
+
+  it.each(['not-an-email', 'Nataskium <noreply@nataskium.example>', ' noreply@nataskium.example ', 'noreply@'])(
+    'отправитель не email: %j',
+    (from) => {
+      expectOnly({ ...VALID, EMAIL_FROM: from }, FROM_NOT_EMAIL)
+    },
+  )
+
+  it.each([
+    ['ключ с пробелом', { RESEND_API_KEY: ` ${LEAK_MARKER}` }],
+    ['ключ без отправителя вне production', { NODE_ENV: 'development', WEB_ORIGIN: DEV_ORIGIN, TRUSTED_PROXY_IPS: undefined, RESEND_API_KEY: LEAK_MARKER, EMAIL_FROM: undefined }],
+    ['ключ при тестовом домене', { RESEND_API_KEY: LEAK_MARKER, EMAIL_FROM: 'onboarding@resend.dev' }],
+    ['ключ в поле отправителя', { EMAIL_FROM: LEAK_MARKER }],
+  ])('ключа нет в ошибке: %s', (_name, override) => {
+    const error = parseError({ ...VALID, ...override })
 
     expect(error.message).not.toContain('qa-leak')
     expect(inspect(error)).not.toContain('qa-leak')

@@ -7,7 +7,7 @@ class EmailNotConfiguredError extends Error {
   }
 }
 
-// До части F (Resend): письма не уходят, sendInBackground пишет в лог только операцию и тип этой ошибки
+// Вне production без RESEND_API_KEY и EMAIL_FROM: письма не уходят, sendInBackground пишет в лог только тип ошибки
 export function makeUnconfiguredEmailSender(): EmailSender {
   const fail = async () => {
     throw new EmailNotConfiguredError()

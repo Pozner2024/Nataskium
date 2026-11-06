@@ -28,7 +28,7 @@
 | Backend     | Hono + TypeScript + Node.js                   |
 | БД          | PostgreSQL + Prisma ORM                       |
 | Shared      | npm workspaces, Zod schemas, TypeScript enums |
-| Auth        | JWT (access + refresh) + Google OAuth         |
+| Auth        | JWT access-токен + непрозрачный refresh-токен (httpOnly cookie) + Google OAuth |
 | Изображения | Яндекс Object Storage (S3)                    |
 | Платежи     | PayPal REST API                               |
 | Рассылка    | Resend (email-верификация, newsletter)        |

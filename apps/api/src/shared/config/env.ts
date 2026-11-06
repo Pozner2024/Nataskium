@@ -10,6 +10,11 @@ const MIN_SECRET_BYTES = 32
 const WEB_ORIGIN_PROTOCOL = /^https?$/
 const HTTPS_PREFIX = 'https://'
 const LIST_SEPARATOR = ','
+// Тестовый домен Resend: письма с него уходят только на адрес владельца аккаунта Resend
+const RESEND_TEST_DOMAIN = 'resend.dev'
+// Формат ключей Resend: префикс re_ и случайная часть; короче — почти наверняка обрезанный или чужой ключ
+const RESEND_API_KEY_PREFIX = 're_'
+const MIN_RESEND_API_KEY_LENGTH = 20
 const CIDR_SEPARATOR = '/'
 const MIN_IPV4_PREFIX = 16
 const MIN_IPV6_PREFIX = 64
@@ -21,6 +26,16 @@ const MIN_IPV4_MAPPED_PREFIX = IPV4_MAPPED_PREFIX + MIN_IPV4_PREFIX
 const IPV4_COMPATIBLE_NETWORK = '::'
 const IPV4_COMPATIBLE_PREFIX = 96
 const IPV6_HOST_PREFIX = 128
+
+// Пустая строка (как в .env.example) — то же, что «не задано»
+function emptyAsUndefined(value: unknown): unknown {
+  return value === '' ? undefined : value
+}
+
+function isOnResendTestDomain(email: string): boolean {
+  const domain = email.slice(email.lastIndexOf('@') + 1).toLowerCase()
+  return domain === RESEND_TEST_DOMAIN || domain.endsWith(`.${RESEND_TEST_DOMAIN}`)
+}
 
 function requiredMessage(problem: string) {
   return (issue: { input: unknown }) => (issue.input === undefined ? 'is required' : problem)
@@ -128,6 +143,18 @@ const envFieldsSchema = z.object({
         .filter((item) => item !== ''),
     )
     .pipe(z.array(trustedProxySchema)),
+  // Почта (Resend). Вне production необязательна: без неё письма не уходят, а в лог пишется только тип ошибки
+  RESEND_API_KEY: z.preprocess(
+    emptyAsUndefined,
+    z
+      .string()
+      .refine((key) => key === key.trim(), { error: 'must not start or end with whitespace', abort: true })
+      .refine((key) => key.startsWith(RESEND_API_KEY_PREFIX) && key.length >= MIN_RESEND_API_KEY_LENGTH, {
+        error: `must start with ${RESEND_API_KEY_PREFIX} and be at least ${MIN_RESEND_API_KEY_LENGTH} characters`,
+      })
+      .optional(),
+  ),
+  EMAIL_FROM: z.preprocess(emptyAsUndefined, z.email({ error: 'must be an email address' }).optional()),
 })
 
 // Проверки между полями — только когда сами поля верны (onlyIfValid), иначе к ошибке поля добавилась бы вторая
@@ -152,6 +179,28 @@ const envSchema = envFieldsSchema
   .refine((env) => env.NODE_ENV !== 'production' || env.TRUSTED_PROXY_IPS.length > 0, {
     path: ['TRUSTED_PROXY_IPS'],
     error: 'is required in production',
+    ...onlyIfValid,
+  })
+  // Без почты учитель не подтвердит регистрацию: в production сервер без неё не стартует
+  .refine((env) => env.NODE_ENV !== 'production' || env.RESEND_API_KEY !== undefined, {
+    path: ['RESEND_API_KEY'],
+    error: 'is required in production',
+    ...onlyIfValid,
+  })
+  .refine((env) => env.NODE_ENV !== 'production' || env.EMAIL_FROM !== undefined, {
+    path: ['EMAIL_FROM'],
+    error: 'is required in production',
+    ...onlyIfValid,
+  })
+  .refine((env) => env.NODE_ENV !== 'production' || env.EMAIL_FROM === undefined || !isOnResendTestDomain(env.EMAIL_FROM), {
+    path: ['EMAIL_FROM'],
+    error: `must not use the ${RESEND_TEST_DOMAIN} test domain in production`,
+    ...onlyIfValid,
+  })
+  // Половина настройки — почти наверняка ошибка: письма молча не уходили бы
+  .refine((env) => (env.RESEND_API_KEY === undefined) === (env.EMAIL_FROM === undefined), {
+    path: ['EMAIL_FROM'],
+    error: 'RESEND_API_KEY and EMAIL_FROM must be set together',
     ...onlyIfValid,
   })
 

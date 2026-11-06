@@ -36,7 +36,7 @@ export function makeRegister(deps: RegisterDeps) {
 
     const existing = await deps.teachers.findByEmail(input.email)
     if (existing !== null) {
-      sendInBackground('register.accountExists', () => deps.emailSender.sendAccountExistsEmail(input.email))
+      sendInBackground('register.accountExists', () => deps.emailSender.sendAccountExistsEmail(input.email, existing.displayName))
       return
     }
 

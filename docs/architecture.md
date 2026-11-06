@@ -344,6 +344,19 @@ shared/
 └── utils/                 помощники
 ```
 
+### Тесты (бэкенд)
+
+- **Unit** — `npm run test` в `apps/api`, без Docker: интеграционные тесты исключены в `vitest.config.ts`
+- **Интеграционные** (`tests/integration/*.int.test.ts`) — на настоящем PostgreSQL в отдельном контейнере, dev-БД они не трогают:
+
+```bash
+cp .env.test.example .env.test                    # один раз; креды не секретные
+docker compose -f docker-compose.test.yml up -d   # db-test: 127.0.0.1:5433, данные в tmpfs
+npm run test:integration -w @nataskium/api        # migrate deploy, затем тесты
+```
+
+Раннер отказывается работать, если адрес не указывает на локальную базу с суффиксом `_test` на порту 5433; очистка таблиц (`TRUNCATE`) сама проверяет имя базы.
+
 ---
 
 ## npm Workspaces и Shared пакет
@@ -370,8 +383,11 @@ packages/shared/
 
 ### Аутентификация
 
-- **Access token:** JWT, хранится в памяти браузера
-- **Refresh token:** JWT, хранится в httpOnly cookie, хэшируется HMAC-SHA256
+- **Маршруты:** `/api/auth/*` (`register`, `verify-email`, `login`, `refresh`, `logout`, `logout-all`, `me`). Hono монтирует их под `/api`, Caddy префикс не срезает, в dev Nuxt проксирует `/api` на API (`nitro.devProxy`) — пути одинаковы везде
+- **Регистрация:** учитель создаётся **только при подтверждении email**. До этого пароль (argon2id) хранится в записи `pending_registrations`; ссылка из письма активирует её только вместе с паролем этой регистрации, поэтому чужая регистрация на твой email не даёт войти в аккаунт
+- **Access token:** JWT (HS256, `typ: at+jwt`, `iss`, `aud`) на 15 минут, хранится только в памяти браузера
+- **Refresh token:** непрозрачная случайная строка (32 байта, base64url), в БД — только HMAC-SHA256. Хранится в cookie `__Secure-refresh_token`: `HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/api/auth`. Скользящий срок 14 дней, сессия — не дольше 30 дней с входа, до 5 сессий на учителя
+- **Ротация семьями:** каждый refresh выдаёт новый токен в той же семье (семья = один вход). Повторное предъявление уже ротированного токена считается кражей: удаляется вся семья, другие устройства учителя не затрагиваются. «Выйти везде» удаляет все семьи
 - **Google OAuth:** для быстрой регистрации учителя
 
 ### Оценивание
@@ -419,11 +435,15 @@ packages/shared/
 
 ### CORS
 
-Настраивается **первым middleware** в `app.ts`, до любых маршрутов.
+Настраивается **первым middleware** в `app.ts`, до любых маршрутов. Разрешён только origin фронтенда из `WEB_ORIGIN`, с `credentials`; `*` не используется. `refresh` и `logout` по cookie дополнительно проверяют заголовок `Origin`.
 
 ### Rate limiting
 
 Реализовано in-memory. **Требует одной реплики** `api` в docker-compose.
+
+- Ключ по IP — адрес сокета; для IPv6 — его сеть /64. `X-Real-IP` принимается только от адресов из `TRUSTED_PROXY_IPS` (Caddy), `X-Forwarded-For` не используется
+- Лимиты по email считаются по нормализованному адресу: неудачные входы, письма регистрации
+- Числа — в `features/auth/limits.ts` (`PRODUCTION_LIMITS`); `src/index.ts` передаёт их всегда, независимо от `NODE_ENV`
 
 ### Деплой: Caddy, заголовки и CSP
 
@@ -437,7 +457,9 @@ packages/shared/
 - Все заголовки страниц и CSP живут в `Caddyfile`, а не в коде приложения. Сейчас их нет: в приложении не настроено ни заголовков, ни CSP
 - Нужны: `Content-Security-Policy`, `Strict-Transport-Security`, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, `Cross-Origin-Opener-Policy`; убрать `X-Powered-By`
 - `Cross-Origin-Opener-Policy`: `same-origin-allow-popups`, иначе вход через Google во всплывающем окне может не работать
-- Caddy перезаписывает `X-Real-IP` адресом TCP-пира, иначе клиент подделает заголовок и обойдёт rate limiting
+- Caddy перезаписывает `X-Real-IP` адресом TCP-пира, иначе клиент подделает заголовок и обойдёт rate limiting. У Caddy в compose — статический IP, он же в `TRUSTED_PROXY_IPS` (в production переменная обязательна)
+- Caddy не срезает префикс `/api`: маршруты API и `Path` refresh-cookie рассчитаны на `/api/*`
+- `Referrer-Policy: no-referrer` на страницах `/auth/**`: токены из писем приходят во фрагменте `#token=`, но и сам адрес страницы не должен уходить на сторонние ресурсы
 - Hono ставит `secureHeaders` только на ответы API
 
 **CSP через hash, не nonce:** nonce несовместим с кешем HTML (`swr`). В `script-src` нет `'unsafe-inline'`; в `style-src` он нужен из-за атрибутов `style` и inline-тегов `<style>`. В `img-src` нужен `data:`, иначе пропадут CSS-маски в `WhyUs` и `HowToStart`.

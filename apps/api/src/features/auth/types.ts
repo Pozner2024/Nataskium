@@ -100,8 +100,10 @@ export type TokenService = {
 
 // Отправка вне критического пути ответа; ссылки из сырого токена строит реализация (часть F), токен — только в письмо
 export type EmailSender = {
+  // Без имени: его задал ещё не подтверждённый регистрирующийся — иначе это фишинговый текст с нашего домена
   sendVerificationEmail(to: string, rawToken: string): Promise<void>
-  sendAccountExistsEmail(to: string): Promise<void>
+  // Имя подтверждённого владельца аккаунта; реализация обязана экранировать его в HTML
+  sendAccountExistsEmail(to: string, displayName?: string | null): Promise<void>
 }
 
 // Бюджет писем на адрес (часть E: in-memory, по нормализованному email); false — бюджет исчерпан

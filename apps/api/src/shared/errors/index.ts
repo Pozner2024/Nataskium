@@ -1,4 +1,5 @@
 export { AppError } from './AppError'
+export { ExternalServiceError } from './ExternalServiceError'
 export { RateLimitedError } from './RateLimitedError'
 export { ServiceBusyError } from './ServiceBusyError'
 export { ValidationError } from './ValidationError'
