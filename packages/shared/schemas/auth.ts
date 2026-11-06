@@ -157,8 +157,15 @@ export const resetPasswordSchema = z.object({
   password: passwordSchema,
 })
 
+// Привязка Google к учителю с паролем: пароль — как при входе (без минимума и блок-листа)
+export const googleLinkSchema = z.object({
+  token: authTokenSchema,
+  password: loginPasswordSchema,
+})
+
 export type RegisterInput = z.infer<typeof registerSchema>
 export type LoginInput = z.infer<typeof loginSchema>
 export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>
+export type GoogleLinkInput = z.infer<typeof googleLinkSchema>

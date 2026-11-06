@@ -36,6 +36,10 @@ const MANUAL_CHECKS = [
   ['pending_registrations', 'pending_registrations_expires_after_created_check', 'CHECK ("expires_at" > "created_at")'],
   ['password_resets', 'password_resets_token_hash_format_check', `CHECK ("token_hash" ~ '^[0-9a-f]{64}$')`],
   ['password_resets', 'password_resets_expires_after_created_check', 'CHECK ("expires_at" > "created_at")'],
+  ['pending_google_links', 'pending_google_links_token_hash_format_check', `CHECK ("token_hash" ~ '^[0-9a-f]{64}$')`],
+  ['pending_google_links', 'pending_google_links_expires_after_created_check', 'CHECK ("expires_at" > "created_at")'],
+  ['pending_google_links', 'pending_google_links_google_id_not_empty_check', `CHECK ("google_id" <> '')`],
+  ['pending_google_links', 'pending_google_links_link_secret_hash_format_check', `CHECK ("link_secret_hash" ~ '^[0-9a-f]{64}$')`],
   ['pending_registrations', 'pending_registrations_display_name_length_check', 'CHECK (char_length("display_name") BETWEEN 1 AND 100)'],
   [
     'pending_registrations',
@@ -91,6 +95,13 @@ describe('миграции', () => {
 
   it('неуникальный индекс по teacher_id удалён: его заменил уникальный', () => {
     expect(readAllMigrations()).toContain('DROP INDEX "password_resets_teacher_id_idx";')
+  })
+
+  it('незавершённая привязка Google — одна на учителя и удаляется вместе с ним', () => {
+    expect(readAllMigrations()).toContain('CREATE UNIQUE INDEX "pending_google_links_teacher_id_key" ON "pending_google_links"("teacher_id");')
+    expect(readAllMigrations()).toContain(
+      'ALTER TABLE "pending_google_links" ADD CONSTRAINT "pending_google_links_teacher_id_fkey" FOREIGN KEY ("teacher_id") REFERENCES "teachers"("id") ON DELETE CASCADE',
+    )
   })
 
   it('ссылки сброса пароля удаляются вместе с учителем', () => {

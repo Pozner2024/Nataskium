@@ -15,6 +15,8 @@ const RESEND_TEST_DOMAIN = 'resend.dev'
 // Формат ключей Resend: префикс re_ и случайная часть; короче — почти наверняка обрезанный или чужой ключ
 const RESEND_API_KEY_PREFIX = 're_'
 const MIN_RESEND_API_KEY_LENGTH = 20
+// Callback Google OAuth — маршрут API под тем же origin, что и фронтенд (Caddy не срезает /api)
+const GOOGLE_CALLBACK_PATH = '/api/auth/google/callback'
 const CIDR_SEPARATOR = '/'
 const MIN_IPV4_PREFIX = 16
 const MIN_IPV6_PREFIX = 64
@@ -35,6 +37,16 @@ function emptyAsUndefined(value: unknown): unknown {
 function isOnResendTestDomain(email: string): boolean {
   const domain = email.slice(email.lastIndexOf('@') + 1).toLowerCase()
   return domain === RESEND_TEST_DOMAIN || domain.endsWith(`.${RESEND_TEST_DOMAIN}`)
+}
+
+type GoogleSettings = { GOOGLE_CLIENT_ID?: string; GOOGLE_CLIENT_SECRET?: string; GOOGLE_REDIRECT_URI?: string }
+
+function isGoogleConfigured(env: GoogleSettings): boolean {
+  return env.GOOGLE_CLIENT_ID !== undefined && env.GOOGLE_CLIENT_SECRET !== undefined && env.GOOGLE_REDIRECT_URI !== undefined
+}
+
+function isGoogleUnset(env: GoogleSettings): boolean {
+  return env.GOOGLE_CLIENT_ID === undefined && env.GOOGLE_CLIENT_SECRET === undefined && env.GOOGLE_REDIRECT_URI === undefined
 }
 
 function requiredMessage(problem: string) {
@@ -155,6 +167,25 @@ const envFieldsSchema = z.object({
       .optional(),
   ),
   EMAIL_FROM: z.preprocess(emptyAsUndefined, z.email({ error: 'must be an email address' }).optional()),
+  // Вход через Google. Вне production необязателен: без него маршруты /api/auth/google/* не подключаются
+  GOOGLE_CLIENT_ID: z.preprocess(
+    emptyAsUndefined,
+    z
+      .string()
+      .refine((id) => id === id.trim(), { error: 'must not start or end with whitespace' })
+      .optional(),
+  ),
+  GOOGLE_CLIENT_SECRET: z.preprocess(
+    emptyAsUndefined,
+    z
+      .string()
+      .refine((secret) => secret === secret.trim(), { error: 'must not start or end with whitespace' })
+      .optional(),
+  ),
+  GOOGLE_REDIRECT_URI: z.preprocess(
+    emptyAsUndefined,
+    z.url({ protocol: WEB_ORIGIN_PROTOCOL, hostname: /.+/, error: 'must be an http:// or https:// URL' }).optional(),
+  ),
 })
 
 // Проверки между полями — только когда сами поля верны (onlyIfValid), иначе к ошибке поля добавилась бы вторая
@@ -201,6 +232,22 @@ const envSchema = envFieldsSchema
   .refine((env) => (env.RESEND_API_KEY === undefined) === (env.EMAIL_FROM === undefined), {
     path: ['EMAIL_FROM'],
     error: 'RESEND_API_KEY and EMAIL_FROM must be set together',
+    ...onlyIfValid,
+  })
+  .refine((env) => env.NODE_ENV !== 'production' || isGoogleConfigured(env), {
+    path: ['GOOGLE_CLIENT_ID'],
+    error: 'GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and GOOGLE_REDIRECT_URI are required in production',
+    ...onlyIfValid,
+  })
+  .refine((env) => isGoogleConfigured(env) || isGoogleUnset(env), {
+    path: ['GOOGLE_CLIENT_ID'],
+    error: 'GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and GOOGLE_REDIRECT_URI must be set together',
+    ...onlyIfValid,
+  })
+  // Иначе Google вернёт учителя не на наш callback, и cookie __Secure-oauth (Path=/api/auth/google) не придёт
+  .refine((env) => env.GOOGLE_REDIRECT_URI === undefined || env.GOOGLE_REDIRECT_URI === `${env.WEB_ORIGIN}${GOOGLE_CALLBACK_PATH}`, {
+    path: ['GOOGLE_REDIRECT_URI'],
+    error: `must be WEB_ORIGIN + ${GOOGLE_CALLBACK_PATH}`,
     ...onlyIfValid,
   })
 

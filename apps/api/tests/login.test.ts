@@ -139,6 +139,7 @@ describe('login: отказ', () => {
         throw new Error('connection refused')
       },
       findById: async () => null,
+      signInWithGoogle: async () => ({ status: 'conflict' }),
     }
     const { login, limiter } = setup({ teachers: failing })
 

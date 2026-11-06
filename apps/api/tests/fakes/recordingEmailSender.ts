@@ -5,6 +5,7 @@ export type SentEmail =
   | { kind: 'accountExists'; to: string; displayName: string | null | undefined }
   | { kind: 'passwordReset'; to: string; rawToken: string; displayName: string | null | undefined }
   | { kind: 'passwordChanged'; to: string; displayName: string | null | undefined }
+  | { kind: 'googleLinked'; to: string; displayName: string | null | undefined }
 
 // Фейк для тестов: письма не отправляются, а запоминаются; failWith — проверить, что сбой почты не ломает ответ
 export function makeRecordingEmailSender(options: { failWith?: Error } = {}) {
@@ -22,6 +23,7 @@ export function makeRecordingEmailSender(options: { failWith?: Error } = {}) {
     sendAccountExistsEmail: (to, displayName) => record({ kind: 'accountExists', to, displayName }),
     sendPasswordResetEmail: (to, rawToken, displayName) => record({ kind: 'passwordReset', to, rawToken, displayName }),
     sendPasswordChangedEmail: (to, displayName) => record({ kind: 'passwordChanged', to, displayName }),
+    sendGoogleLinkedEmail: (to, displayName) => record({ kind: 'googleLinked', to, displayName }),
   }
 
   return { sender, sent }

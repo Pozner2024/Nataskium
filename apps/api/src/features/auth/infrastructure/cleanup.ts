@@ -1,25 +1,33 @@
-import type { Clock, PasswordResetRepository, PendingRegistrationRepository, RefreshTokenRepository } from '../types'
+import type {
+  Clock,
+  PasswordResetRepository,
+  PendingGoogleLinkRepository,
+  PendingRegistrationRepository,
+  RefreshTokenRepository,
+} from '../types'
 
 export type CleanupDeps = {
   refreshTokens: RefreshTokenRepository
   pendingRegistrations: PendingRegistrationRepository
   passwordResets: PasswordResetRepository
+  pendingGoogleLinks: PendingGoogleLinkRepository
   now: Clock
 }
 
-// Удаляет истёкшие refresh-токены, регистрации и ссылки сброса пароля (минимизация данных). Отозванные токены — только по сроку:
+// Удаляет истёкшие refresh-токены, регистрации, ссылки сброса пароля и привязки Google (минимизация данных). Отозванные токены — только по сроку:
 // до него по ним срабатывает обнаружение повторного использования. Сбой не роняет процесс — следующий запуск повторит
 export function makeCleanupExpiredAuthRecords(deps: CleanupDeps) {
   return async function cleanupExpiredAuthRecords(): Promise<void> {
     const now = deps.now()
     try {
-      const [refreshTokens, pendingRegistrations, passwordResets] = await Promise.all([
-        deps.refreshTokens.deleteExpired(now),
-        deps.pendingRegistrations.deleteExpired(now),
-        deps.passwordResets.deleteExpired(now),
-      ])
-      if (refreshTokens > 0 || pendingRegistrations > 0 || passwordResets > 0) {
-        console.log('[cleanup] expired auth records removed', { refreshTokens, pendingRegistrations, passwordResets })
+      const counts = {
+        refreshTokens: await deps.refreshTokens.deleteExpired(now),
+        pendingRegistrations: await deps.pendingRegistrations.deleteExpired(now),
+        passwordResets: await deps.passwordResets.deleteExpired(now),
+        pendingGoogleLinks: await deps.pendingGoogleLinks.deleteExpired(now),
+      }
+      if (Object.values(counts).some((count) => count > 0)) {
+        console.log('[cleanup] expired auth records removed', counts)
       }
     } catch (error) {
       // Только тип: в ошибке Prisma бывают параметры запроса

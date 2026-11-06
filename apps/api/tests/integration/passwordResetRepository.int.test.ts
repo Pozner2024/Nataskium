@@ -149,6 +149,22 @@ describe('completeReset', () => {
     expect(await prisma.passwordReset.count({ where: { teacherId } })).toBe(0)
   })
 
+  // Привязка ждала старый пароль: после сброса её нельзя завершить
+  it('удаляет незавершённую привязку Google этого учителя, чужую не трогает', async () => {
+    const seedLink = (ownerId: string) =>
+      prisma.pendingGoogleLink.create({
+        data: { teacherId: ownerId, googleId: `google-${ownerId}`, tokenHash: newTokenHash(), linkSecretHash: newTokenHash(), expiresAt: fromNow(RESET_TTL_MS) },
+      })
+    await seedLink(teacherId)
+    await seedLink(otherTeacherId)
+    const { reset, tokenHash } = await issue()
+
+    await repository.completeReset(reset, tokenHash, NEW_HASH, new Date())
+
+    expect(await prisma.pendingGoogleLink.count({ where: { teacherId } })).toBe(0)
+    expect(await prisma.pendingGoogleLink.count({ where: { teacherId: otherTeacherId } })).toBe(1)
+  })
+
   it('повторно той же ссылкой — invalid, пароль не меняется второй раз', async () => {
     const { reset, tokenHash } = await issue()
     await repository.completeReset(reset, tokenHash, NEW_HASH, new Date())

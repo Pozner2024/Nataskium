@@ -278,12 +278,47 @@ describe('Resend: письмо «пароль изменён»', () => {
   })
 })
 
+describe('Resend: письмо «вход через Google добавлен»', () => {
+  it('тема, ссылки только на страницу входа, без токена', async () => {
+    await sender().sendGoogleLinkedEmail(TO, null)
+
+    const { subject, html, text, to } = lastBody()
+    expect(subject).toBe('Google sign-in was added to your account — Nataskium')
+    expect(to).toEqual([TO])
+    for (const part of [html, text]) {
+      expect(new Set(linksIn(part))).toEqual(new Set([`${WEB_ORIGIN}${EXPECTED_SIGN_IN_PATH}`]))
+      expect(part).not.toMatch(/token/i)
+    }
+  })
+
+  it('текст: что произошло и что делать, если это не учитель; в text нет HTML-тегов', async () => {
+    await sender().sendGoogleLinkedEmail(TO, null)
+
+    const { html, text } = lastBody()
+    for (const part of [html, text]) {
+      expect(part).toContain('Sign-in with Google was just added')
+      expect(part).toContain('Forgot password')
+    }
+    expect(text).not.toMatch(HTML_TAG)
+  })
+
+  it('сбой отправки — ExternalServiceError без ключа', async () => {
+    respond = () => Promise.resolve(new Response('{}', { status: 500 }))
+
+    const error = await rejectionOf(sender().sendGoogleLinkedEmail(TO, null))
+
+    expect(error).toBeInstanceOf(ExternalServiceError)
+    expect(inspect(error, { depth: null })).not.toContain(API_KEY)
+  })
+})
+
 describe('Resend: имя учителя в письме', () => {
   // Имя есть в письмах «аккаунт уже есть» и сброса пароля: это имя существующего, подтверждённого учителя
   const SEND: [string, (name: string | null | undefined) => Promise<void>][] = [
     ['аккаунт уже есть', (name) => sender().sendAccountExistsEmail(TO, name)],
     ['сброс пароля', (name) => sender().sendPasswordResetEmail(TO, tokens.generateOpaqueToken(), name)],
     ['пароль изменён', (name) => sender().sendPasswordChangedEmail(TO, name)],
+    ['Google привязан', (name) => sender().sendGoogleLinkedEmail(TO, name)],
   ]
 
   it.each(SEND)('%s: HTML-символы имени экранированы в html', async (_name, send) => {

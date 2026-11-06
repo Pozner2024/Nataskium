@@ -21,6 +21,9 @@ export type AuthLimits = {
   resetEmailsPerDay: RateLimit
   forgotPasswordPerIp: RateLimit
   resetPasswordPerIp: RateLimit
+  googleStartPerIp: RateLimit
+  googleCallbackPerIp: RateLimit
+  googleLinkPerIp: RateLimit
   // refresh, logout, logout-all
   sessionPerIp: RateLimit
 }
@@ -43,6 +46,9 @@ const RESET_EMAILS_PER_HOUR = 3
 const RESET_EMAILS_PER_DAY = 5
 const FORGOT_PASSWORD_PER_IP = 30
 const RESET_PASSWORD_PER_IP = 30
+const GOOGLE_START_PER_IP = 30
+const GOOGLE_CALLBACK_PER_IP = 30
+const GOOGLE_LINK_PER_IP = 30
 
 export const PRODUCTION_LIMITS: AuthLimits = {
   maxTrackedKeys: MAX_TRACKED_KEYS,
@@ -58,4 +64,7 @@ export const PRODUCTION_LIMITS: AuthLimits = {
   resetEmailsPerDay: { max: RESET_EMAILS_PER_DAY, windowMs: MS_PER_DAY },
   forgotPasswordPerIp: { max: FORGOT_PASSWORD_PER_IP, windowMs: MS_PER_HOUR },
   resetPasswordPerIp: { max: RESET_PASSWORD_PER_IP, windowMs: FIFTEEN_MINUTES_MS },
+  googleStartPerIp: { max: GOOGLE_START_PER_IP, windowMs: FIFTEEN_MINUTES_MS },
+  googleCallbackPerIp: { max: GOOGLE_CALLBACK_PER_IP, windowMs: FIFTEEN_MINUTES_MS },
+  googleLinkPerIp: { max: GOOGLE_LINK_PER_IP, windowMs: FIFTEEN_MINUTES_MS },
 }

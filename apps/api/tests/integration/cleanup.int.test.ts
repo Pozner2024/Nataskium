@@ -44,6 +44,14 @@ async function passwordReset(times: { createdAgo: number; expiresIn: number }) {
   })
 }
 
+// У учителя одна незавершённая привязка Google (уникальный teacher_id)
+async function googleLink(times: { createdAgo: number; expiresIn: number }) {
+  const owner = (await createTeacher(prisma)).id
+  await prisma.pendingGoogleLink.create({
+    data: { teacherId: owner, googleId: `google-${owner}`, tokenHash: newTokenHash(), linkSecretHash: newTokenHash(), createdAt: fromNow(-times.createdAgo), expiresAt: fromNow(times.expiresIn) },
+  })
+}
+
 beforeAll(async () => {
   prisma = await createTestPrisma()
 })
@@ -73,6 +81,8 @@ describe('createAuthCleanup на настоящей базе', () => {
     await registration('qa-fresh@example.test', { createdAgo: hours(1), expiresIn: hours(23) })
     await passwordReset({ createdAgo: hours(2), expiresIn: -hours(1) })
     await passwordReset({ createdAgo: hours(0.1), expiresIn: hours(0.9) })
+    await googleLink({ createdAgo: hours(1), expiresIn: -hours(0.5) })
+    await googleLink({ createdAgo: hours(0.05), expiresIn: hours(0.1) })
 
     await createAuthCleanup(prisma)()
 
@@ -85,7 +95,9 @@ describe('createAuthCleanup на настоящей базе', () => {
       refreshTokens: 2,
       pendingRegistrations: 1,
       passwordResets: 1,
+      pendingGoogleLinks: 1,
     })
+    expect(await prisma.pendingGoogleLink.count()).toBe(1)
     expect((await prisma.passwordReset.findMany({ select: { expiresAt: true } })).map((row) => row.expiresAt > new Date())).toEqual([true])
   })
 

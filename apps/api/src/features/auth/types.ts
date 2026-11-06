@@ -9,9 +9,27 @@ export type TeacherAccount = {
   emailVerifiedAt: Date | null
 }
 
+export type GoogleTeacherProfile = {
+  googleId: string
+  // Уже нормализован emailSchema
+  email: string
+  // Уже прошёл displayNameSchema; null — Google не дал имени или оно не прошло проверку
+  displayName: string | null
+}
+
+export type GoogleSignInResult =
+  | { status: 'signedIn'; teacher: TeacherAccount }
+  // Учитель с этим email есть и без Google: привязка — только после ввода его пароля (googleLink)
+  | { status: 'passwordRequired'; teacherId: string }
+  // У учителя с этим email уже привязан другой Google-аккаунт
+  | { status: 'conflict' }
+
 export type TeacherRepository = {
   findByEmail(email: string): Promise<TeacherAccount | null>
   findById(id: string): Promise<TeacherAccount | null>
+  // Одна транзакция под lockEmail: найти по googleId; учитель с этим email без Google — passwordRequired, ничего
+  // не меняя; иначе создать без пароля. Ожидающие регистрации email удаляются: пароли до подтверждения отбрасываются
+  signInWithGoogle(profile: GoogleTeacherProfile, now: Date): Promise<GoogleSignInResult>
 }
 
 export type RefreshSession = {
@@ -99,8 +117,44 @@ export type PasswordResetRepository = {
   replaceForTeacher(reset: NewPasswordReset): Promise<void>
   findByTokenHash(tokenHash: string): Promise<PasswordReset | null>
   // Одна транзакция: удалить свою запись (CAS по id, tokenHash и сроку), все записи сброса учителя,
-  // все его refresh-токены и записать новый хэш пароля
+  // все его refresh-токены и ожидающие привязки Google, записать новый хэш пароля
   completeReset(reset: PasswordReset, tokenHash: string, passwordHash: string, now: Date): Promise<PasswordResetResult>
+  deleteExpired(now: Date): Promise<number>
+}
+
+export type PendingGoogleLink = {
+  id: string
+  teacherId: string
+  googleId: string
+  // HMAC секрета из cookie браузера, вернувшегося из Google
+  linkSecretHash: string
+  expiresAt: Date
+  // Для лимита неудач и сверки пароля: актуальные на момент проверки
+  teacherEmail: string
+  teacherPasswordHash: string | null
+}
+
+export type NewPendingGoogleLink = {
+  teacherId: string
+  googleId: string
+  tokenHash: string
+  linkSecretHash: string
+  expiresAt: Date
+}
+
+export type GoogleLinkResult =
+  | { status: 'linked'; teacher: TeacherAccount }
+  // Ссылку уже использовали, она истекла или заменена новой, учителя уже нет
+  | { status: 'invalid' }
+  // Этот Google-аккаунт уже привязан к другому учителю, или к этому учителю привязан другой
+  | { status: 'conflict' }
+
+export type PendingGoogleLinkRepository = {
+  // Одна запись на учителя: новая заменяет прежнюю
+  replaceForTeacher(link: NewPendingGoogleLink): Promise<void>
+  findByTokenHash(tokenHash: string): Promise<PendingGoogleLink | null>
+  // Одна транзакция под lockEmail: удалить свою запись (CAS по id, tokenHash и сроку) и записать googleId учителю
+  completeLink(link: PendingGoogleLink, tokenHash: string, now: Date): Promise<GoogleLinkResult>
   deleteExpired(now: Date): Promise<number>
 }
 
@@ -135,6 +189,8 @@ export type EmailSender = {
   sendPasswordResetEmail(to: string, rawToken: string, displayName?: string | null): Promise<void>
   // После успешного сброса: если это был не владелец, он узнает и сбросит пароль снова. Ссылка — без токена
   sendPasswordChangedEmail(to: string, displayName?: string | null): Promise<void>
+  // К существующему аккаунту привязан вход через Google. Ссылка — без токена
+  sendGoogleLinkedEmail(to: string, displayName?: string | null): Promise<void>
 }
 
 // Бюджет писем на адрес (часть E: in-memory, по нормализованному email); false — бюджет исчерпан
@@ -168,4 +224,31 @@ export type AuthSession = {
   refreshToken: string
   refreshTokenExpiresAt: Date
   teacher: TeacherView
+}
+
+// Профиль из проверенного id_token Google (подпись, iss, aud, exp, nonce проверены реализацией)
+export type GoogleProfile = {
+  googleId: string
+  email: string
+  emailVerified: boolean
+  name: string | null
+}
+
+// Параметры одного входа: state и nonce — против подмены ответа, codeVerifier — PKCE
+export type GoogleAuthorizationRequest = {
+  url: string
+  state: string
+  codeVerifier: string
+  nonce: string
+}
+
+export type GoogleExchangeResult =
+  | { ok: true; profile: GoogleProfile }
+  // id_token не прошёл проверку (подпись, iss, aud, exp, nonce, формат)
+  | { ok: false; reason: 'invalidToken' }
+
+export type GoogleIdentityProvider = {
+  createAuthorizationRequest(): GoogleAuthorizationRequest
+  // Сетевые сбои и ответы Google не 2xx — ExternalServiceError
+  exchangeCode(code: string, codeVerifier: string, nonce: string): Promise<GoogleExchangeResult>
 }

@@ -4,7 +4,10 @@ import type {
   EmailQuota,
   FailureLimiter,
   FailureReservation,
+  GoogleLinkResult,
   NewPasswordReset,
+  NewPendingGoogleLink,
+  PendingGoogleLinkRepository,
   NewPendingRegistration,
   NewRefreshToken,
   PasswordHasher,
@@ -95,6 +98,29 @@ export function makeFakeTeachers(calls: CallLog, accounts: TeacherAccount[] = []
     },
     async findById(id) {
       return accounts.find((account) => account.id === id) ?? null
+    },
+    // Та же логика, что в репозитории: по googleId; учитель с этим email без Google — нужен пароль; иначе новый учитель
+    async signInWithGoogle(profile, now) {
+      calls.push('teachers.signInWithGoogle')
+      const linked = accounts.find((account) => account.googleId === profile.googleId)
+      if (linked !== undefined) return { status: 'signedIn', teacher: linked }
+
+      const existing = accounts.find((account) => account.email === profile.email)
+      if (existing !== undefined) {
+        if (existing.googleId !== null) return { status: 'conflict' }
+        return { status: 'passwordRequired', teacherId: existing.id }
+      }
+
+      const teacher: TeacherAccount = {
+        id: randomUUID(),
+        email: profile.email,
+        displayName: profile.displayName,
+        passwordHash: null,
+        googleId: profile.googleId,
+        emailVerifiedAt: now,
+      }
+      accounts.push(teacher)
+      return { status: 'signedIn', teacher }
     },
   }
   return { teachers, accounts }
@@ -282,4 +308,54 @@ export function makeMemoryPasswordResets(calls: CallLog, options: { refreshToken
     },
   }
   return { repository, rows, passwordChanges, state }
+}
+
+type StoredGoogleLink = NewPendingGoogleLink & { id: string }
+
+// Незавершённые привязки Google в памяти: одна на учителя, CAS в completeLink. accounts — учителя из makeFakeTeachers:
+// из них берутся email и хэш пароля, в них же записывается googleId
+export function makeMemoryPendingGoogleLinks(calls: CallLog, accounts: TeacherAccount[]) {
+  const rows: StoredGoogleLink[] = []
+  const state: { completedAt: Date | null } = { completedAt: null }
+
+  const repository: PendingGoogleLinkRepository = {
+    async replaceForTeacher(link) {
+      calls.push('googleLinks.replaceForTeacher')
+      const index = rows.findIndex((row) => row.teacherId === link.teacherId)
+      if (index !== -1) rows.splice(index, 1)
+      rows.push({ id: randomUUID(), ...link })
+    },
+    async findByTokenHash(tokenHash) {
+      calls.push('googleLinks.findByTokenHash')
+      const row = rows.find((candidate) => candidate.tokenHash === tokenHash)
+      const teacher = accounts.find((account) => account.id === row?.teacherId)
+      if (row === undefined || teacher === undefined) return null
+      return {
+        id: row.id,
+        teacherId: row.teacherId,
+        googleId: row.googleId,
+        linkSecretHash: row.linkSecretHash,
+        expiresAt: row.expiresAt,
+        teacherEmail: teacher.email,
+        teacherPasswordHash: teacher.passwordHash,
+      }
+    },
+    async completeLink(link, tokenHash, now): Promise<GoogleLinkResult> {
+      calls.push('googleLinks.completeLink')
+      state.completedAt = now
+      const index = rows.findIndex((row) => row.id === link.id && row.tokenHash === tokenHash && row.expiresAt > now)
+      if (index === -1) return { status: 'invalid' }
+      rows.splice(index, 1)
+      const teacher = accounts.find((account) => account.id === link.teacherId)
+      if (teacher === undefined) return { status: 'invalid' }
+      const takenByOther = accounts.some((account) => account.id !== teacher.id && account.googleId === link.googleId)
+      if (takenByOther || (teacher.googleId !== null && teacher.googleId !== link.googleId)) return { status: 'conflict' }
+      teacher.googleId = link.googleId
+      return { status: 'linked', teacher }
+    },
+    async deleteExpired() {
+      return 0
+    },
+  }
+  return { repository, rows, state }
 }

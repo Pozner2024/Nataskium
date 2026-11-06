@@ -5,6 +5,8 @@ import {
   PENDING_REGISTRATION_TTL_MS,
   PRODUCTION_LIMITS,
   type EmailSender,
+  type GoogleIdentityProvider,
+  makeGoogleClient,
   makePasswordHasher,
   makeResendEmailSender,
   makeUnconfiguredEmailSender,
@@ -46,8 +48,21 @@ const prisma = createPrismaClient(env.DATABASE_URL)
 // До createApp: dummy-хэш для сверки при отсутствии учителя считается один раз при старте
 const passwordHasher = await makePasswordHasher()
 const emailSender = makeEmailSender()
+
+// В production env.ts требует все три GOOGLE_*; вне production без них вход через Google просто не подключается
+function makeGoogleIdentity(): GoogleIdentityProvider | null {
+  if (env.GOOGLE_CLIENT_ID === undefined || env.GOOGLE_CLIENT_SECRET === undefined) return null
+  if (env.GOOGLE_REDIRECT_URI === undefined) return null
+  return makeGoogleClient({
+    clientId: env.GOOGLE_CLIENT_ID,
+    clientSecret: env.GOOGLE_CLIENT_SECRET,
+    redirectUri: env.GOOGLE_REDIRECT_URI,
+  })
+}
+
+const googleIdentity = makeGoogleIdentity()
 // Всегда PRODUCTION_LIMITS, независимо от NODE_ENV: ослабленные лимиты передают только тесты через createApp
-const app = createApp({ env, prisma, limits: PRODUCTION_LIMITS, passwordHasher, emailSender })
+const app = createApp({ env, prisma, limits: PRODUCTION_LIMITS, passwordHasher, emailSender, googleIdentity })
 
 serve({ fetch: app.fetch, port: env.API_PORT, hostname: API_HOST }, ({ address, port }) => {
   console.log(`API started on http://${address}:${port}`)

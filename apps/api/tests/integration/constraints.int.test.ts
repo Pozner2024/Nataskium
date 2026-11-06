@@ -311,3 +311,38 @@ describe('password_resets', () => {
     expect(await violatedConstraint(insertReset({}))).toBe('password_resets_token_hash_key')
   })
 })
+
+describe('pending_google_links', () => {
+  function insertLink(columns: { tokenHash?: string; expiresAt?: string; googleId?: string; teacherId?: string; secretHash?: string }) {
+    const {
+      secretHash = `'${'d'.repeat(64)}'`,
+      tokenHash = `'${'f'.repeat(64)}'`,
+      expiresAt = "now() + interval '10 minutes'",
+      googleId = "'google-sub-1'",
+      teacherId = TEACHER_ID,
+    } = columns
+    return `INSERT INTO pending_google_links (id, teacher_id, google_id, token_hash, link_secret_hash, expires_at)
+      VALUES (gen_random_uuid(), '${teacherId}', ${googleId}, ${tokenHash}, ${secretHash}, ${expiresAt})`
+  }
+
+  it('корректная привязка принимается', async () => {
+    await expect(prisma.$executeRawUnsafe(insertLink({}))).resolves.toBe(1)
+  })
+
+  it.each([
+    ['сырой токен', insertLink({ tokenHash: "'raw-link-token-base64url'" }), 'pending_google_links_token_hash_format_check'],
+    ['срок раньше создания', insertLink({ expiresAt: "now() - interval '1 second'" }), 'pending_google_links_expires_after_created_check'],
+    ['пустой google_id', insertLink({ googleId: "''" }), 'pending_google_links_google_id_not_empty_check'],
+    ['сырой секрет cookie', insertLink({ secretHash: "'raw-link-secret-base64url'" }), 'pending_google_links_link_secret_hash_format_check'],
+    ['секрет в верхнем регистре', insertLink({ secretHash: "repeat('D', 64)" }), 'pending_google_links_link_secret_hash_format_check'],
+    ['несуществующий учитель', insertLink({ teacherId: MISSING_TEACHER_ID }), 'pending_google_links_teacher_id_fkey'],
+  ])('%s', async (_name, sql, constraint) => {
+    expect(await violatedConstraint(sql)).toBe(constraint)
+  })
+
+  it('вторая привязка тому же учителю — unique по teacher_id', async () => {
+    await prisma.$executeRawUnsafe(insertLink({}))
+
+    expect(await violatedConstraint(insertLink({ tokenHash: `'${'0'.repeat(64)}'` }))).toBe('pending_google_links_teacher_id_key')
+  })
+})

@@ -7,15 +7,20 @@ import {
   AUTH_ROUTES_BASE_PATH,
   type AuthLimits,
   type EmailSender,
+  type GoogleIdentityProvider,
   type PasswordHasher,
   makeAuthLimiters,
   makeAuthRouter,
   makeCleanupExpiredAuthRecords,
   makeGetMe,
+  GOOGLE_LINK_TTL_MS,
+  makeGoogleLink,
+  makeGoogleSignIn,
   makeLogin,
   makeLogout,
   makeLogoutAll,
   makePasswordResetRepository,
+  makePendingGoogleLinkRepository,
   makePendingRegistrationRepository,
   makeRefreshSession,
   makeRefreshTokenRepository,
@@ -37,6 +42,7 @@ import {
 } from './shared/middleware'
 
 const MAX_BODY_SIZE_BYTES = 100 * 1024
+const MS_PER_SECOND = 1000
 const PAYLOAD_TOO_LARGE_STATUS = 413
 const CORS_ALLOWED_METHODS = ['GET', 'POST', 'PATCH', 'DELETE']
 const CORS_ALLOWED_HEADERS = ['Content-Type', 'Authorization']
@@ -49,6 +55,8 @@ export type AppDeps = {
   passwordHasher: PasswordHasher
   // Параметром, а не из env здесь: тесты передают фейк и читают из него токен подтверждения
   emailSender: EmailSender
+  // null — Google не настроен; параметром, чтобы тесты подставляли фейк вместо Google
+  googleIdentity: GoogleIdentityProvider | null
 }
 
 // Отдельно от createApp: расписание запускает только index.ts, тесты очистку не стартуют
@@ -57,12 +65,13 @@ export function createAuthCleanup(prisma: PrismaClient): () => Promise<void> {
     refreshTokens: makeRefreshTokenRepository(prisma),
     pendingRegistrations: makePendingRegistrationRepository(prisma),
     passwordResets: makePasswordResetRepository(prisma),
+    pendingGoogleLinks: makePendingGoogleLinkRepository(prisma),
     now: () => new Date(),
   })
 }
 
 // Composition root: единственное место, где application связывается с infrastructure
-export function createApp({ env, prisma, limits, passwordHasher, emailSender }: AppDeps) {
+export function createApp({ env, prisma, limits, passwordHasher, emailSender, googleIdentity }: AppDeps) {
   const app = new Hono()
 
   // Первым: ответ на preflight и заголовки CORS нужны даже на ошибках. Только origin фронтенда, без '*'
@@ -96,6 +105,7 @@ export function createApp({ env, prisma, limits, passwordHasher, emailSender }: 
   const refreshTokens = makeRefreshTokenRepository(prisma)
   const pendingRegistrations = makePendingRegistrationRepository(prisma)
   const passwordResets = makePasswordResetRepository(prisma)
+  const pendingGoogleLinks = makePendingGoogleLinkRepository(prisma)
   const tokens = makeTokenService({ jwtSecret: env.JWT_SECRET, hmacSecret: env.HMAC_SECRET })
   const limiters = makeAuthLimiters(limits)
   const now = () => new Date()
@@ -133,6 +143,21 @@ export function createApp({ env, prisma, limits, passwordHasher, emailSender }: 
         now,
       }),
       resetPassword: makeResetPassword({ passwordResets, hasher: passwordHasher, tokens, emailSender, now }),
+      google:
+        googleIdentity === null
+          ? null
+          : {
+              createAuthorizationRequest: () => googleIdentity.createAuthorizationRequest(),
+              signIn: makeGoogleSignIn({ ...sessionDeps, teachers, pendingGoogleLinks, google: googleIdentity }),
+              link: makeGoogleLink({
+                ...sessionDeps,
+                pendingGoogleLinks,
+                hasher: passwordHasher,
+                failureLimiter: limiters.failureLimiter,
+                emailSender,
+              }),
+              linkTtlSeconds: GOOGLE_LINK_TTL_MS / MS_PER_SECOND,
+            },
       requireAuth: makeRequireAuth(tokens.verifyAccessToken),
       clientIp: makeClientIpResolver(env.TRUSTED_PROXY_IPS),
       webOrigin: env.WEB_ORIGIN,

@@ -47,6 +47,9 @@ describe('PRODUCTION_LIMITS', () => {
       resetEmailsPerDay: { max: 5, windowMs: 24 * 60 * MS_PER_MINUTE },
       forgotPasswordPerIp: { max: 30, windowMs: 60 * MS_PER_MINUTE },
       resetPasswordPerIp: { max: 30, windowMs: WINDOW_MS },
+      googleStartPerIp: { max: 30, windowMs: WINDOW_MS },
+      googleCallbackPerIp: { max: 30, windowMs: WINDOW_MS },
+      googleLinkPerIp: { max: 30, windowMs: WINDOW_MS },
     })
   })
 })

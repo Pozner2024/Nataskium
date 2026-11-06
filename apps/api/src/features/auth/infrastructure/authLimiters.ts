@@ -38,6 +38,9 @@ export function makeAuthLimiters(limits: AuthLimits) {
     sessionPerIp: limiter(limits.sessionPerIp),
     forgotPasswordPerIp: limiter(limits.forgotPasswordPerIp),
     resetPasswordPerIp: limiter(limits.resetPasswordPerIp),
+    googleStartPerIp: limiter(limits.googleStartPerIp),
+    googleCallbackPerIp: limiter(limits.googleCallbackPerIp),
+    googleLinkPerIp: limiter(limits.googleLinkPerIp),
   }
 
   const all = [

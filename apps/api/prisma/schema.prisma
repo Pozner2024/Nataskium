@@ -21,8 +21,9 @@ model Teacher {
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
-  refreshTokens  RefreshToken[]
-  passwordResets PasswordReset[]
+  refreshTokens      RefreshToken[]
+  passwordResets     PasswordReset[]
+  pendingGoogleLinks PendingGoogleLink[]
 
   @@map("teachers")
 }
@@ -81,4 +82,27 @@ model PasswordReset {
   // cleanup удаляет по expires_at < now
   @@index([expiresAt])
   @@map("password_resets")
+}
+
+// Привязка Google к учителю с паролем ждёт ввода этого пароля: без него владелец чужого аккаунта Google
+// с тем же email (например, в Google Workspace на домене учителя) вошёл бы в аккаунт учителя.
+// Сырой токен — во фрагменте ссылки страницы /auth/link-google, в базе — его HMAC. Одна запись на учителя
+model PendingGoogleLink {
+  id             String   @id @default(uuid()) @db.Uuid
+  teacherId      String   @map("teacher_id") @db.Uuid
+  googleId       String   @map("google_id")
+  tokenHash      String   @unique @map("token_hash")
+  // HMAC секрета из cookie __Secure-google_link: привязку подтвердит только браузер, вернувшийся из Google.
+  // Иначе атакующий прислал бы учителю свою ссылку с токеном, и учитель привязал бы чужой Google своим паролем
+  linkSecretHash String   @map("link_secret_hash")
+  expiresAt      DateTime @map("expires_at") @db.Timestamptz
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  teacher Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  // Уникальный индекс служит и индексом по FK
+  @@unique([teacherId])
+  // cleanup удаляет по expires_at < now
+  @@index([expiresAt])
+  @@map("pending_google_links")
 }

@@ -1,5 +1,5 @@
 import { createApp } from '../../src/app'
-import { type AuthLimits, type EmailSender, PRODUCTION_LIMITS, makePasswordHasher } from '../../src/features/auth'
+import { type AuthLimits, type EmailSender, type GoogleIdentityProvider, PRODUCTION_LIMITS, makePasswordHasher } from '../../src/features/auth'
 import type { PrismaClient } from '../../src/generated/prisma/client'
 import { type Env, parseEnv } from '../../src/shared/config'
 import { createPrismaClient } from '../../src/shared/infrastructure'
@@ -30,6 +30,8 @@ export type TestAppOptions = {
   prisma?: PrismaClient
   limits?: Partial<AuthLimits>
   emailSender?: EmailSender
+  // null — Google не настроен: маршруты /api/auth/google/* не подключаются
+  googleIdentity?: GoogleIdentityProvider | null
 }
 
 export function createTestApp(options: TestAppOptions = {}) {
@@ -41,6 +43,7 @@ export function createTestApp(options: TestAppOptions = {}) {
     limits: { ...TEST_LIMITS, ...options.limits },
     passwordHasher: sharedHasher,
     emailSender: options.emailSender ?? makeRecordingEmailSender().sender,
+    googleIdentity: options.googleIdentity ?? null,
   })
 }
 

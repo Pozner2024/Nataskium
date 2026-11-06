@@ -17,6 +17,10 @@ const TEST_PROXY_IP = '172.18.0.2'
 // Выдуманный ключ Resend: настоящий ключ в тестах не используется, письма не отправляются
 const TEST_RESEND_KEY = 're_qa_fake_key_0123456789abcdef'
 const TEST_EMAIL_FROM = 'noreply@nataskium.example'
+// Выдуманные данные Google OAuth: настоящие в тестах не используются, запросов к Google нет
+const TEST_GOOGLE_CLIENT_ID = 'qa-fake-client.apps.googleusercontent.com'
+const TEST_GOOGLE_CLIENT_SECRET = 'qa-fake-google-secret-0123456789'
+const TEST_GOOGLE_REDIRECT_URI = `${PROD_ORIGIN}/api/auth/google/callback`
 // Полное окружение production: NODE_ENV по умолчанию — production
 const VALID = {
   DATABASE_URL: TEST_DATABASE_URL,
@@ -26,10 +30,22 @@ const VALID = {
   TRUSTED_PROXY_IPS: TEST_PROXY_IP,
   RESEND_API_KEY: TEST_RESEND_KEY,
   EMAIL_FROM: TEST_EMAIL_FROM,
+  GOOGLE_CLIENT_ID: TEST_GOOGLE_CLIENT_ID,
+  GOOGLE_CLIENT_SECRET: TEST_GOOGLE_CLIENT_SECRET,
+  GOOGLE_REDIRECT_URI: TEST_GOOGLE_REDIRECT_URI,
 }
 // Для development и test: http-адрес, без списка прокси
-// Вне production почта необязательна: локально её обычно нет
-const VALID_LOCAL = { ...VALID, WEB_ORIGIN: DEV_ORIGIN, TRUSTED_PROXY_IPS: undefined, RESEND_API_KEY: undefined, EMAIL_FROM: undefined }
+// Вне production почта и Google необязательны: локально их обычно нет
+const VALID_LOCAL = {
+  ...VALID,
+  WEB_ORIGIN: DEV_ORIGIN,
+  TRUSTED_PROXY_IPS: undefined,
+  RESEND_API_KEY: undefined,
+  EMAIL_FROM: undefined,
+  GOOGLE_CLIENT_ID: undefined,
+  GOOGLE_CLIENT_SECRET: undefined,
+  GOOGLE_REDIRECT_URI: undefined,
+}
 const DEFAULT_ENV = {
   NODE_ENV: 'production',
   API_PORT: 3001,
@@ -40,6 +56,9 @@ const DEFAULT_ENV = {
   TRUSTED_PROXY_IPS: [TEST_PROXY_IP],
   RESEND_API_KEY: TEST_RESEND_KEY,
   EMAIL_FROM: TEST_EMAIL_FROM,
+  GOOGLE_CLIENT_ID: TEST_GOOGLE_CLIENT_ID,
+  GOOGLE_CLIENT_SECRET: TEST_GOOGLE_CLIENT_SECRET,
+  GOOGLE_REDIRECT_URI: TEST_GOOGLE_REDIRECT_URI,
 }
 const DATABASE_URL_REQUIRED = '  DATABASE_URL: is required'
 const DATABASE_URL_PROBLEM = '  DATABASE_URL: must be a postgresql:// or postgres:// URL'
@@ -358,7 +377,9 @@ describe('parseEnv: WEB_ORIGIN', () => {
     ['test', { ...VALID_LOCAL, NODE_ENV: 'test' }, DEV_ORIGIN],
     ['development с IPv6', { ...VALID_LOCAL, NODE_ENV: 'development' }, 'http://[::1]:3000'],
   ])('принимает: %s', (_name, base, origin) => {
-    expect(parseEnv({ ...base, WEB_ORIGIN: origin }).WEB_ORIGIN).toBe(origin)
+    // GOOGLE_REDIRECT_URI обязан совпадать с WEB_ORIGIN: подставляется вместе с ним
+    const google = base.GOOGLE_REDIRECT_URI === undefined ? {} : { GOOGLE_REDIRECT_URI: `${origin}/api/auth/google/callback` }
+    expect(parseEnv({ ...base, ...google, WEB_ORIGIN: origin }).WEB_ORIGIN).toBe(origin)
   })
 
   it.each(['', 'nope', 'https:', 'ftp://nataskium.example', 'javascript://nataskium.example', 'file:///etc/passwd'])(
@@ -690,6 +711,93 @@ describe('parseEnv: RESEND_API_KEY и EMAIL_FROM', () => {
     ['ключ при тестовом домене', { RESEND_API_KEY: LEAK_MARKER, EMAIL_FROM: 'onboarding@resend.dev' }],
     ['ключ в поле отправителя', { EMAIL_FROM: LEAK_MARKER }],
   ])('ключа нет в ошибке: %s', (_name, override) => {
+    const error = parseError({ ...VALID, ...override })
+
+    expect(error.message).not.toContain('qa-leak')
+    expect(inspect(error)).not.toContain('qa-leak')
+  })
+})
+
+describe('parseEnv: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI', () => {
+  const ALL_REQUIRED = '  GOOGLE_CLIENT_ID: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and GOOGLE_REDIRECT_URI are required in production'
+  const TOGETHER = '  GOOGLE_CLIENT_ID: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and GOOGLE_REDIRECT_URI must be set together'
+  const REDIRECT_MISMATCH = '  GOOGLE_REDIRECT_URI: must be WEB_ORIGIN + /api/auth/google/callback'
+  const NO_GOOGLE = { GOOGLE_CLIENT_ID: undefined, GOOGLE_CLIENT_SECRET: undefined, GOOGLE_REDIRECT_URI: undefined }
+  const LOCAL_GOOGLE = {
+    GOOGLE_CLIENT_ID: TEST_GOOGLE_CLIENT_ID,
+    GOOGLE_CLIENT_SECRET: TEST_GOOGLE_CLIENT_SECRET,
+    GOOGLE_REDIRECT_URI: `${DEV_ORIGIN}/api/auth/google/callback`,
+  }
+  const DEVELOPMENT = { ...VALID_LOCAL, NODE_ENV: 'development' }
+
+  it('production: все три заданы — возвращаются как есть', () => {
+    expect(parseEnv(VALID)).toMatchObject({
+      GOOGLE_CLIENT_ID: TEST_GOOGLE_CLIENT_ID,
+      GOOGLE_CLIENT_SECRET: TEST_GOOGLE_CLIENT_SECRET,
+      GOOGLE_REDIRECT_URI: TEST_GOOGLE_REDIRECT_URI,
+    })
+  })
+
+  it.each([
+    ['ни одного', NO_GOOGLE],
+    ['нет id', { GOOGLE_CLIENT_ID: undefined }],
+    ['нет секрета', { GOOGLE_CLIENT_SECRET: undefined }],
+    ['пустой секрет', { GOOGLE_CLIENT_SECRET: '' }],
+    ['нет redirect', { GOOGLE_REDIRECT_URI: undefined }],
+  ])('production: %s — все три обязательны', (_name, override) => {
+    expectOnly({ ...VALID, ...override }, ALL_REQUIRED)
+  })
+
+  it.each([
+    ['ни одного', {}],
+    ['все пустые', { GOOGLE_CLIENT_ID: '', GOOGLE_CLIENT_SECRET: '', GOOGLE_REDIRECT_URI: '' }],
+    ['все три', LOCAL_GOOGLE],
+  ])('вне production допустимо: %s', (_name, override) => {
+    expect(() => parseEnv({ ...DEVELOPMENT, ...override })).not.toThrow()
+  })
+
+  it.each([
+    ['только id', { GOOGLE_CLIENT_ID: TEST_GOOGLE_CLIENT_ID }],
+    ['только секрет', { GOOGLE_CLIENT_SECRET: TEST_GOOGLE_CLIENT_SECRET }],
+    ['только redirect', { GOOGLE_REDIRECT_URI: LOCAL_GOOGLE.GOOGLE_REDIRECT_URI }],
+    ['без секрета', { ...LOCAL_GOOGLE, GOOGLE_CLIENT_SECRET: undefined }],
+  ])('вне production — все или ни одного: %s', (_name, override) => {
+    expectOnly({ ...DEVELOPMENT, ...override }, TOGETHER)
+  })
+
+  it.each([
+    ['другой домен', 'https://evil.example/api/auth/google/callback'],
+    ['другой путь', 'https://nataskium.example/api/auth/callback'],
+    ['слэш в конце', 'https://nataskium.example/api/auth/google/callback/'],
+    ['query', 'https://nataskium.example/api/auth/google/callback?x=1'],
+    ['http вместо https', 'http://nataskium.example/api/auth/google/callback'],
+    ['другой порт', 'https://nataskium.example:8443/api/auth/google/callback'],
+  ])('redirect не равен WEB_ORIGIN/api/auth/google/callback: %s', (_name, redirect) => {
+    expectOnly({ ...VALID, GOOGLE_REDIRECT_URI: redirect }, REDIRECT_MISMATCH)
+  })
+
+  it('вне production redirect тоже обязан совпадать с WEB_ORIGIN', () => {
+    expectOnly({ ...DEVELOPMENT, ...LOCAL_GOOGLE, GOOGLE_REDIRECT_URI: 'http://localhost:3001/api/auth/google/callback' }, REDIRECT_MISMATCH)
+  })
+
+  it.each([
+    ['id', 'GOOGLE_CLIENT_ID', ` ${TEST_GOOGLE_CLIENT_ID}`],
+    ['секрет', 'GOOGLE_CLIENT_SECRET', `${TEST_GOOGLE_CLIENT_SECRET}\n`],
+  ])('%s с пробельным символом по краю — ошибка', (_name, field, value) => {
+    expectOnly({ ...VALID, [field]: value }, `  ${field}: must not start or end with whitespace`)
+  })
+
+  it('redirect не URL — ошибка формата', () => {
+    expectOnly({ ...VALID, GOOGLE_REDIRECT_URI: 'not a url' }, '  GOOGLE_REDIRECT_URI: must be an http:// or https:// URL')
+  })
+
+  it.each([
+    ['секрет с пробелом', { GOOGLE_CLIENT_SECRET: ` ${LEAK_MARKER}` }],
+    ['секрет без остальных вне production', { ...VALID_LOCAL, NODE_ENV: 'development', GOOGLE_CLIENT_SECRET: LEAK_MARKER }],
+    ['секрет в redirect', { GOOGLE_REDIRECT_URI: `not a url ${LEAK_MARKER}` }],
+    ['секрет в query redirect', { GOOGLE_REDIRECT_URI: `${PROD_ORIGIN}/api/auth/google/callback?s=${LEAK_MARKER}` }],
+    ['id с пробелом', { GOOGLE_CLIENT_ID: `${LEAK_MARKER} ` }],
+  ])('значений нет в ошибке: %s', (_name, override) => {
     const error = parseError({ ...VALID, ...override })
 
     expect(error.message).not.toContain('qa-leak')

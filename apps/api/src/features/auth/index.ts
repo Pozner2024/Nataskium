@@ -1,5 +1,8 @@
 export { MAX_ACTIVE_SESSIONS, REFRESH_TOKEN_TTL_MS, SESSION_ABSOLUTE_TTL_MS } from './application/issueSession'
 export { makeGetMe } from './application/getMe'
+export { GOOGLE_LINK_TTL_MS, makeGoogleSignIn } from './application/googleAuth'
+export { makeGoogleLink } from './application/googleLink'
+export type { GoogleSignInOutcome } from './application/googleAuth'
 export { makeLogin } from './application/login'
 export { makeLogout } from './application/logout'
 export { makeLogoutAll } from './application/logoutAll'
@@ -10,11 +13,14 @@ export { makeResetPassword } from './application/resetPassword'
 export { makeVerifyEmail } from './application/verifyEmail'
 export { makeAuthLimiters } from './infrastructure/authLimiters'
 export { makeCleanupExpiredAuthRecords, startCleanupSchedule } from './infrastructure/cleanup'
-export { RESET_PASSWORD_PATH, SIGN_IN_PATH, VERIFY_EMAIL_PATH, makeResendEmailSender } from './infrastructure/emailService'
+export { makeResendEmailSender } from './infrastructure/emailService'
+export { makeGoogleClient } from './infrastructure/googleClient'
+export { GOOGLE_SIGN_IN_DONE_PATH, LINK_GOOGLE_PATH, RESET_PASSWORD_PATH, SIGN_IN_PATH, VERIFY_EMAIL_PATH } from './webPaths'
 export type { CleanupScheduleOptions } from './infrastructure/cleanup'
 export type { AuthLimiters } from './infrastructure/authLimiters'
 export { makePasswordHasher } from './infrastructure/passwordHasher'
 export { makePasswordResetRepository } from './infrastructure/passwordResetRepository'
+export { makePendingGoogleLinkRepository } from './infrastructure/pendingGoogleLinkRepository'
 export { makePendingRegistrationRepository } from './infrastructure/pendingRegistrationRepository'
 export { makeRefreshTokenRepository } from './infrastructure/refreshTokenRepository'
 export { makeTeacherRepository } from './infrastructure/teacherRepository'
@@ -31,6 +37,7 @@ export type {
   EmailSender,
   FailureLimiter,
   FailureReservation,
+  GoogleIdentityProvider,
   PasswordHasher,
   PendingRegistrationRepository,
   RefreshTokenRepository,

@@ -9,6 +9,7 @@ export {
   displayNameSchema,
   emailSchema,
   forgotPasswordSchema,
+  googleLinkSchema,
   loginPasswordSchema,
   loginSchema,
   passwordSchema,
@@ -16,4 +17,4 @@ export {
   resetPasswordSchema,
   verifyEmailSchema,
 } from './auth'
-export type { ForgotPasswordInput, LoginInput, RegisterInput, ResetPasswordInput, VerifyEmailInput } from './auth'
+export type { ForgotPasswordInput, GoogleLinkInput, LoginInput, RegisterInput, ResetPasswordInput, VerifyEmailInput } from './auth'

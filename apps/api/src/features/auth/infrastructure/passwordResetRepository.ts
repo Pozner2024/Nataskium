@@ -37,6 +37,8 @@ export function makePasswordResetRepository(prisma: PrismaClient): PasswordReset
         await tx.passwordReset.deleteMany({ where: { teacherId: reset.teacherId } })
         // Все сессии: кто бы ни знал старый пароль, после сброса он выходит отовсюду
         await tx.refreshToken.deleteMany({ where: { teacherId: reset.teacherId } })
+        // Привязку Google, начатую до сброса, тоже нельзя завершить: она ждала старый пароль
+        await tx.pendingGoogleLink.deleteMany({ where: { teacherId: reset.teacherId } })
         const teacher = await tx.teacher.findUniqueOrThrow({
           where: { id: reset.teacherId },
           select: { email: true, displayName: true },

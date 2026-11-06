@@ -1,17 +1,14 @@
 // Почта приложения через Resend REST API (fetch, без npm-пакета resend). Письма: подтверждение email,
-// «аккаунт уже есть», сброс пароля и «пароль изменён». Ссылки строятся здесь из сырого токена; токен — во фрагменте URL, не в query
+// «аккаунт уже есть», сброс пароля, «пароль изменён» и «привязан Google». Ссылки строятся здесь из сырого токена; токен — во фрагменте URL, не в query
 import { z } from 'zod'
 import { ExternalServiceError } from '../../../shared/errors'
 import type { EmailSender } from '../types'
+import { RESET_PASSWORD_PATH, SIGN_IN_PATH, VERIFY_EMAIL_PATH } from '../webPaths'
 
 const RESEND_API_URL = 'https://api.resend.com/emails'
 const RESEND_SERVICE = 'resend'
 const EMAIL_TIMEOUT_MS = 8000
 const APP_NAME = 'Nataskium'
-// Страницы фронтенда (шаг 5). Токен во фрагменте не попадает в логи Caddy, историю запросов сервера и Referer
-export const VERIFY_EMAIL_PATH = '/auth/verify-email'
-export const SIGN_IN_PATH = '/auth/login'
-export const RESET_PASSWORD_PATH = '/auth/reset-password'
 const TOKEN_FRAGMENT_PARAM = 'token'
 
 // Ответ Resend при успехе; содержимое не используется, но формат проверяем, а не верим ему
@@ -169,6 +166,28 @@ export function makeResendEmailSender(options: ResendEmailSenderOptions): EmailS
           '',
           `The password for your ${APP_NAME} account was just changed, and you were signed out on all devices.`,
           `If this was you, you can sign in with your new password: ${link}`,
+          `If this wasn't you, reset your password immediately: open ${link} and choose "Forgot password".`,
+        ].join('\n'),
+      })
+    },
+
+    // Без токена: ссылка ведёт на вход, а сброс учитель запрашивает там сам
+    async sendGoogleLinkedEmail(to, displayName) {
+      const link = `${options.webOrigin}${SIGN_IN_PATH}`
+      // Имя задал подтверждённый владелец аккаунта; в HTML — только экранированным
+      const hello = greeting(displayName)
+      await send({
+        to,
+        subject: `Google sign-in was added to your account — ${APP_NAME}`,
+        html: `
+          <p>${hello.html}</p>
+          <p>Sign-in with Google was just added to your ${APP_NAME} account. You can now sign in with Google or with your password.</p>
+          <p>If this wasn't you, reset your password immediately: open the <a href="${link}">sign-in page</a> and choose "Forgot password".</p>
+        `,
+        text: [
+          hello.text,
+          '',
+          `Sign-in with Google was just added to your ${APP_NAME} account. You can now sign in with Google or with your password.`,
           `If this wasn't you, reset your password immediately: open ${link} and choose "Forgot password".`,
         ].join('\n'),
       })

@@ -3,6 +3,7 @@ import type { ZodType } from 'zod'
 import * as schemas from './index'
 import {
   authTokenSchema,
+  googleLinkSchema,
   displayNameSchema,
   emailSchema,
   loginPasswordSchema,
@@ -627,6 +628,7 @@ describe('схемы auth: публичный API', () => {
       'displayNameSchema',
       'emailSchema',
       'forgotPasswordSchema',
+      'googleLinkSchema',
       'loginPasswordSchema',
       'loginSchema',
       'passwordSchema',
@@ -1059,5 +1061,24 @@ describe('регистрация и вход: один пароль в NFC и NF
     const loggedIn = loginSchema.parse({ email: 'anna@EXAMPLE.com\n', password: 'x' }).email
 
     expect(loggedIn).toBe(registered)
+  })
+})
+
+describe('googleLinkSchema', () => {
+  // Пароль — как при входе: без минимума и блок-листа регистрации, иначе учитель со старым паролем не привяжет Google
+  it.each(['qwerty', 'x'])('пароль по правилам входа: %j проходит', (password) => {
+    const token = newAuthToken()
+
+    expect(googleLinkSchema.parse({ token, password })).toEqual({ token, password })
+  })
+
+  it('пустой пароль и неверный токен — ошибки обоих полей', () => {
+    expect(fieldMessagesOf(googleLinkSchema, { token: 'short', password: '' })).toEqual(['token: ' + INVALID_TOKEN, 'password: ' + LOGIN_PASSWORD_REQUIRED])
+  })
+
+  it('лишние поля отбрасываются', () => {
+    const token = newAuthToken()
+
+    expect(googleLinkSchema.parse({ token, password: 'x', googleId: 'evil' })).toEqual({ token, password: 'x' })
   })
 })

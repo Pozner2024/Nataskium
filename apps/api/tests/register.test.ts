@@ -265,6 +265,9 @@ describe('register: сбой почты', () => {
         sendPasswordChangedEmail: () => {
           throw mailError()
         },
+        sendGoogleLinkedEmail: () => {
+          throw mailError()
+        },
       },
       registrationEmailQuota: makeFakeQuota(calls).quota,
       now: () => NOW,
