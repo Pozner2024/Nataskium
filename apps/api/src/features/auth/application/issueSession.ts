@@ -14,6 +14,11 @@ export type IssueSessionDeps = {
   now: Clock
 }
 
+// Скользящий срок refresh, но не дальше абсолютного срока сессии (CHECK refresh_tokens_expires_within_family_check)
+export function refreshTokenExpiry(now: Date, familyExpiresAt: Date): Date {
+  return new Date(Math.min(now.getTime() + REFRESH_TOKEN_TTL_MS, familyExpiresAt.getTime()))
+}
+
 export function toTeacherView(teacher: TeacherAccount): TeacherView {
   return {
     id: teacher.id,
@@ -26,9 +31,9 @@ export function toTeacherView(teacher: TeacherAccount): TeacherView {
 
 // Вход, подтверждение email и позже вход через Google: новая семья refresh-токенов и access-токен
 export async function issueSession(deps: IssueSessionDeps, teacher: TeacherAccount): Promise<AuthSession> {
-  const now = deps.now().getTime()
-  const familyExpiresAt = new Date(now + SESSION_ABSOLUTE_TTL_MS)
-  const refreshTokenExpiresAt = new Date(Math.min(now + REFRESH_TOKEN_TTL_MS, familyExpiresAt.getTime()))
+  const now = deps.now()
+  const familyExpiresAt = new Date(now.getTime() + SESSION_ABSOLUTE_TTL_MS)
+  const refreshTokenExpiresAt = refreshTokenExpiry(now, familyExpiresAt)
   const refreshToken = deps.tokens.generateOpaqueToken()
 
   await deps.refreshTokens.createFamily(

@@ -1,6 +1,6 @@
 import { Server } from 'node:net'
 import { describe, expect, it, vi } from 'vitest'
-import { createApp } from '../src/app'
+import { createTestApp as createApp } from './fakes/testApp'
 
 describe('GET /health', () => {
   it('отвечает 200 и только статусом ok', async () => {

@@ -1,7 +1,7 @@
 import { inspect } from 'node:util'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { createApp } from '../src/app'
+import { createTestApp as createApp } from './fakes/testApp'
 import { readJsonBody } from '../src/shared/utils'
 
 const LOG_METHODS = ['log', 'info', 'warn', 'error', 'debug'] as const

@@ -2,7 +2,7 @@ import { inspect } from 'node:util'
 import { HTTPException } from 'hono/http-exception'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createApp } from '../src/app'
+import { createTestApp as createApp } from './fakes/testApp'
 import { AppError } from '../src/shared/errors'
 
 const EMAIL = 'student@example.com'

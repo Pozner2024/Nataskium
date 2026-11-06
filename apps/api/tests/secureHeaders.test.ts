@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createApp } from '../src/app'
+import { createTestApp as createApp } from './fakes/testApp'
 
 const PATHS = [
   ['/health', 200],

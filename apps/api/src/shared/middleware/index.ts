@@ -1,1 +1,5 @@
 export { errorHandler, nonErrorHandler, notFoundHandler } from './errorHandler'
+export { createRateLimiter, makeClientIpResolver } from './rateLimit'
+export type { LimitDecision, LimitReservation, RateLimiter, RateLimitOptions } from './rateLimit'
+export { makeRequireAuth } from './requireAuth'
+export type { VerifyAccessToken } from './requireAuth'

@@ -9,6 +9,7 @@ import type {
   PasswordHasher,
   PendingRegistration,
   PendingRegistrationRepository,
+  RefreshSession,
   RefreshTokenRepository,
   TeacherAccount,
   TeacherRepository,
@@ -59,11 +60,12 @@ export function makeFakeQuota(calls: CallLog) {
 
 // failures — резервы, которые не сняли: столько неудачных попыток засчитано
 export function makeFakeLimiter(calls: CallLog) {
-  const state = { blocked: false, failures: 0, reservations: 0 }
+  // maxFailures — как настоящий лимитер: после стольких засчитанных неудач новые резервы не выдаются
+  const state = { blocked: false, failures: 0, reservations: 0, maxFailures: Number.POSITIVE_INFINITY }
   const limiter: FailureLimiter = {
     reserve(key): FailureReservation {
       calls.push(`limiter.reserve:${key}`)
-      if (state.blocked) return { allowed: false, retryAfterSeconds: RETRY_AFTER_SECONDS }
+      if (state.blocked || state.failures >= state.maxFailures) return { allowed: false, retryAfterSeconds: RETRY_AFTER_SECONDS }
       state.reservations++
       state.failures++
       let released = false
@@ -169,4 +171,67 @@ export function makeFakeRefreshTokens(calls: CallLog) {
 // Письма уходят через sendInBackground без await: даём фоновым промисам завершиться
 export function flushBackground(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve))
+}
+
+type StoredRefresh = RefreshSession & { tokenHash: string }
+
+// Refresh-токены в памяти с настоящим CAS в rotate: для refresh, logout и logoutAll
+export function makeMemoryRefreshTokens(calls: CallLog) {
+  const rows: StoredRefresh[] = []
+  const rotations: { oldTokenId: string; next: NewRefreshToken; now: Date }[] = []
+  const state = { rotateFails: false }
+
+  function seed(token: NewRefreshToken & { revokedAt?: Date | null }): StoredRefresh {
+    const row = { id: randomUUID(), revokedAt: null, ...token }
+    rows.push(row)
+    return row
+  }
+
+  function removeWhere(matches: (row: StoredRefresh) => boolean) {
+    for (let index = rows.length - 1; index >= 0; index--) {
+      const row = rows[index]
+      if (row !== undefined && matches(row)) rows.splice(index, 1)
+    }
+  }
+
+  const repository: RefreshTokenRepository = {
+    async createFamily(token) {
+      calls.push('refreshTokens.createFamily')
+      seed(token)
+    },
+    async findByHash(tokenHash) {
+      calls.push('refreshTokens.findByHash')
+      const row = rows.find((candidate) => candidate.tokenHash === tokenHash)
+      if (row === undefined) return null
+      return {
+        id: row.id,
+        teacherId: row.teacherId,
+        familyId: row.familyId,
+        familyExpiresAt: row.familyExpiresAt,
+        expiresAt: row.expiresAt,
+        revokedAt: row.revokedAt,
+      }
+    },
+    async rotate(oldTokenId, next, now) {
+      calls.push('refreshTokens.rotate')
+      rotations.push({ oldTokenId, next, now })
+      const old = rows.find((row) => row.id === oldTokenId && row.revokedAt === null)
+      if (state.rotateFails || old === undefined) return false
+      old.revokedAt = now
+      seed(next)
+      return true
+    },
+    async deleteFamily(familyId) {
+      calls.push(`refreshTokens.deleteFamily:${familyId}`)
+      removeWhere((row) => row.familyId === familyId)
+    },
+    async deleteAllForTeacher(teacherId) {
+      calls.push(`refreshTokens.deleteAllForTeacher:${teacherId}`)
+      removeWhere((row) => row.teacherId === teacherId)
+    },
+    async deleteExpired() {
+      return 0
+    },
+  }
+  return { repository, rows, rotations, state, seed }
 }

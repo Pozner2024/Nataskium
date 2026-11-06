@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createApp } from '../src/app'
+import { createTestApp as createApp } from './fakes/testApp'
 
 const MAX_BODY_SIZE_BYTES = 100 * 1024
 const PAYLOAD_TOO_LARGE_BODY = '{"error":"Payload Too Large"}'

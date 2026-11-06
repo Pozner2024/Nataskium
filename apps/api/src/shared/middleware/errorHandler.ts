@@ -7,6 +7,8 @@ import { AppError, ValidationError } from '../errors'
 const INTERNAL_ERROR_MESSAGE = 'Internal Server Error'
 const NOT_FOUND_MESSAGE = 'Not Found'
 const SERVER_ERROR_STATUS = 500
+// Из HTTPException переносим только эти: остальные заголовки её ответа клиенту не предназначены
+const FORWARDED_HTTP_EXCEPTION_HEADERS = ['Retry-After', 'WWW-Authenticate']
 
 function shouldLog(error: Error): boolean {
   const isExpected = error instanceof AppError || error instanceof HTTPException
@@ -26,20 +28,30 @@ function logError(error: Error, c: Context): void {
   console.error(getErrorType(error), c.req.method, routePath(c), ...stack)
 }
 
+function forwardedHeaders(error: HTTPException): Record<string, string> {
+  const source = error.getResponse().headers
+  const headers: Record<string, string> = {}
+  for (const name of FORWARDED_HTTP_EXCEPTION_HEADERS) {
+    const value = source.get(name)
+    if (value !== null) headers[name] = value
+  }
+  return headers
+}
+
 export const errorHandler: ErrorHandler = (error, c) => {
   if (shouldLog(error)) logError(error, c)
 
   if (error instanceof ValidationError) {
-    return c.json({ error: error.message, issues: error.issues }, error.status)
+    return c.json({ error: error.message, issues: error.issues }, error.status, error.headers)
   }
 
   if (error instanceof AppError) {
-    return c.json({ error: error.message }, error.status)
+    return c.json({ error: error.message }, error.status, error.headers)
   }
 
   // Текст по статусу, а не error.message: сообщение HTTPException не предназначено для клиента
   if (error instanceof HTTPException) {
-    return c.json({ error: STATUS_CODES[error.status] ?? INTERNAL_ERROR_MESSAGE }, error.status)
+    return c.json({ error: STATUS_CODES[error.status] ?? INTERNAL_ERROR_MESSAGE }, error.status, forwardedHeaders(error))
   }
 
   return c.json({ error: INTERNAL_ERROR_MESSAGE }, 500)
