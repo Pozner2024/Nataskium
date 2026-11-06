@@ -3,6 +3,8 @@ import type { EmailSender } from '../../src/features/auth'
 export type SentEmail =
   | { kind: 'verification'; to: string; rawToken: string }
   | { kind: 'accountExists'; to: string; displayName: string | null | undefined }
+  | { kind: 'passwordReset'; to: string; rawToken: string; displayName: string | null | undefined }
+  | { kind: 'passwordChanged'; to: string; displayName: string | null | undefined }
 
 // Фейк для тестов: письма не отправляются, а запоминаются; failWith — проверить, что сбой почты не ломает ответ
 export function makeRecordingEmailSender(options: { failWith?: Error } = {}) {
@@ -18,6 +20,8 @@ export function makeRecordingEmailSender(options: { failWith?: Error } = {}) {
     sendVerificationEmail: (to, rawToken, ...extra: unknown[]) =>
       record({ kind: 'verification', to, rawToken, ...(extra.length > 0 ? { extra } : {}) }),
     sendAccountExistsEmail: (to, displayName) => record({ kind: 'accountExists', to, displayName }),
+    sendPasswordResetEmail: (to, rawToken, displayName) => record({ kind: 'passwordReset', to, rawToken, displayName }),
+    sendPasswordChangedEmail: (to, displayName) => record({ kind: 'passwordChanged', to, displayName }),
   }
 
   return { sender, sent }

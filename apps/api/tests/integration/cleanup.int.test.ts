@@ -36,6 +36,14 @@ async function registration(email: string, times: { createdAgo: number; expiresI
   })
 }
 
+// У учителя одна ссылка сброса (уникальный teacher_id): для двух ссылок нужны два учителя
+async function passwordReset(times: { createdAgo: number; expiresIn: number }) {
+  const owner = (await createTeacher(prisma)).id
+  await prisma.passwordReset.create({
+    data: { teacherId: owner, tokenHash: newTokenHash(), createdAt: fromNow(-times.createdAgo), expiresAt: fromNow(times.expiresIn) },
+  })
+}
+
 beforeAll(async () => {
   prisma = await createTestPrisma()
 })
@@ -63,6 +71,8 @@ describe('createAuthCleanup на настоящей базе', () => {
     await token('active', { createdAgo: days(1), expiresIn: days(13) })
     await registration('qa-old@example.test', { createdAgo: days(2), expiresIn: -hours(1) })
     await registration('qa-fresh@example.test', { createdAgo: hours(1), expiresIn: hours(23) })
+    await passwordReset({ createdAgo: hours(2), expiresIn: -hours(1) })
+    await passwordReset({ createdAgo: hours(0.1), expiresIn: hours(0.9) })
 
     await createAuthCleanup(prisma)()
 
@@ -71,7 +81,12 @@ describe('createAuthCleanup на настоящей базе', () => {
     expect((await prisma.pendingRegistration.findMany({ select: { email: true } })).map((row) => row.email)).toEqual([
       'qa-fresh@example.test',
     ])
-    expect(console.log).toHaveBeenCalledWith('[cleanup] expired auth records removed', { refreshTokens: 2, pendingRegistrations: 1 })
+    expect(console.log).toHaveBeenCalledWith('[cleanup] expired auth records removed', {
+      refreshTokens: 2,
+      pendingRegistrations: 1,
+      passwordResets: 1,
+    })
+    expect((await prisma.passwordReset.findMany({ select: { expiresAt: true } })).map((row) => row.expiresAt > new Date())).toEqual([true])
   })
 
   it('повторный запуск ничего не удаляет и не пишет в лог', async () => {
@@ -89,9 +104,10 @@ describe('createAuthCleanup на настоящей базе', () => {
 
   it('учителя и их данные не трогает', async () => {
     await token('expired', { createdAgo: days(15), expiresIn: -hours(1) })
+    await passwordReset({ createdAgo: hours(2), expiresIn: -hours(1) })
 
     await createAuthCleanup(prisma)()
 
-    expect(await prisma.teacher.count({ where: { id: teacherId } })).toBe(1)
+    expect(await prisma.teacher.count()).toBe(2)
   })
 })

@@ -34,6 +34,8 @@ const MANUAL_CHECKS = [
   ],
   ['pending_registrations', 'pending_registrations_token_hash_format_check', `CHECK ("token_hash" ~ '^[0-9a-f]{64}$')`],
   ['pending_registrations', 'pending_registrations_expires_after_created_check', 'CHECK ("expires_at" > "created_at")'],
+  ['password_resets', 'password_resets_token_hash_format_check', `CHECK ("token_hash" ~ '^[0-9a-f]{64}$')`],
+  ['password_resets', 'password_resets_expires_after_created_check', 'CHECK ("expires_at" > "created_at")'],
   ['pending_registrations', 'pending_registrations_display_name_length_check', 'CHECK (char_length("display_name") BETWEEN 1 AND 100)'],
   [
     'pending_registrations',
@@ -47,6 +49,10 @@ const MANUAL_CHECKS = [
   ],
 ]
 // Без каскада удаление учителя оставило бы его сессии в базе (GDPR)
+const PASSWORD_RESETS_CASCADE =
+  'ALTER TABLE "password_resets" ADD CONSTRAINT "password_resets_teacher_id_fkey" FOREIGN KEY ("teacher_id") REFERENCES "teachers"("id") ON DELETE CASCADE'
+// Одна ссылка сброса на учителя: replaceForTeacher — upsert по этому индексу
+const PASSWORD_RESETS_UNIQUE_TEACHER = 'CREATE UNIQUE INDEX "password_resets_teacher_id_key" ON "password_resets"("teacher_id");'
 const REFRESH_TOKENS_CASCADE =
   'ALTER TABLE "refresh_tokens" ADD CONSTRAINT "refresh_tokens_teacher_id_fkey" FOREIGN KEY ("teacher_id") REFERENCES "teachers"("id") ON DELETE CASCADE'
 
@@ -77,6 +83,18 @@ describe('миграции', () => {
     const inMigrations = [...readAllMigrations().matchAll(/ADD CONSTRAINT "([^"]+)" CHECK/g)].map((match) => match[1])
 
     expect(inMigrations.sort()).toEqual(MANUAL_CHECKS.map(([, name]) => name).sort())
+  })
+
+  it('ссылка сброса — не больше одной на учителя: уникальный индекс по teacher_id', () => {
+    expect(readAllMigrations()).toContain(PASSWORD_RESETS_UNIQUE_TEACHER)
+  })
+
+  it('неуникальный индекс по teacher_id удалён: его заменил уникальный', () => {
+    expect(readAllMigrations()).toContain('DROP INDEX "password_resets_teacher_id_idx";')
+  })
+
+  it('ссылки сброса пароля удаляются вместе с учителем', () => {
+    expect(readAllMigrations()).toContain(PASSWORD_RESETS_CASCADE)
   })
 
   it('refresh-токены удаляются вместе с учителем', () => {

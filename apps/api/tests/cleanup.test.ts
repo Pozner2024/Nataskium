@@ -1,17 +1,17 @@
 import { inspect } from 'node:util'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { makeCleanupExpiredAuthRecords, startCleanupSchedule } from '../src/features/auth'
-import type { PendingRegistrationRepository, RefreshTokenRepository } from '../src/features/auth/types'
-import { makeFakePendingRegistrations, makeMemoryRefreshTokens } from './fakes/authFakes'
+import type { PasswordResetRepository, PendingRegistrationRepository, RefreshTokenRepository } from '../src/features/auth/types'
+import { makeFakePendingRegistrations, makeMemoryPasswordResets, makeMemoryRefreshTokens } from './fakes/authFakes'
 
 const NOW = new Date('2026-11-05T12:00:00Z')
 const SECRET_IN_ERROR = 'qa-anna@example.test'
 
-type Counts = { refreshTokens: number | Error; pendingRegistrations: number | Error }
+type Counts = { refreshTokens: number | Error; pendingRegistrations: number | Error; passwordResets?: number | Error }
 
 // Репозитории, которые запоминают переданное now и возвращают заданное число удалённых строк или бросают
 function setup(counts: Counts) {
-  const seen: { refreshTokens?: Date; pendingRegistrations?: Date } = {}
+  const seen: { refreshTokens?: Date; pendingRegistrations?: Date; passwordResets?: Date } = {}
   const refreshTokens: RefreshTokenRepository = {
     ...makeMemoryRefreshTokens([]).repository,
     async deleteExpired(now) {
@@ -28,8 +28,17 @@ function setup(counts: Counts) {
       return counts.pendingRegistrations
     },
   }
+  const passwordResets: PasswordResetRepository = {
+    ...makeMemoryPasswordResets([]).repository,
+    async deleteExpired(now) {
+      seen.passwordResets = now
+      const count = counts.passwordResets ?? 0
+      if (count instanceof Error) throw count
+      return count
+    },
+  }
   const clock = vi.fn(() => NOW)
-  const cleanup = makeCleanupExpiredAuthRecords({ refreshTokens, pendingRegistrations, now: clock })
+  const cleanup = makeCleanupExpiredAuthRecords({ refreshTokens, pendingRegistrations, passwordResets, now: clock })
   return { cleanup, seen, clock }
 }
 
@@ -54,7 +63,7 @@ afterEach(() => {
 })
 
 describe('cleanupExpiredAuthRecords', () => {
-  it('оба deleteExpired получают одно и то же now, часы читаются один раз', async () => {
+  it('все три deleteExpired получают одно и то же now, часы читаются один раз', async () => {
     captureLogs()
     const { cleanup, seen, clock } = setup({ refreshTokens: 0, pendingRegistrations: 0 })
 
@@ -62,6 +71,7 @@ describe('cleanupExpiredAuthRecords', () => {
 
     expect(seen.refreshTokens).toBe(NOW)
     expect(seen.pendingRegistrations).toBe(NOW)
+    expect(seen.passwordResets).toBe(NOW)
     expect(clock).toHaveBeenCalledTimes(1)
   })
 
@@ -74,22 +84,24 @@ describe('cleanupExpiredAuthRecords', () => {
   })
 
   it.each([
-    ['только токены', 3, 0],
-    ['только регистрации', 0, 2],
-    ['оба', 3, 2],
-  ])('удалено (%s) — одна запись в лог с числами', async (_name, refreshTokens, pendingRegistrations) => {
+    ['только токены', 3, 0, 0],
+    ['только регистрации', 0, 2, 0],
+    ['только ссылки сброса', 0, 0, 4],
+    ['все', 3, 2, 4],
+  ])('удалено (%s) — одна запись в лог с числами', async (_name, refreshTokens, pendingRegistrations, passwordResets) => {
     const logged = captureLogs()
 
-    await setup({ refreshTokens, pendingRegistrations }).cleanup()
+    await setup({ refreshTokens, pendingRegistrations, passwordResets }).cleanup()
 
     expect(logged).toEqual([
-      { method: 'log', args: ['[cleanup] expired auth records removed', { refreshTokens, pendingRegistrations }] },
+      { method: 'log', args: ['[cleanup] expired auth records removed', { refreshTokens, pendingRegistrations, passwordResets }] },
     ])
   })
 
   it.each([
     ['токены', { refreshTokens: prismaLikeError(), pendingRegistrations: 0 }],
     ['регистрации', { refreshTokens: 0, pendingRegistrations: prismaLikeError() }],
+    ['ссылки сброса', { refreshTokens: 0, pendingRegistrations: 0, passwordResets: prismaLikeError() }],
   ])('сбой (%s) не бросается, в логе только тип ошибки', async (_name, counts) => {
     const logged = captureLogs()
 
@@ -105,6 +117,7 @@ describe('cleanupExpiredAuthRecords', () => {
     const throwing = makeCleanupExpiredAuthRecords({
       refreshTokens: { ...makeMemoryRefreshTokens([]).repository, deleteExpired: () => Promise.reject(SECRET_IN_ERROR) },
       pendingRegistrations: makeFakePendingRegistrations([]).repository,
+      passwordResets: makeMemoryPasswordResets([]).repository,
       now: () => NOW,
     })
 

@@ -285,3 +285,29 @@ describe('pending_registrations.display_name', () => {
     expect(await violatedConstraint(insertPending({ displayName }))).toBe(constraint)
   })
 })
+
+describe('password_resets', () => {
+  function insertReset(columns: { tokenHash?: string; expiresAt?: string; teacherId?: string }) {
+    const { tokenHash = `'${'e'.repeat(64)}'`, expiresAt = "now() + interval '1 hour'", teacherId = TEACHER_ID } = columns
+    return `INSERT INTO password_resets (id, teacher_id, token_hash, expires_at) VALUES (gen_random_uuid(), '${teacherId}', ${tokenHash}, ${expiresAt})`
+  }
+
+  it('корректная ссылка принимается', async () => {
+    await expect(prisma.$executeRawUnsafe(insertReset({}))).resolves.toBe(1)
+  })
+
+  it.each([
+    ['сырой токен', insertReset({ tokenHash: "'raw-reset-token-base64url'" }), 'password_resets_token_hash_format_check'],
+    ['hex в верхнем регистре', insertReset({ tokenHash: "repeat('E', 64)" }), 'password_resets_token_hash_format_check'],
+    ['срок раньше создания', insertReset({ expiresAt: "now() - interval '1 second'" }), 'password_resets_expires_after_created_check'],
+    ['несуществующий учитель', insertReset({ teacherId: MISSING_TEACHER_ID }), 'password_resets_teacher_id_fkey'],
+  ])('%s', async (_name, sql, constraint) => {
+    expect(await violatedConstraint(sql)).toBe(constraint)
+  })
+
+  it('повтор token_hash — unique', async () => {
+    await prisma.$executeRawUnsafe(insertReset({}))
+
+    expect(await violatedConstraint(insertReset({}))).toBe('password_resets_token_hash_key')
+  })
+})

@@ -1,6 +1,17 @@
 // HTTP-интерфейс auth: разбор тела shared-схемами, лимиты, refresh-токен в httpOnly cookie.
 // Маршруты монтируются на /api/auth (план 1.7): Caddy префикс не срезает, в dev — nitro.devProxy
-import { type LoginInput, type RegisterInput, type VerifyEmailInput, loginSchema, registerSchema, verifyEmailSchema } from '@nataskium/shared/schemas'
+import {
+  type ForgotPasswordInput,
+  type LoginInput,
+  type RegisterInput,
+  type ResetPasswordInput,
+  type VerifyEmailInput,
+  forgotPasswordSchema,
+  loginSchema,
+  registerSchema,
+  resetPasswordSchema,
+  verifyEmailSchema,
+} from '@nataskium/shared/schemas'
 import { type Context, Hono, type MiddlewareHandler } from 'hono'
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
 import { AppError, RateLimitedError } from '../../../shared/errors'
@@ -24,6 +35,8 @@ const REFRESH_COOKIE_BASE_OPTIONS = {
 } as const
 
 const REGISTER_ACCEPTED_MESSAGE = 'Check your email to finish registration'
+// Одна фраза для любого email: по ответу не понять, есть ли аккаунт
+const RESET_REQUESTED_MESSAGE = 'If an account with a password exists for this email, we sent a reset link'
 const ACCEPTED_STATUS = 202
 const NO_CONTENT_STATUS = 204
 const FORBIDDEN_STATUS = 403
@@ -41,6 +54,8 @@ export type AuthRouterDeps = {
   logout: (rawRefreshToken: string | undefined) => Promise<void>
   logoutAll: (teacherId: string) => Promise<void>
   getMe: (teacherId: string) => Promise<TeacherView>
+  requestPasswordReset: (input: ForgotPasswordInput) => Promise<void>
+  resetPassword: (input: ResetPasswordInput) => Promise<void>
   requireAuth: MiddlewareHandler
   clientIp: (c: Context) => string
   // Origin фронтенда: refresh и logout по cookie принимаются только с него (CSRF поверх SameSite)
@@ -51,6 +66,8 @@ export type AuthRouterDeps = {
     registerPerIp: IpLimiter
     verifyEmailPerIp: IpLimiter
     sessionPerIp: IpLimiter
+    forgotPasswordPerIp: IpLimiter
+    resetPasswordPerIp: IpLimiter
   }
 }
 
@@ -129,6 +146,21 @@ export function makeAuthRouter(deps: AuthRouterDeps) {
 
   router.post('/logout-all', deps.limiters.sessionPerIp.middleware(byIp), deps.requireAuth, async (c) => {
     await deps.logoutAll(c.get('teacherId'))
+    clearRefreshCookie(c)
+    return c.body(null, NO_CONTENT_STATUS)
+  })
+
+  router.post('/forgot-password', deps.limiters.forgotPasswordPerIp.middleware(byIp), async (c) => {
+    const input = await readJsonBody(c, forgotPasswordSchema)
+    // Лимит писем по email — внутри use-case, по нормализованному адресу и одинаково для любого email
+    await deps.requestPasswordReset(input)
+    return c.json({ message: RESET_REQUESTED_MESSAGE }, ACCEPTED_STATUS)
+  })
+
+  router.post('/reset-password', deps.limiters.resetPasswordPerIp.middleware(byIp), async (c) => {
+    const input = await readJsonBody(c, resetPasswordSchema)
+    await deps.resetPassword(input)
+    // Все сессии учителя уже удалены: cookie этого браузера, если была, тоже недействительна
     clearRefreshCookie(c)
     return c.body(null, NO_CONTENT_STATUS)
   })

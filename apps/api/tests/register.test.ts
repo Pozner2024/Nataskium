@@ -259,6 +259,12 @@ describe('register: сбой почты', () => {
         sendAccountExistsEmail: () => {
           throw mailError()
         },
+        sendPasswordResetEmail: () => {
+          throw mailError()
+        },
+        sendPasswordChangedEmail: () => {
+          throw mailError()
+        },
       },
       registrationEmailQuota: makeFakeQuota(calls).quota,
       now: () => NOW,

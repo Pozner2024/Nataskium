@@ -1,7 +1,7 @@
 import { inspect } from 'node:util'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { registerSchema } from '@nataskium/shared/schemas'
-import { SIGN_IN_PATH, VERIFY_EMAIL_PATH, makeRegister, makeResendEmailSender, makeTokenService } from '../src/features/auth'
+import { RESET_PASSWORD_PATH, SIGN_IN_PATH, VERIFY_EMAIL_PATH, makeRegister, makeResendEmailSender, makeTokenService } from '../src/features/auth'
 import { ExternalServiceError } from '../src/shared/errors'
 import { flushBackground, makeFakeHasher, makeFakePendingRegistrations, makeFakeQuota, makeFakeTeachers } from './fakes/authFakes'
 
@@ -12,6 +12,7 @@ const FROM = 'noreply@nataskium.example'
 const WEB_ORIGIN = 'https://nataskium.example'
 const TO = 'qa-anna@example.test'
 const TTL_HOURS = 24
+const RESET_TTL_HOURS = 1
 const EMAIL_TIMEOUT_MS = 8000
 const EXPECTED_VERIFY_PATH = '/auth/verify-email'
 const EXPECTED_SIGN_IN_PATH = '/auth/login'
@@ -34,7 +35,13 @@ function okResponse() {
 }
 
 function sender() {
-  return makeResendEmailSender({ apiKey: API_KEY, from: FROM, webOrigin: WEB_ORIGIN, verificationLinkTtlHours: TTL_HOURS })
+  return makeResendEmailSender({
+    apiKey: API_KEY,
+    from: FROM,
+    webOrigin: WEB_ORIGIN,
+    verificationLinkTtlHours: TTL_HOURS,
+    passwordResetLinkTtlHours: RESET_TTL_HOURS,
+  })
 }
 
 function lastBody(): ResendBody {
@@ -184,10 +191,99 @@ describe('Resend: письмо «аккаунт уже есть»', () => {
   })
 })
 
+describe('Resend: письмо сброса пароля', () => {
+  it('путь страницы сброса', () => {
+    expect(RESET_PASSWORD_PATH).toBe('/auth/reset-password')
+  })
+
+  it('тема, ссылка ровно WEB_ORIGIN/auth/reset-password#token=<токен> в html и text, токен только во фрагменте', async () => {
+    const rawToken = tokens.generateOpaqueToken()
+
+    await sender().sendPasswordResetEmail(TO, rawToken, null)
+
+    const expected = `${WEB_ORIGIN}/auth/reset-password#token=${rawToken}`
+    const { subject, html, text, to } = lastBody()
+    expect(subject).toBe('Reset your password — Nataskium')
+    expect(to).toEqual([TO])
+    expect(linksIn(html)).toEqual([expected])
+    expect(linksIn(text)).toEqual([expected])
+    for (const link of [...linksIn(html), ...linksIn(text)]) expect(new URL(link).search).toBe('')
+    expect(html.split(rawToken)).toHaveLength(2)
+  })
+
+  it('текст: срок 1 час в единственном числе и «ссылка одноразовая»', async () => {
+    await sender().sendPasswordResetEmail(TO, tokens.generateOpaqueToken(), null)
+
+    for (const part of [lastBody().html, lastBody().text]) {
+      expect(part).toContain('The link expires in 1 hour and works once.')
+      expect(part).toContain('your password stays the same')
+    }
+  })
+
+  it('срок больше часа — во множественном числе', async () => {
+    const twoHours = makeResendEmailSender({
+      apiKey: API_KEY,
+      from: FROM,
+      webOrigin: WEB_ORIGIN,
+      verificationLinkTtlHours: TTL_HOURS,
+      passwordResetLinkTtlHours: 2,
+    })
+
+    await twoHours.sendPasswordResetEmail(TO, tokens.generateOpaqueToken(), null)
+
+    expect(lastBody().text).toContain('The link expires in 2 hours and works once.')
+  })
+
+  it('сбой отправки — ExternalServiceError, как у других писем', async () => {
+    respond = () => Promise.resolve(new Response('{}', { status: 500 }))
+
+    const error = await rejectionOf(sender().sendPasswordResetEmail(TO, tokens.generateOpaqueToken(), null))
+
+    expect(error).toBeInstanceOf(ExternalServiceError)
+    expect(inspect(error, { depth: null })).not.toContain(API_KEY)
+  })
+})
+
+describe('Resend: письмо «пароль изменён»', () => {
+  it('тема, ссылки только на страницу входа, без токена', async () => {
+    await sender().sendPasswordChangedEmail(TO, null)
+
+    const { subject, html, text, to } = lastBody()
+    expect(subject).toBe('Your password was changed — Nataskium')
+    expect(to).toEqual([TO])
+    for (const part of [html, text]) {
+      const links = linksIn(part)
+      expect(links.length).toBeGreaterThan(0)
+      expect(new Set(links)).toEqual(new Set([`${WEB_ORIGIN}${EXPECTED_SIGN_IN_PATH}`]))
+      expect(part).not.toMatch(/token/i)
+    }
+  })
+
+  it('сообщает о выходе на всех устройствах и что делать, если это не учитель', async () => {
+    await sender().sendPasswordChangedEmail(TO, null)
+
+    for (const part of [lastBody().html, lastBody().text]) {
+      expect(part).toContain('signed out on all devices')
+      expect(part).toContain('Forgot password')
+    }
+  })
+
+  it('сбой отправки — ExternalServiceError без ключа', async () => {
+    respond = () => Promise.resolve(new Response('{}', { status: 500 }))
+
+    const error = await rejectionOf(sender().sendPasswordChangedEmail(TO, null))
+
+    expect(error).toBeInstanceOf(ExternalServiceError)
+    expect(inspect(error, { depth: null })).not.toContain(API_KEY)
+  })
+})
+
 describe('Resend: имя учителя в письме', () => {
-  // Имя есть только в письме «аккаунт уже есть»: это имя существующего, подтверждённого учителя
+  // Имя есть в письмах «аккаунт уже есть» и сброса пароля: это имя существующего, подтверждённого учителя
   const SEND: [string, (name: string | null | undefined) => Promise<void>][] = [
     ['аккаунт уже есть', (name) => sender().sendAccountExistsEmail(TO, name)],
+    ['сброс пароля', (name) => sender().sendPasswordResetEmail(TO, tokens.generateOpaqueToken(), name)],
+    ['пароль изменён', (name) => sender().sendPasswordChangedEmail(TO, name)],
   ]
 
   it.each(SEND)('%s: HTML-символы имени экранированы в html', async (_name, send) => {

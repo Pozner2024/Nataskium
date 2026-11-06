@@ -21,7 +21,8 @@ model Teacher {
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
-  refreshTokens RefreshToken[]
+  refreshTokens  RefreshToken[]
+  passwordResets PasswordReset[]
 
   @@map("teachers")
 }
@@ -62,4 +63,22 @@ model PendingRegistration {
 
   @@index([email])
   @@map("pending_registrations")
+}
+
+// Одноразовая ссылка сброса пароля: сырой токен — только в письме, в базе — его HMAC-SHA256 (hex).
+// У учителя не больше одной записи (unique по teacher_id): новый запрос заменяет прежнюю
+model PasswordReset {
+  id        String   @id @default(uuid()) @db.Uuid
+  teacherId String   @map("teacher_id") @db.Uuid
+  tokenHash String   @unique @map("token_hash")
+  expiresAt DateTime @map("expires_at") @db.Timestamptz
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  teacher Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  // Уникальный индекс служит и индексом по FK
+  @@unique([teacherId])
+  // cleanup удаляет по expires_at < now
+  @@index([expiresAt])
+  @@map("password_resets")
 }

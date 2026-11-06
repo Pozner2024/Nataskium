@@ -4,9 +4,13 @@ import type {
   EmailQuota,
   FailureLimiter,
   FailureReservation,
+  NewPasswordReset,
   NewPendingRegistration,
   NewRefreshToken,
   PasswordHasher,
+  PasswordReset,
+  PasswordResetRepository,
+  PasswordResetResult,
   PendingRegistration,
   PendingRegistrationRepository,
   RefreshSession,
@@ -234,4 +238,48 @@ export function makeMemoryRefreshTokens(calls: CallLog) {
     },
   }
   return { repository, rows, rotations, state, seed }
+}
+
+type StoredReset = PasswordReset & { tokenHash: string }
+
+// Ссылки сброса в памяти с CAS в completeReset: удаляет запись, и если удалось — меняет пароль и закрывает сессии
+export function makeMemoryPasswordResets(calls: CallLog, options: { refreshTokens?: { rows: { teacherId: string }[] } } = {}) {
+  const rows: StoredReset[] = []
+  const passwordChanges: { teacherId: string; passwordHash: string }[] = []
+  // teacher — кому completeReset сообщит о смене пароля
+  const state: { teacherExists: boolean; completedAt: Date | null; teacher: { email: string; displayName: string | null } } = {
+    teacherExists: true,
+    completedAt: null,
+    teacher: { email: 'qa-anna@example.test', displayName: 'Анна' },
+  }
+
+  const repository: PasswordResetRepository = {
+    async replaceForTeacher(reset: NewPasswordReset) {
+      calls.push('passwordResets.replaceForTeacher')
+      for (let index = rows.length - 1; index >= 0; index--) if (rows[index]?.teacherId === reset.teacherId) rows.splice(index, 1)
+      rows.push({ id: randomUUID(), ...reset })
+    },
+    async findByTokenHash(tokenHash) {
+      calls.push('passwordResets.findByTokenHash')
+      const row = rows.find((candidate) => candidate.tokenHash === tokenHash)
+      return row === undefined ? null : { id: row.id, teacherId: row.teacherId, expiresAt: row.expiresAt }
+    },
+    async completeReset(reset, tokenHash, passwordHash, now): Promise<PasswordResetResult> {
+      calls.push('passwordResets.completeReset')
+      state.completedAt = now
+      const index = rows.findIndex((row) => row.id === reset.id && row.tokenHash === tokenHash && row.expiresAt > now)
+      if (index === -1) return { status: 'invalid' }
+      rows.splice(index, 1)
+      if (!state.teacherExists) return { status: 'invalid' }
+      for (let other = rows.length - 1; other >= 0; other--) if (rows[other]?.teacherId === reset.teacherId) rows.splice(other, 1)
+      const refreshRows = options.refreshTokens?.rows
+      if (refreshRows) for (let other = refreshRows.length - 1; other >= 0; other--) if (refreshRows[other]?.teacherId === reset.teacherId) refreshRows.splice(other, 1)
+      passwordChanges.push({ teacherId: reset.teacherId, passwordHash })
+      return { status: 'reset', teacher: state.teacher }
+    },
+    async deleteExpired() {
+      return 0
+    },
+  }
+  return { repository, rows, passwordChanges, state }
 }

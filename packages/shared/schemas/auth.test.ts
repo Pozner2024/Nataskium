@@ -626,10 +626,12 @@ describe('схемы auth: публичный API', () => {
       'authTokenSchema',
       'displayNameSchema',
       'emailSchema',
+      'forgotPasswordSchema',
       'loginPasswordSchema',
       'loginSchema',
       'passwordSchema',
       'registerSchema',
+      'resetPasswordSchema',
       'verifyEmailSchema',
     ])
   })

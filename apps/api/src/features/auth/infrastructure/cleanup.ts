@@ -1,23 +1,25 @@
-import type { Clock, PendingRegistrationRepository, RefreshTokenRepository } from '../types'
+import type { Clock, PasswordResetRepository, PendingRegistrationRepository, RefreshTokenRepository } from '../types'
 
 export type CleanupDeps = {
   refreshTokens: RefreshTokenRepository
   pendingRegistrations: PendingRegistrationRepository
+  passwordResets: PasswordResetRepository
   now: Clock
 }
 
-// Удаляет истёкшие refresh-токены и регистрации (минимизация данных). Отозванные токены — только по сроку:
+// Удаляет истёкшие refresh-токены, регистрации и ссылки сброса пароля (минимизация данных). Отозванные токены — только по сроку:
 // до него по ним срабатывает обнаружение повторного использования. Сбой не роняет процесс — следующий запуск повторит
 export function makeCleanupExpiredAuthRecords(deps: CleanupDeps) {
   return async function cleanupExpiredAuthRecords(): Promise<void> {
     const now = deps.now()
     try {
-      const [refreshTokens, pendingRegistrations] = await Promise.all([
+      const [refreshTokens, pendingRegistrations, passwordResets] = await Promise.all([
         deps.refreshTokens.deleteExpired(now),
         deps.pendingRegistrations.deleteExpired(now),
+        deps.passwordResets.deleteExpired(now),
       ])
-      if (refreshTokens > 0 || pendingRegistrations > 0) {
-        console.log('[cleanup] expired auth records removed', { refreshTokens, pendingRegistrations })
+      if (refreshTokens > 0 || pendingRegistrations > 0 || passwordResets > 0) {
+        console.log('[cleanup] expired auth records removed', { refreshTokens, pendingRegistrations, passwordResets })
       }
     } catch (error) {
       // Только тип: в ошибке Prisma бывают параметры запроса

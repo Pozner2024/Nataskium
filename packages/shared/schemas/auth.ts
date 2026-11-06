@@ -147,6 +147,18 @@ export const verifyEmailSchema = z.object({
   password: loginPasswordSchema,
 })
 
+export const forgotPasswordSchema = z.object({
+  email: emailSchema,
+})
+
+// Новый пароль — по правилам регистрации: NFC, минимум, блок-лист
+export const resetPasswordSchema = z.object({
+  token: authTokenSchema,
+  password: passwordSchema,
+})
+
 export type RegisterInput = z.infer<typeof registerSchema>
 export type LoginInput = z.infer<typeof loginSchema>
 export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>

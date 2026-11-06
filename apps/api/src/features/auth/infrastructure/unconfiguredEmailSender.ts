@@ -12,5 +12,10 @@ export function makeUnconfiguredEmailSender(): EmailSender {
   const fail = async () => {
     throw new EmailNotConfiguredError()
   }
-  return { sendVerificationEmail: fail, sendAccountExistsEmail: fail }
+  return {
+    sendVerificationEmail: fail,
+    sendAccountExistsEmail: fail,
+    sendPasswordResetEmail: fail,
+    sendPasswordChangedEmail: fail,
+  }
 }

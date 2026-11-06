@@ -1,5 +1,5 @@
-// Почта приложения через Resend REST API (fetch, без npm-пакета resend). Письма регистрации: подтверждение email
-// и «аккаунт уже есть». Ссылки строятся здесь из сырого токена; токен — во фрагменте URL, не в query
+// Почта приложения через Resend REST API (fetch, без npm-пакета resend). Письма: подтверждение email,
+// «аккаунт уже есть», сброс пароля и «пароль изменён». Ссылки строятся здесь из сырого токена; токен — во фрагменте URL, не в query
 import { z } from 'zod'
 import { ExternalServiceError } from '../../../shared/errors'
 import type { EmailSender } from '../types'
@@ -11,6 +11,7 @@ const APP_NAME = 'Nataskium'
 // Страницы фронтенда (шаг 5). Токен во фрагменте не попадает в логи Caddy, историю запросов сервера и Referer
 export const VERIFY_EMAIL_PATH = '/auth/verify-email'
 export const SIGN_IN_PATH = '/auth/login'
+export const RESET_PASSWORD_PATH = '/auth/reset-password'
 const TOKEN_FRAGMENT_PARAM = 'token'
 
 // Ответ Resend при успехе; содержимое не используется, но формат проверяем, а не верим ему
@@ -24,6 +25,8 @@ export type ResendEmailSenderOptions = {
   webOrigin: string
   // Из PENDING_REGISTRATION_TTL_MS: срок в тексте письма совпадает со сроком записи регистрации
   verificationLinkTtlHours: number
+  // Из PASSWORD_RESET_TTL_MS
+  passwordResetLinkTtlHours: number
 }
 
 // Имя учителя в HTML письма — только через эту функцию: иначе HTML-инъекция в письме
@@ -115,6 +118,58 @@ export function makeResendEmailSender(options: ResendEmailSenderOptions): EmailS
           'Someone tried to sign up with this email, but an account already exists.',
           `Just sign in as usual: ${link}`,
           "If it wasn't you, just ignore this email.",
+        ].join('\n'),
+      })
+    },
+
+    async sendPasswordResetEmail(to, rawToken, displayName) {
+      const link = `${options.webOrigin}${RESET_PASSWORD_PATH}#${TOKEN_FRAGMENT_PARAM}=${encodeURIComponent(rawToken)}`
+      // Имя задал подтверждённый владелец аккаунта; в HTML — только экранированным
+      const hello = greeting(displayName)
+      const hours = options.passwordResetLinkTtlHours
+      const expiry = `The link expires in ${hours} ${hours === 1 ? 'hour' : 'hours'} and works once.`
+      await send({
+        to,
+        subject: `Reset your password — ${APP_NAME}`,
+        html: `
+          <p>${hello.html}</p>
+          <p>We received a request to reset your password.</p>
+          <p>Click the link below to choose a new one:</p>
+          <p><a href="${link}">Reset password</a></p>
+          <p>${expiry} If you didn't request this, just ignore this email: your password stays the same.</p>
+        `,
+        text: [
+          hello.text,
+          '',
+          'We received a request to reset your password.',
+          'Open the link below to choose a new one:',
+          link,
+          '',
+          `${expiry} If you didn't request this, just ignore this email: your password stays the same.`,
+        ].join('\n'),
+      })
+    },
+
+    // Без токена: ссылка ведёт на вход, а сброс учитель запрашивает там сам
+    async sendPasswordChangedEmail(to, displayName) {
+      const link = `${options.webOrigin}${SIGN_IN_PATH}`
+      // Имя задал подтверждённый владелец аккаунта; в HTML — только экранированным
+      const hello = greeting(displayName)
+      await send({
+        to,
+        subject: `Your password was changed — ${APP_NAME}`,
+        html: `
+          <p>${hello.html}</p>
+          <p>The password for your ${APP_NAME} account was just changed, and you were signed out on all devices.</p>
+          <p>If this was you, you can <a href="${link}">sign in</a> with your new password.</p>
+          <p>If this wasn't you, reset your password immediately: open the <a href="${link}">sign-in page</a> and choose "Forgot password".</p>
+        `,
+        text: [
+          hello.text,
+          '',
+          `The password for your ${APP_NAME} account was just changed, and you were signed out on all devices.`,
+          `If this was you, you can sign in with your new password: ${link}`,
+          `If this wasn't you, reset your password immediately: open ${link} and choose "Forgot password".`,
         ].join('\n'),
       })
     },

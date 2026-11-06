@@ -15,10 +15,13 @@ import {
   makeLogin,
   makeLogout,
   makeLogoutAll,
+  makePasswordResetRepository,
   makePendingRegistrationRepository,
   makeRefreshSession,
   makeRefreshTokenRepository,
   makeRegister,
+  makeRequestPasswordReset,
+  makeResetPassword,
   makeTeacherRepository,
   makeTokenService,
   makeVerifyEmail,
@@ -53,6 +56,7 @@ export function createAuthCleanup(prisma: PrismaClient): () => Promise<void> {
   return makeCleanupExpiredAuthRecords({
     refreshTokens: makeRefreshTokenRepository(prisma),
     pendingRegistrations: makePendingRegistrationRepository(prisma),
+    passwordResets: makePasswordResetRepository(prisma),
     now: () => new Date(),
   })
 }
@@ -91,6 +95,7 @@ export function createApp({ env, prisma, limits, passwordHasher, emailSender }: 
   const teachers = makeTeacherRepository(prisma)
   const refreshTokens = makeRefreshTokenRepository(prisma)
   const pendingRegistrations = makePendingRegistrationRepository(prisma)
+  const passwordResets = makePasswordResetRepository(prisma)
   const tokens = makeTokenService({ jwtSecret: env.JWT_SECRET, hmacSecret: env.HMAC_SECRET })
   const limiters = makeAuthLimiters(limits)
   const now = () => new Date()
@@ -119,6 +124,15 @@ export function createApp({ env, prisma, limits, passwordHasher, emailSender }: 
       logout: makeLogout({ refreshTokens, tokens }),
       logoutAll: makeLogoutAll({ refreshTokens }),
       getMe: makeGetMe({ teachers }),
+      requestPasswordReset: makeRequestPasswordReset({
+        teachers,
+        passwordResets,
+        tokens,
+        emailSender,
+        resetEmailQuota: limiters.resetEmailQuota,
+        now,
+      }),
+      resetPassword: makeResetPassword({ passwordResets, hasher: passwordHasher, tokens, emailSender, now }),
       requireAuth: makeRequireAuth(tokens.verifyAccessToken),
       clientIp: makeClientIpResolver(env.TRUSTED_PROXY_IPS),
       webOrigin: env.WEB_ORIGIN,

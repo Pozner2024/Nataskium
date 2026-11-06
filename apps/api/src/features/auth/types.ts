@@ -76,6 +76,34 @@ export type PendingRegistrationRepository = {
   deleteExpired(now: Date): Promise<number>
 }
 
+export type PasswordReset = {
+  id: string
+  teacherId: string
+  expiresAt: Date
+}
+
+export type NewPasswordReset = {
+  teacherId: string
+  tokenHash: string
+  expiresAt: Date
+}
+
+export type PasswordResetResult =
+  // Кому сообщить о смене пароля: адрес и имя учителя на момент сброса
+  | { status: 'reset'; teacher: { email: string; displayName: string | null } }
+  // Запись уже удалена (ссылку использовали или запросили новую), истекла, или учителя уже нет
+  | { status: 'invalid' }
+
+export type PasswordResetRepository = {
+  // Заменить запись учителя новой (у учителя одна запись): старая ссылка перестаёт работать
+  replaceForTeacher(reset: NewPasswordReset): Promise<void>
+  findByTokenHash(tokenHash: string): Promise<PasswordReset | null>
+  // Одна транзакция: удалить свою запись (CAS по id, tokenHash и сроку), все записи сброса учителя,
+  // все его refresh-токены и записать новый хэш пароля
+  completeReset(reset: PasswordReset, tokenHash: string, passwordHash: string, now: Date): Promise<PasswordResetResult>
+  deleteExpired(now: Date): Promise<number>
+}
+
 export type PasswordHasher = {
   // false — очередь хэширования заполнена: вызывающий отвечает 503, не тратя лимит неудачных входов
   hasCapacity(): boolean
@@ -104,6 +132,9 @@ export type EmailSender = {
   sendVerificationEmail(to: string, rawToken: string): Promise<void>
   // Имя подтверждённого владельца аккаунта; реализация обязана экранировать его в HTML
   sendAccountExistsEmail(to: string, displayName?: string | null): Promise<void>
+  sendPasswordResetEmail(to: string, rawToken: string, displayName?: string | null): Promise<void>
+  // После успешного сброса: если это был не владелец, он узнает и сбросит пароль снова. Ссылка — без токена
+  sendPasswordChangedEmail(to: string, displayName?: string | null): Promise<void>
 }
 
 // Бюджет писем на адрес (часть E: in-memory, по нормализованному email); false — бюджет исчерпан

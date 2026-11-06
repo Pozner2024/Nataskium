@@ -8,10 +8,12 @@ export {
   authTokenSchema,
   displayNameSchema,
   emailSchema,
+  forgotPasswordSchema,
   loginPasswordSchema,
   loginSchema,
   passwordSchema,
   registerSchema,
+  resetPasswordSchema,
   verifyEmailSchema,
 } from './auth'
-export type { LoginInput, RegisterInput, VerifyEmailInput } from './auth'
+export type { ForgotPasswordInput, LoginInput, RegisterInput, ResetPasswordInput, VerifyEmailInput } from './auth'

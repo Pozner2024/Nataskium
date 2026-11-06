@@ -43,6 +43,10 @@ describe('PRODUCTION_LIMITS', () => {
       registrationEmailsPerHour: { max: 3, windowMs: 60 * MS_PER_MINUTE },
       registrationEmailsPerDay: { max: 5, windowMs: 24 * 60 * MS_PER_MINUTE },
       sessionPerIp: { max: 60, windowMs: WINDOW_MS },
+      resetEmailsPerHour: { max: 3, windowMs: 60 * MS_PER_MINUTE },
+      resetEmailsPerDay: { max: 5, windowMs: 24 * 60 * MS_PER_MINUTE },
+      forgotPasswordPerIp: { max: 30, windowMs: 60 * MS_PER_MINUTE },
+      resetPasswordPerIp: { max: 30, windowMs: WINDOW_MS },
     })
   })
 })
