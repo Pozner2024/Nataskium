@@ -627,6 +627,7 @@ describe('схемы auth: публичный API', () => {
       'apiErrorResponseSchema',
       'authSessionResponseSchema',
       'authTokenSchema',
+      'deleteAccountSchema',
       'displayNameSchema',
       'emailSchema',
       'forgotPasswordSchema',

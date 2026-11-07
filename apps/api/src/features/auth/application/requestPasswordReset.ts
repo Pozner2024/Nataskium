@@ -30,11 +30,13 @@ export function makeRequestPasswordReset(deps: RequestPasswordResetDeps) {
     // Существующий адрес отвечает на транзакцию дольше. Допустимо, как и в register: каждый замер тратит бюджет
     // писем этого адреса и шлёт письмо его владельцу. Сырой токен — только в письмо, в базе — его HMAC
     const rawToken = deps.tokens.generateOpaqueToken()
-    await deps.passwordResets.replaceForTeacher({
+    const saved = await deps.passwordResets.replaceForTeacher({
       teacherId: teacher.id,
       tokenHash: deps.tokens.hashOpaqueToken(rawToken),
       expiresAt: new Date(deps.now().getTime() + PASSWORD_RESET_TTL_MS),
     })
+    // Учителя удалили между поиском и записью: письма нет, ответ тот же, что для любого email
+    if (!saved) return
     sendInBackground('passwordReset.request', () =>
       deps.emailSender.sendPasswordResetEmail(teacher.email, rawToken, teacher.displayName),
     )

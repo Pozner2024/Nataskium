@@ -1,5 +1,5 @@
 import type { Prisma, PrismaClient } from '../../../generated/prisma/client'
-import { isTransactionConflict, isUniqueViolation } from '../../../shared/infrastructure'
+import { isForeignKeyViolation, isTransactionConflict, isUniqueViolation } from '../../../shared/infrastructure'
 import type { GoogleLinkResult, PendingGoogleLinkRepository } from '../types'
 import { lockEmail } from './emailLock'
 import { TEACHER_ACCOUNT_SELECT } from './teacherRepository'
@@ -18,16 +18,23 @@ export function makePendingGoogleLinkRepository(prisma: PrismaClient): PendingGo
   return {
     // Одна запись на учителя (unique по teacher_id): новая привязка заменяет прежнюю
     async replaceForTeacher(link) {
-      await prisma.pendingGoogleLink.upsert({
-        where: { teacherId: link.teacherId },
-        create: link,
-        update: {
-          googleId: link.googleId,
-          tokenHash: link.tokenHash,
-          linkSecretHash: link.linkSecretHash,
-          expiresAt: link.expiresAt,
-        },
-      })
+      try {
+        await prisma.pendingGoogleLink.upsert({
+          where: { teacherId: link.teacherId },
+          create: link,
+          update: {
+            googleId: link.googleId,
+            tokenHash: link.tokenHash,
+            linkSecretHash: link.linkSecretHash,
+            expiresAt: link.expiresAt,
+          },
+        })
+        return true
+      } catch (error) {
+        // Учителя удалили между проверкой в use-case и записью
+        if (isForeignKeyViolation(error)) return false
+        throw error
+      }
     },
 
     async findByTokenHash(tokenHash) {

@@ -99,6 +99,25 @@ describe('replaceForTeacher и findByTokenHash', () => {
     expect(await repository.findByTokenHash(newTokenHash())).toBeNull()
   })
 
+  it('учителя нет (P2003) → false, записи нет', async () => {
+    expect(await repository.replaceForTeacher({ teacherId: randomUUID(), tokenHash: newTokenHash(), expiresAt: fromNow(RESET_TTL_MS) })).toBe(false)
+    expect(await prisma.passwordReset.count()).toBe(0)
+  })
+
+  it('после удаления учителя → false; ссылки других учителей целы', async () => {
+    const foreign = await issue(otherTeacherId)
+    await prisma.teacher.delete({ where: { id: teacherId } })
+
+    expect(await repository.replaceForTeacher({ teacherId, tokenHash: newTokenHash(), expiresAt: fromNow(RESET_TTL_MS) })).toBe(false)
+    expect(await repository.findByTokenHash(foreign.tokenHash)).not.toBeNull()
+  })
+
+  it('другие ошибки базы (чужой token_hash, P2002) — не false, а исключение', async () => {
+    const foreign = await issue(otherTeacherId)
+
+    await expect(repository.replaceForTeacher({ teacherId, tokenHash: foreign.tokenHash, expiresAt: fromNow(RESET_TTL_MS) })).rejects.toThrow()
+  })
+
   it('удаление учителя удаляет его ссылки каскадом', async () => {
     await issue()
 

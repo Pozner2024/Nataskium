@@ -28,7 +28,8 @@ const tokens = makeTokenService({ jwtSecret: TEST_ENV.JWT_SECRET, hmacSecret: TE
 
 let prisma: PrismaClient
 
-function makeClient(exchange: () => Promise<GoogleExchangeResult>) {
+// database — клиент Prisma для приложения: по умолчанию общий, в гонках — с подменой запроса
+function makeClient(exchange: () => Promise<GoogleExchangeResult>, database: PrismaClient = prisma) {
   const email = makeRecordingEmailSender()
   const seen: { code?: string; codeVerifier?: string; nonce?: string }[] = []
   const google: GoogleIdentityProvider = {
@@ -38,7 +39,7 @@ function makeClient(exchange: () => Promise<GoogleExchangeResult>) {
       return exchange()
     },
   }
-  const app = createTestApp({ prisma, emailSender: email.sender, googleIdentity: google })
+  const app = createTestApp({ prisma: database, emailSender: email.sender, googleIdentity: google })
   const get = (path: string, cookie?: string) =>
     app.request(`/api/auth/google${path}`, { headers: cookie === undefined ? {} : { cookie } }, fromIp())
 
@@ -233,6 +234,28 @@ describe('GET /api/auth/google/callback: ошибки — редирект на 
 
     expect(logged).toEqual([['Google sign-in failed', { errorType: 'ExternalServiceError', status: 503 }]])
     expect(inspect(logged, { depth: null })).not.toContain('qa-secret-code')
+  })
+
+  // Учителя удалили между входом через Google и записью сессии: createFamily → false, issueSession → 401
+  it('учителя удалили до записи сессии — google_failed, без refresh-cookie и без console.error', async () => {
+    const deletingBeforeSession = prisma.$extends({
+      query: {
+        refreshToken: {
+          async create({ args, query }) {
+            await prisma.teacher.deleteMany({ where: { id: args.data.teacherId } })
+            return query(args)
+          },
+        },
+      },
+    }) as unknown as PrismaClient
+    const client = makeClient(verified(), deletingBeforeSession)
+
+    const location = await callbackError(client, `code=qa-code&state=${STATE}`, await client.start())
+
+    expect(location).toBe(`${SIGN_IN_ERROR}google_failed`)
+    expect(console.error).not.toHaveBeenCalled()
+    expect(await prisma.teacher.count()).toBe(0)
+    expect(await prisma.refreshToken.count()).toBe(0)
   })
 
   it('oauth-cookie одноразовая: повтор того же callback — google_state', async () => {

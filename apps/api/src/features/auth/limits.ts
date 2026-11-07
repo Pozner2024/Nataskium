@@ -24,6 +24,8 @@ export type AuthLimits = {
   googleStartPerIp: RateLimit
   googleCallbackPerIp: RateLimit
   googleLinkPerIp: RateLimit
+  // Удаление аккаунта: сверка argon2 на каждую попытку, поэтому строже входа
+  deleteAccountPerIp: RateLimit
   // refresh, logout, logout-all
   sessionPerIp: RateLimit
 }
@@ -49,6 +51,7 @@ const RESET_PASSWORD_PER_IP = 30
 const GOOGLE_START_PER_IP = 30
 const GOOGLE_CALLBACK_PER_IP = 30
 const GOOGLE_LINK_PER_IP = 30
+const DELETE_ACCOUNT_PER_IP = 10
 
 export const PRODUCTION_LIMITS: AuthLimits = {
   maxTrackedKeys: MAX_TRACKED_KEYS,
@@ -67,4 +70,5 @@ export const PRODUCTION_LIMITS: AuthLimits = {
   googleStartPerIp: { max: GOOGLE_START_PER_IP, windowMs: FIFTEEN_MINUTES_MS },
   googleCallbackPerIp: { max: GOOGLE_CALLBACK_PER_IP, windowMs: FIFTEEN_MINUTES_MS },
   googleLinkPerIp: { max: GOOGLE_LINK_PER_IP, windowMs: FIFTEEN_MINUTES_MS },
+  deleteAccountPerIp: { max: DELETE_ACCOUNT_PER_IP, windowMs: FIFTEEN_MINUTES_MS },
 }

@@ -355,3 +355,19 @@ describe('googleLink: completeLink отказал', () => {
     expect(email.sent).toEqual([])
   })
 })
+
+describe('googleLink: учителя удалили после привязки', () => {
+  it('createFamily → false — 401 «сессия недействительна», сессии нет', async () => {
+    vi.spyOn(console, 'info').mockImplementation(() => {})
+    const { link, seedLink, refresh } = setup()
+    const raw = seedLink()
+    refresh.state.teacherGone = true
+
+    const error = await rejectionOf(link(input(raw)))
+
+    expect(error).toBeInstanceOf(AppError)
+    expect(error).toMatchObject({ status: 401, message: 'Session is invalid or expired, sign in again' })
+    expect(refresh.rows).toEqual([])
+    await flushBackground()
+  })
+})

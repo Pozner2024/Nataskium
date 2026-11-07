@@ -122,6 +122,14 @@ export function makeFakeTeachers(calls: CallLog, accounts: TeacherAccount[] = []
       accounts.push(teacher)
       return { status: 'signedIn', teacher }
     },
+    // false — учителя уже нет (параллельное удаление)
+    async deleteAccount(teacherId, email) {
+      calls.push(`teachers.deleteAccount:${email}`)
+      const index = accounts.findIndex((account) => account.id === teacherId)
+      if (index === -1) return false
+      accounts.splice(index, 1)
+      return true
+    },
   }
   return { teachers, accounts }
 }
@@ -178,16 +186,20 @@ export function makeFakePendingRegistrations(calls: CallLog) {
 
 export function makeFakeRefreshTokens(calls: CallLog) {
   const families: { token: NewRefreshToken; maxFamilies: number }[] = []
+  // teacherGone — учителя удалили до записи: настоящий репозиторий ловит P2003 и возвращает false
+  const state = { teacherGone: false }
   const repository: RefreshTokenRepository = {
     async createFamily(token, maxFamilies) {
       calls.push('refreshTokens.createFamily')
+      if (state.teacherGone) return false
       families.push({ token, maxFamilies })
+      return true
     },
     async findByHash() {
       return null
     },
     async rotate() {
-      return false
+      return 'alreadyUsed'
     },
     async deleteFamily() {},
     async deleteAllForTeacher() {},
@@ -195,7 +207,7 @@ export function makeFakeRefreshTokens(calls: CallLog) {
       return 0
     },
   }
-  return { repository, families }
+  return { repository, families, state }
 }
 
 // Письма уходят через sendInBackground без await: даём фоновым промисам завершиться
@@ -209,7 +221,9 @@ type StoredRefresh = RefreshSession & { tokenHash: string }
 export function makeMemoryRefreshTokens(calls: CallLog) {
   const rows: StoredRefresh[] = []
   const rotations: { oldTokenId: string; next: NewRefreshToken; now: Date }[] = []
-  const state = { rotateFails: false }
+  // rotateFails — токен успели ротировать параллельно; teacherGone — учителя удалили до записи (P2003): запись откатывается
+  // rotateConflict — PostgreSQL прервал транзакцию ротации (P2034): ничего не записано
+  const state = { rotateFails: false, teacherGone: false, rotateConflict: false }
 
   function seed(token: NewRefreshToken & { revokedAt?: Date | null }): StoredRefresh {
     const row = { id: randomUUID(), revokedAt: null, ...token }
@@ -227,7 +241,9 @@ export function makeMemoryRefreshTokens(calls: CallLog) {
   const repository: RefreshTokenRepository = {
     async createFamily(token) {
       calls.push('refreshTokens.createFamily')
+      if (state.teacherGone) return false
       seed(token)
+      return true
     },
     async findByHash(tokenHash) {
       calls.push('refreshTokens.findByHash')
@@ -246,10 +262,12 @@ export function makeMemoryRefreshTokens(calls: CallLog) {
       calls.push('refreshTokens.rotate')
       rotations.push({ oldTokenId, next, now })
       const old = rows.find((row) => row.id === oldTokenId && row.revokedAt === null)
-      if (state.rotateFails || old === undefined) return false
+      if (state.rotateFails || old === undefined) return 'alreadyUsed'
+      if (state.teacherGone) return 'teacherGone'
+      if (state.rotateConflict) return 'conflict'
       old.revokedAt = now
       seed(next)
-      return true
+      return 'rotated'
     },
     async deleteFamily(familyId) {
       calls.push(`refreshTokens.deleteFamily:${familyId}`)
@@ -273,8 +291,10 @@ export function makeMemoryPasswordResets(calls: CallLog, options: { refreshToken
   const rows: StoredReset[] = []
   const passwordChanges: { teacherId: string; passwordHash: string }[] = []
   // teacher — кому completeReset сообщит о смене пароля
-  const state: { teacherExists: boolean; completedAt: Date | null; teacher: { email: string; displayName: string | null } } = {
+  // teacherGone — учителя удалили до записи ссылки (P2003): replaceForTeacher → false
+  const state: { teacherExists: boolean; teacherGone: boolean; completedAt: Date | null; teacher: { email: string; displayName: string | null } } = {
     teacherExists: true,
+    teacherGone: false,
     completedAt: null,
     teacher: { email: 'qa-anna@example.test', displayName: 'Анна' },
   }
@@ -282,8 +302,10 @@ export function makeMemoryPasswordResets(calls: CallLog, options: { refreshToken
   const repository: PasswordResetRepository = {
     async replaceForTeacher(reset: NewPasswordReset) {
       calls.push('passwordResets.replaceForTeacher')
+      if (state.teacherGone) return false
       for (let index = rows.length - 1; index >= 0; index--) if (rows[index]?.teacherId === reset.teacherId) rows.splice(index, 1)
       rows.push({ id: randomUUID(), ...reset })
+      return true
     },
     async findByTokenHash(tokenHash) {
       calls.push('passwordResets.findByTokenHash')
@@ -316,14 +338,17 @@ type StoredGoogleLink = NewPendingGoogleLink & { id: string }
 // из них берутся email и хэш пароля, в них же записывается googleId
 export function makeMemoryPendingGoogleLinks(calls: CallLog, accounts: TeacherAccount[]) {
   const rows: StoredGoogleLink[] = []
-  const state: { completedAt: Date | null } = { completedAt: null }
+  // teacherGone — учителя удалили до записи привязки (P2003): replaceForTeacher → false
+  const state: { completedAt: Date | null; teacherGone: boolean } = { completedAt: null, teacherGone: false }
 
   const repository: PendingGoogleLinkRepository = {
     async replaceForTeacher(link) {
       calls.push('googleLinks.replaceForTeacher')
+      if (state.teacherGone) return false
       const index = rows.findIndex((row) => row.teacherId === link.teacherId)
       if (index !== -1) rows.splice(index, 1)
       rows.push({ id: randomUUID(), ...link })
+      return true
     },
     async findByTokenHash(tokenHash) {
       calls.push('googleLinks.findByTokenHash')

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { makePendingGoogleLinkRepository } from '../../src/features/auth'
 import type { PendingGoogleLinkRepository } from '../../src/features/auth/types'
@@ -86,6 +87,30 @@ describe('replaceForTeacher и findByTokenHash', () => {
     await prisma.teacher.delete({ where: { id: teacherId } })
 
     expect(await prisma.pendingGoogleLink.count()).toBe(0)
+  })
+})
+
+describe('replaceForTeacher: учителя нет', () => {
+  function linkFor(forTeacher: string, tokenHash = newTokenHash()) {
+    return { teacherId: forTeacher, googleId: GOOGLE_ID, tokenHash, linkSecretHash: newTokenHash(), expiresAt: fromNow(LINK_TTL_MS) }
+  }
+
+  it('несуществующий учитель (P2003) → false, записи нет', async () => {
+    expect(await repository.replaceForTeacher(linkFor(randomUUID()))).toBe(false)
+    expect(await prisma.pendingGoogleLink.count()).toBe(0)
+  })
+
+  it('после удаления учителя → false', async () => {
+    await prisma.teacher.delete({ where: { id: teacherId } })
+
+    expect(await repository.replaceForTeacher(linkFor(teacherId))).toBe(false)
+  })
+
+  it('другие ошибки базы (чужой token_hash, P2002) — не false, а исключение', async () => {
+    const other = await prisma.teacher.create({ data: { email: 'qa-boris@example.test', passwordHash: ARGON2ID_HASH } })
+    const { tokenHash } = await issue()
+
+    await expect(repository.replaceForTeacher({ ...linkFor(other.id, tokenHash), googleId: 'google-sub-boris' })).rejects.toThrow()
   })
 })
 

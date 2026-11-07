@@ -96,7 +96,7 @@ describe('createFamily', () => {
   it('семья с ротацией считается одной и удаляется вместе со всеми своими токенами', async () => {
     const [oldest] = await createFamilies(1)
     const successor = newToken({ familyId: oldest?.familyId })
-    expect(await repository.rotate(await idOf(oldest?.tokenHash ?? ''), successor, new Date())).toBe(true)
+    expect(await repository.rotate(await idOf(oldest?.tokenHash ?? ''), successor, new Date())).toBe('rotated')
     await wait(CREATED_AT_GAP_MS)
 
     const younger = await createFamilies(MAX_FAMILIES)
@@ -159,20 +159,20 @@ describe('rotate', () => {
     await repository.createFamily(token, MAX_FAMILIES)
     const next = newToken({ familyId: token.familyId })
 
-    expect(await repository.rotate(await idOf(token.tokenHash), next, new Date())).toBe(true)
+    expect(await repository.rotate(await idOf(token.tokenHash), next, new Date())).toBe('rotated')
 
     expect((await repository.findByHash(token.tokenHash))?.revokedAt).toBeInstanceOf(Date)
     expect(await repository.findByHash(next.tokenHash)).toMatchObject({ familyId: token.familyId, revokedAt: null })
   })
 
-  it('повторная ротация того же токена → false, преемник не создаётся', async () => {
+  it('повторная ротация того же токена → alreadyUsed, преемник не создаётся', async () => {
     const token = newToken()
     await repository.createFamily(token, MAX_FAMILIES)
     const oldId = await idOf(token.tokenHash)
     await repository.rotate(oldId, newToken({ familyId: token.familyId }), new Date())
     const late = newToken({ familyId: token.familyId })
 
-    expect(await repository.rotate(oldId, late, new Date())).toBe(false)
+    expect(await repository.rotate(oldId, late, new Date())).toBe('alreadyUsed')
     expect(await repository.findByHash(late.tokenHash)).toBeNull()
   })
 
@@ -186,8 +186,8 @@ describe('rotate', () => {
     expect((await repository.findByHash(token.tokenHash))?.revokedAt).toEqual(revokedAt)
   })
 
-  it('несуществующий токен → false', async () => {
-    expect(await repository.rotate(randomUUID(), newToken(), new Date())).toBe(false)
+  it('несуществующий токен → alreadyUsed', async () => {
+    expect(await repository.rotate(randomUUID(), newToken(), new Date())).toBe('alreadyUsed')
   })
 
   it('CAS: из двух параллельных ротаций одного токена проходит ровно одна', async () => {
@@ -199,7 +199,7 @@ describe('rotate', () => {
 
       const results = await Promise.all(successors.map((next) => repository.rotate(oldId, next, new Date())))
 
-      expect(results.filter(Boolean)).toHaveLength(1)
+      expect(results.sort()).toEqual(['alreadyUsed', 'rotated'])
       expect(await prisma.refreshToken.count({ where: { familyId: token.familyId } })).toBe(2)
       await repository.deleteFamily(token.familyId)
     }
@@ -214,6 +214,52 @@ describe('rotate', () => {
     await expect(repository.rotate(await idOf(token.tokenHash), clash, new Date())).rejects.toThrow()
 
     expect((await repository.findByHash(token.tokenHash))?.revokedAt).toBeNull()
+  })
+})
+
+describe('учителя нет: нарушение FK (P2003) — результат, а не ошибка', () => {
+  it('createFamily на несуществующего учителя → false, ничего не записано', async () => {
+    const [own] = await createFamilies(1)
+
+    expect(await repository.createFamily(newToken({ teacherId: randomUUID() }), MAX_FAMILIES)).toBe(false)
+
+    expect(await prisma.refreshToken.count()).toBe(1)
+    expect(await repository.findByHash(own?.tokenHash ?? '')).not.toBeNull()
+  })
+
+  it('createFamily после удаления учителя → false', async () => {
+    await prisma.teacher.delete({ where: { id: teacherId } })
+
+    expect(await repository.createFamily(newToken(), MAX_FAMILIES)).toBe(false)
+    expect(await prisma.refreshToken.count()).toBe(0)
+  })
+
+  it('createFamily: другие ошибки базы (повтор token_hash, P2002) — не false, а исключение', async () => {
+    const [own] = await createFamilies(1)
+
+    await expect(repository.createFamily({ ...newToken(), tokenHash: own?.tokenHash ?? '' }, MAX_FAMILIES)).rejects.toThrow()
+  })
+
+  it('rotate: преемник на несуществующего учителя → teacherGone, отзыв старого токена откатан', async () => {
+    const token = newToken()
+    await repository.createFamily(token, MAX_FAMILIES)
+    const next = newToken({ familyId: token.familyId, teacherId: randomUUID() })
+
+    expect(await repository.rotate(await idOf(token.tokenHash), next, new Date())).toBe('teacherGone')
+
+    expect((await repository.findByHash(token.tokenHash))?.revokedAt).toBeNull()
+    expect(await repository.findByHash(next.tokenHash)).toBeNull()
+  })
+
+  // Так выглядит настоящая гонка «нашли токен → учителя удалили → ротация»: токены ушли каскадом, CAS не находит строку
+  it('rotate после удаления учителя → alreadyUsed (токен удалён каскадом), не исключение', async () => {
+    const token = newToken()
+    await repository.createFamily(token, MAX_FAMILIES)
+    const oldId = await idOf(token.tokenHash)
+    await prisma.teacher.delete({ where: { id: teacherId } })
+
+    expect(await repository.rotate(oldId, newToken({ familyId: token.familyId }), new Date())).toBe('alreadyUsed')
+    expect(await prisma.refreshToken.count()).toBe(0)
   })
 })
 

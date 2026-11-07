@@ -3,7 +3,7 @@ import { makeTokenService } from '../src/features/auth'
 import type { GoogleIdentityProvider } from '../src/features/auth'
 import { GOOGLE_LINK_TTL_MS, makeGoogleSignIn } from '../src/features/auth/application/googleAuth'
 import type { GoogleExchangeResult, TeacherAccount } from '../src/features/auth/types'
-import { ExternalServiceError } from '../src/shared/errors'
+import { AppError, ExternalServiceError } from '../src/shared/errors'
 import { type CallLog, makeFakeTeachers, makeMemoryPendingGoogleLinks, makeMemoryRefreshTokens } from './fakes/authFakes'
 
 const NOW = new Date('2026-11-06T12:00:00Z')
@@ -220,5 +220,30 @@ describe('googleSignIn: учитель с паролем без Google — пр�
     expect(links.rows).toHaveLength(1)
     expect(await links.repository.findByTokenHash(tokens.hashOpaqueToken(tokenOf(first)))).toBeNull()
     expect(await links.repository.findByTokenHash(tokens.hashOpaqueToken(tokenOf(second)))).not.toBeNull()
+  })
+})
+
+describe('googleSignIn: учителя удалили между поиском и записью', () => {
+  it('привязка: replaceForTeacher → false — invalidToken (на маршруте google_failed), ни ссылки, ни сессии', async () => {
+    const { signIn, links, refresh } = setup({ accounts: [{ ...TEACHER_WITH_PASSWORD }] })
+    links.state.teacherGone = true
+
+    expect(await signIn(INPUT)).toEqual({ ok: false, reason: 'invalidToken' })
+    expect(links.rows).toEqual([])
+    expect(refresh.rows).toEqual([])
+  })
+
+  it('вход сразу: createFamily → false — 401 AppError, сессии нет', async () => {
+    const { signIn, refresh } = setup({ accounts: [{ ...TEACHER_WITH_PASSWORD, googleId: GOOGLE_ID }] })
+    refresh.state.teacherGone = true
+
+    const error = await signIn(INPUT).then(
+      () => undefined,
+      (reason: unknown) => reason,
+    )
+
+    expect(error).toBeInstanceOf(AppError)
+    expect(error).toMatchObject({ status: 401, message: 'Session is invalid or expired, sign in again' })
+    expect(refresh.rows).toEqual([])
   })
 })

@@ -50,6 +50,7 @@ describe('PRODUCTION_LIMITS', () => {
       googleStartPerIp: { max: 30, windowMs: WINDOW_MS },
       googleCallbackPerIp: { max: 30, windowMs: WINDOW_MS },
       googleLinkPerIp: { max: 30, windowMs: WINDOW_MS },
+      deleteAccountPerIp: { max: 10, windowMs: WINDOW_MS },
     })
   })
 })

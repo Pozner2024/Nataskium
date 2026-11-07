@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient } from '../../../generated/prisma/client'
+import { ServiceBusyError } from '../../../shared/errors'
 import { isTransactionConflict, isUniqueViolation } from '../../../shared/infrastructure'
 import type { GoogleSignInResult, TeacherRepository } from '../types'
 import { lockEmail } from './emailLock'
@@ -13,10 +14,37 @@ export const TEACHER_ACCOUNT_SELECT = {
   emailVerifiedAt: true,
 } satisfies Prisma.TeacherSelect
 
+// Взаимоблокировка удаления аккаунта с параллельной записью токена: одна повторная попытка, затем 503
+const DELETE_ACCOUNT_ATTEMPTS = 2
+const DELETE_ACCOUNT_RETRY_AFTER_SECONDS = 1
+
 export function makeTeacherRepository(prisma: PrismaClient): TeacherRepository {
   return {
     findByEmail: (email) => prisma.teacher.findUnique({ where: { email }, select: TEACHER_ACCOUNT_SELECT }),
     findById: (id) => prisma.teacher.findUnique({ where: { id }, select: TEACHER_ACCOUNT_SELECT }),
+
+    async deleteAccount(teacherId, email) {
+      for (let attempt = 1; ; attempt++) {
+        try {
+          return await prisma.$transaction(async (tx) => {
+            // Та же очередь по email, что у подтверждения регистрации и входа через Google: удаление не разойдётся
+            // с одновременным созданием учителя по ожидающей регистрации этого же email
+            await lockEmail(tx, email)
+            // У pending_registrations нет FK на учителя — каскад их не удалит
+            await tx.pendingRegistration.deleteMany({ where: { email } })
+            // Токены — до строки учителя, в том же порядке, что у rotate (токен, затем FK на учителя):
+            // иначе каскад ждал бы токен, а rotate — учителя, и PostgreSQL прерывал бы одну из транзакций
+            await tx.refreshToken.deleteMany({ where: { teacherId } })
+            // Задания и шкалы учителя (когда появятся) — FK с onDelete: Cascade, удалятся этой же командой
+            const { count } = await tx.teacher.deleteMany({ where: { id: teacherId } })
+            return count === 1
+          })
+        } catch (error) {
+          if (!isTransactionConflict(error)) throw error
+          if (attempt >= DELETE_ACCOUNT_ATTEMPTS) throw new ServiceBusyError(DELETE_ACCOUNT_RETRY_AFTER_SECONDS)
+        }
+      }
+    },
 
     async signInWithGoogle(profile, now) {
       try {

@@ -8,6 +8,7 @@ import {
   toTeacherView,
 } from '../src/features/auth/application/issueSession'
 import type { TeacherAccount } from '../src/features/auth/types'
+import { AppError } from '../src/shared/errors'
 import { makeFakeRefreshTokens } from './fakes/authFakes'
 
 const NOW = new Date('2026-11-05T12:00:00Z')
@@ -92,5 +93,21 @@ describe('issueSession: сроки и лимит', () => {
     const session = await issueSession({ refreshTokens: makeFakeRefreshTokens([]).repository, tokens, now: () => NOW }, BASE)
 
     expect(await tokens.verifyAccessToken(session.accessToken)).toEqual({ teacherId: BASE.id })
+  })
+})
+
+describe('issueSession: учителя удалили до записи сессии', () => {
+  it('createFamily → false — 401 «сессия недействительна», токены не выдаются', async () => {
+    const refresh = makeFakeRefreshTokens([])
+    refresh.state.teacherGone = true
+
+    const error = await issueSession({ refreshTokens: refresh.repository, tokens, now: () => NOW }, BASE).then(
+      () => undefined,
+      (reason: unknown) => reason,
+    )
+
+    expect(error).toBeInstanceOf(AppError)
+    expect(error).toMatchObject({ status: 401, message: 'Session is invalid or expired, sign in again' })
+    expect(refresh.families).toEqual([])
   })
 })

@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient } from '../../../generated/prisma/client'
+import { isForeignKeyViolation } from '../../../shared/infrastructure'
 import type { PasswordResetRepository, PasswordResetResult } from '../types'
 
 const PASSWORD_RESET_SELECT = {
@@ -13,11 +14,18 @@ export function makePasswordResetRepository(prisma: PrismaClient): PasswordReset
     // Одна запись на учителя (unique по teacher_id): upsert заменяет прежнюю ссылку новой. Из двух одновременных
     // запросов остаётся последний — действует одна ссылка, а не две
     async replaceForTeacher(reset) {
-      await prisma.passwordReset.upsert({
-        where: { teacherId: reset.teacherId },
-        create: reset,
-        update: { tokenHash: reset.tokenHash, expiresAt: reset.expiresAt },
-      })
+      try {
+        await prisma.passwordReset.upsert({
+          where: { teacherId: reset.teacherId },
+          create: reset,
+          update: { tokenHash: reset.tokenHash, expiresAt: reset.expiresAt },
+        })
+        return true
+      } catch (error) {
+        // Учителя удалили между проверкой в use-case и записью
+        if (isForeignKeyViolation(error)) return false
+        throw error
+      }
     },
 
     findByTokenHash: (tokenHash) =>

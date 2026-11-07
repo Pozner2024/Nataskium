@@ -1,4 +1,5 @@
 import type { AuthSession, Clock, RefreshTokenRepository, TeacherAccount, TeacherView, TokenService } from '../types'
+import { sessionInvalid } from './authErrors'
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 const REFRESH_TOKEN_TTL_DAYS = 14
@@ -36,7 +37,7 @@ export async function issueSession(deps: IssueSessionDeps, teacher: TeacherAccou
   const refreshTokenExpiresAt = refreshTokenExpiry(now, familyExpiresAt)
   const refreshToken = deps.tokens.generateOpaqueToken()
 
-  await deps.refreshTokens.createFamily(
+  const created = await deps.refreshTokens.createFamily(
     {
       teacherId: teacher.id,
       familyId: crypto.randomUUID(),
@@ -46,6 +47,8 @@ export async function issueSession(deps: IssueSessionDeps, teacher: TeacherAccou
     },
     MAX_ACTIVE_SESSIONS,
   )
+  // Учителя удалили, пока шла проверка пароля или ссылки: сессии для него нет
+  if (!created) throw sessionInvalid()
 
   return {
     accessToken: await deps.tokens.signAccessToken(teacher.id),

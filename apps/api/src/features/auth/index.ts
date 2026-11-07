@@ -1,4 +1,5 @@
 export { MAX_ACTIVE_SESSIONS, REFRESH_TOKEN_TTL_MS, SESSION_ABSOLUTE_TTL_MS } from './application/issueSession'
+export { makeDeleteAccount } from './application/deleteAccount'
 export { makeGetMe } from './application/getMe'
 export { GOOGLE_LINK_TTL_MS, makeGoogleSignIn } from './application/googleAuth'
 export { makeGoogleLink } from './application/googleLink'

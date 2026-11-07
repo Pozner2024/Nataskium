@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import { inspect } from 'node:util'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { MIN_REMAINING_SESSION_MS, makeRefreshSession, makeTokenService } from '../src/features/auth'
+import { MIN_REMAINING_SESSION_MS, makeRefreshSession, makeRefreshTokenRepository, makeTokenService } from '../src/features/auth'
 import type { TeacherAccount } from '../src/features/auth/types'
-import { AppError } from '../src/shared/errors'
+import { Prisma, type PrismaClient } from '../src/generated/prisma/client'
+import { AppError, ServiceBusyError } from '../src/shared/errors'
 import { type CallLog, makeFakeTeachers, makeMemoryRefreshTokens } from './fakes/authFakes'
 
 const NOW = new Date('2026-11-05T12:00:00Z')
@@ -131,7 +132,7 @@ describe('refreshSession: отказ', () => {
     expect(calls).not.toContain('refreshTokens.rotate')
   })
 
-  it('токен успели ротировать параллельно (rotate → false) — семья удалена, 401, в логе только teacherId', async () => {
+  it('токен успели ротировать параллельно (rotate → alreadyUsed) — семья удалена, 401, в логе только teacherId', async () => {
     const logged: unknown[] = []
     vi.spyOn(console, 'warn').mockImplementation((...args: unknown[]) => {
       logged.push(args)
@@ -145,6 +146,67 @@ describe('refreshSession: отказ', () => {
     expect(familyIds(refresh.rows)).toEqual([other.row.familyId])
     expect(calls).toContain(`refreshTokens.deleteFamily:${row.familyId}`)
     expect(logged).toEqual([['Refresh token reuse detected', { teacherId: TEACHER.id }]])
+  })
+
+  it('учителя удалили между проверкой и ротацией (rotate → teacherGone) — 401 без лога «reuse detected» и без удаления семьи', async () => {
+    const logged: unknown[] = []
+    for (const method of ['warn', 'error', 'info'] as const) {
+      vi.spyOn(console, method).mockImplementation((...args: unknown[]) => {
+        logged.push(args)
+      })
+    }
+    const { refreshSession, refresh, seed } = setup()
+    const { raw } = seed()
+    refresh.state.teacherGone = true
+
+    const error = await rejectionOf(refreshSession(raw))
+
+    expect(error).toBeInstanceOf(AppError)
+    expect(error).toMatchObject(SESSION_INVALID)
+    expect(logged).toEqual([])
+    expect(calls.some((call) => call.startsWith('refreshTokens.deleteFamily'))).toBe(false)
+  })
+
+  it('PostgreSQL прервал ротацию (rotate → conflict) — 401, семья не отозвана, в логе ничего', async () => {
+    const logged: unknown[] = []
+    for (const method of ['warn', 'error', 'info'] as const) {
+      vi.spyOn(console, method).mockImplementation((...args: unknown[]) => {
+        logged.push(args)
+      })
+    }
+    const { refreshSession, refresh, seed } = setup()
+    const { raw, row } = seed()
+    refresh.state.rotateConflict = true
+
+    const error = await rejectionOf(refreshSession(raw))
+
+    expect(error).toBeInstanceOf(AppError)
+    expect(error).toMatchObject(SESSION_INVALID)
+    expect(logged).toEqual([])
+    expect(calls.some((call) => call.startsWith('refreshTokens.deleteFamily'))).toBe(false)
+    expect(refresh.rows.find((each) => each.id === row.id)?.revokedAt).toBeNull()
+  })
+
+  it('токен пропал вместе с удалённым учителем (rotate → alreadyUsed, учителя уже нет) — 401 без «reuse detected»', async () => {
+    const logged: unknown[] = []
+    vi.spyOn(console, 'warn').mockImplementation((...args: unknown[]) => {
+      logged.push(args)
+    })
+    const refresh = makeMemoryRefreshTokens(calls)
+    let lookups = 0
+    // Первый поиск — до ротации (учитель есть), второй — после неудачной ротации (учителя удалили)
+    const teachers = {
+      ...makeFakeTeachers(calls, [TEACHER]).teachers,
+      findById: async () => (++lookups === 1 ? TEACHER : null),
+    }
+    const refreshSession = makeRefreshSession({ refreshTokens: refresh.repository, teachers, tokens, now: () => NOW })
+    const raw = tokens.generateOpaqueToken()
+    refresh.seed({ teacherId: TEACHER.id, familyId: randomUUID(), familyExpiresAt: at(20 * MS_PER_DAY), tokenHash: tokens.hashOpaqueToken(raw), expiresAt: at(7 * MS_PER_DAY) })
+    refresh.state.rotateFails = true
+
+    expect(await rejectionOf(refreshSession(raw))).toMatchObject(SESSION_INVALID)
+    expect(lookups).toBe(2)
+    expect(logged).toEqual([])
   })
 
   it('все отказы неотличимы', async () => {
@@ -234,5 +296,85 @@ describe('refreshSession: ротация', () => {
     expect(await rejectionOf(refreshSession(raw))).toMatchObject(SESSION_INVALID)
     expect(await rejectionOf(refreshSession(fresh.refreshToken))).toMatchObject(SESSION_INVALID)
     expect(familyIds(refresh.rows)).toEqual([other.row.familyId])
+  })
+})
+
+describe('refreshTokenRepository.rotate: ошибки транзакции', () => {
+  function prismaThrowing(error: unknown) {
+    return { $transaction: () => Promise.reject(error) } as unknown as PrismaClient
+  }
+
+  const NEXT = { teacherId: TEACHER.id, familyId: randomUUID(), familyExpiresAt: NOW, tokenHash: 'qa-hash', expiresAt: NOW }
+
+  it.each([
+    ['P2034 (взаимоблокировка) — conflict', 'P2034', 'conflict'],
+    ['P2003 (учителя нет) — teacherGone', 'P2003', 'teacherGone'],
+  ])('%s', async (_name, code, result) => {
+    const error = new Prisma.PrismaClientKnownRequestError('qa', { code, clientVersion: 'qa' })
+
+    expect(await makeRefreshTokenRepository(prismaThrowing(error)).rotate(randomUUID(), NEXT, NOW)).toBe(result)
+  })
+
+  it('другие ошибки — наружу', async () => {
+    const error = new Prisma.PrismaClientKnownRequestError('qa', { code: 'P2002', clientVersion: 'qa' })
+
+    await expect(makeRefreshTokenRepository(prismaThrowing(error)).rotate(randomUUID(), NEXT, NOW)).rejects.toBe(error)
+  })
+})
+
+describe('refreshTokenRepository.createFamily: прерванная транзакция (P2034)', () => {
+  // $transaction отдаёт ошибки по очереди; когда они кончились — запись прошла
+  function prismaFailing(errors: unknown[]) {
+    const state = { attempts: 0 }
+    const prisma = {
+      async $transaction() {
+        state.attempts++
+        const error = errors.shift()
+        if (error !== undefined) throw error
+      },
+    } as unknown as PrismaClient
+    return { repository: makeRefreshTokenRepository(prisma), state }
+  }
+
+  function prismaError(code: string) {
+    return new Prisma.PrismaClientKnownRequestError('qa', { code, clientVersion: 'qa' })
+  }
+
+  const TOKEN = { teacherId: TEACHER.id, familyId: randomUUID(), familyExpiresAt: NOW, tokenHash: 'qa-hash', expiresAt: NOW }
+  const MAX_FAMILIES = 5
+
+  it('P2034, затем P2003 (учителя удалили) — false, вход ответит 401', async () => {
+    const { repository, state } = prismaFailing([prismaError('P2034'), prismaError('P2003')])
+
+    expect(await repository.createFamily(TOKEN, MAX_FAMILIES)).toBe(false)
+    expect(state.attempts).toBe(2)
+  })
+
+  it('P2034, затем успех — true', async () => {
+    const { repository, state } = prismaFailing([prismaError('P2034')])
+
+    expect(await repository.createFamily(TOKEN, MAX_FAMILIES)).toBe(true)
+    expect(state.attempts).toBe(2)
+  })
+
+  it('P2034 дважды — 503 ServiceBusyError с Retry-After: 1, третьей попытки нет', async () => {
+    const { repository, state } = prismaFailing([prismaError('P2034'), prismaError('P2034'), prismaError('P2034')])
+
+    const error = await rejectionOf(repository.createFamily(TOKEN, MAX_FAMILIES))
+
+    expect(error).toBeInstanceOf(ServiceBusyError)
+    expect(error).toMatchObject({ status: 503, retryAfterSeconds: 1, headers: { 'Retry-After': '1' } })
+    expect(state.attempts).toBe(2)
+  })
+
+  it('P2003 сразу — false без повтора; другие ошибки — наружу без повтора', async () => {
+    const gone = prismaFailing([prismaError('P2003')])
+    const unique = prismaError('P2002')
+    const other = prismaFailing([unique])
+
+    expect(await gone.repository.createFamily(TOKEN, MAX_FAMILIES)).toBe(false)
+    expect(gone.state.attempts).toBe(1)
+    expect(await rejectionOf(other.repository.createFamily(TOKEN, MAX_FAMILIES))).toBe(unique)
+    expect(other.state.attempts).toBe(1)
   })
 })

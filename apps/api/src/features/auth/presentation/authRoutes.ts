@@ -1,12 +1,14 @@
 // HTTP-интерфейс auth: разбор тела shared-схемами, лимиты, refresh-токен в httpOnly cookie.
 // Маршруты монтируются на /api/auth (план 1.7): Caddy префикс не срезает, в dev — nitro.devProxy
 import {
+  type DeleteAccountInput,
   type ForgotPasswordInput,
   type GoogleLinkInput,
   type LoginInput,
   type RegisterInput,
   type ResetPasswordInput,
   type VerifyEmailInput,
+  deleteAccountSchema,
   forgotPasswordSchema,
   googleLinkSchema,
   loginSchema,
@@ -103,6 +105,7 @@ export type AuthRouterDeps = {
   getMe: (teacherId: string) => Promise<TeacherView>
   requestPasswordReset: (input: ForgotPasswordInput) => Promise<void>
   resetPassword: (input: ResetPasswordInput) => Promise<void>
+  deleteAccount: (teacherId: string, input: DeleteAccountInput) => Promise<void>
   // null — Google не настроен (вне production без GOOGLE_*): маршруты /google/* не подключаются
   google: {
     createAuthorizationRequest: () => GoogleAuthorizationRequest
@@ -126,6 +129,7 @@ export type AuthRouterDeps = {
     googleStartPerIp: IpLimiter
     googleCallbackPerIp: IpLimiter
     googleLinkPerIp: IpLimiter
+    deleteAccountPerIp: IpLimiter
   }
 }
 
@@ -233,6 +237,16 @@ export function makeAuthRouter(deps: AuthRouterDeps) {
     return c.body(null, NO_CONTENT_STATUS)
   })
 
+  // Пароль сверяется в use-case (лимит неудач по email — там же). Сессий учителя больше нет: стираем cookie
+  // этого браузера, включая секрет незавершённой привязки Google
+  router.post('/delete-account', deps.limiters.deleteAccountPerIp.middleware(byIp), deps.requireAuth, async (c) => {
+    const input = await readJsonBody(c, deleteAccountSchema)
+    await deps.deleteAccount(c.get('teacherId'), input)
+    clearRefreshCookie(c)
+    deleteCookie(c, GOOGLE_LINK_COOKIE_NAME, GOOGLE_LINK_COOKIE_OPTIONS)
+    return c.body(null, NO_CONTENT_STATUS)
+  })
+
   if (deps.google !== null) {
     const google = deps.google
     const signInError = (c: Context, code: string) => {
@@ -287,6 +301,10 @@ export function makeAuthRouter(deps: AuthRouterDeps) {
         // Access-токен в URL не передаём: страница получит его через /api/auth/refresh
         return c.redirect(`${deps.webOrigin}${GOOGLE_SIGN_IN_DONE_PATH}`)
       } catch (error) {
+        // Учителя удалили, пока шёл вход (sessionInvalid из issueSession): не сбой Google, а обычный отказ
+        if (error instanceof AppError && error.status === UNAUTHORIZED_STATUS) {
+          return signInError(c, GOOGLE_ERROR_CODES.invalidToken)
+        }
         // Только тип: в ошибках Google и сети бывают параметры запроса
         const status = error instanceof ExternalServiceError ? error.status : undefined
         console.error('Google sign-in failed', { errorType: error instanceof Error ? error.name : typeof error, status })

@@ -32,6 +32,10 @@ export type TeacherRepository = {
   // Одна транзакция под lockEmail: найти по googleId; учитель с этим email без Google — passwordRequired, ничего
   // не меняя; иначе создать без пароля. Ожидающие регистрации email удаляются: пароли до подтверждения отбрасываются
   signInWithGoogle(profile: GoogleTeacherProfile, now: Date): Promise<GoogleSignInResult>
+  // Одна транзакция под lockEmail: удалить ожидающие регистрации этого email и учителя. Каскад удаляет его
+  // refresh-токены, ссылки сброса и привязки Google. false — учителя уже нет
+  // Взаимоблокировка — один повтор, затем ServiceBusyError (503)
+  deleteAccount(teacherId: string, email: string): Promise<boolean>
 }
 
 export type RefreshSession = {
@@ -51,13 +55,18 @@ export type NewRefreshToken = {
   expiresAt: Date
 }
 
+export type RotateResult = 'rotated' | 'alreadyUsed' | 'teacherGone' | 'conflict'
+
 export type RefreshTokenRepository = {
-  // Новая семья при входе; самые старые семьи сверх maxFamilies удаляются в той же транзакции
-  createFamily(token: NewRefreshToken, maxFamilies: number): Promise<void>
+  // Новая семья при входе; самые старые семьи сверх maxFamilies удаляются в той же транзакции.
+  // false — учителя удалили между проверкой и записью; взаимоблокировка — один повтор, затем ServiceBusyError (503)
+  createFamily(token: NewRefreshToken, maxFamilies: number): Promise<boolean>
   findByHash(tokenHash: string): Promise<RefreshSession | null>
-  // CAS: отзывает старый токен, только если он ещё не отозван, и создаёт преемника; false — токен уже использован.
+  // CAS: отзывает старый токен, только если он ещё не отозван, и создаёт преемника. alreadyUsed — токен уже
+  // использован, teacherGone — учителя удалили между проверкой и записью, conflict — транзакцию прервал PostgreSQL
+  // (взаимоблокировка с удалением аккаунта).
   // now — время отзыва: часы приходят из use-case, а не из репозитория
-  rotate(oldTokenId: string, next: NewRefreshToken, now: Date): Promise<boolean>
+  rotate(oldTokenId: string, next: NewRefreshToken, now: Date): Promise<RotateResult>
   deleteFamily(familyId: string): Promise<void>
   deleteAllForTeacher(teacherId: string): Promise<void>
   // Отозванные токены не удаляются раньше срока: по ним срабатывает обнаружение повторного использования
@@ -115,8 +124,9 @@ export type PasswordResetResult =
   | { status: 'invalid' }
 
 export type PasswordResetRepository = {
-  // Заменить запись учителя новой (у учителя одна запись): старая ссылка перестаёт работать
-  replaceForTeacher(reset: NewPasswordReset): Promise<void>
+  // Заменить запись учителя новой (у учителя одна запись): старая ссылка перестаёт работать.
+  // false — учителя удалили между проверкой и записью
+  replaceForTeacher(reset: NewPasswordReset): Promise<boolean>
   findByTokenHash(tokenHash: string): Promise<PasswordReset | null>
   // Одна транзакция: удалить свою запись (CAS по id, tokenHash и сроку), все записи сброса учителя,
   // все его refresh-токены и ожидающие привязки Google, записать новый хэш пароля
@@ -152,8 +162,8 @@ export type GoogleLinkResult =
   | { status: 'conflict' }
 
 export type PendingGoogleLinkRepository = {
-  // Одна запись на учителя: новая заменяет прежнюю
-  replaceForTeacher(link: NewPendingGoogleLink): Promise<void>
+  // Одна запись на учителя: новая заменяет прежнюю. false — учителя удалили между проверкой и записью
+  replaceForTeacher(link: NewPendingGoogleLink): Promise<boolean>
   findByTokenHash(tokenHash: string): Promise<PendingGoogleLink | null>
   // Одна транзакция под lockEmail: удалить свою запись (CAS по id, tokenHash и сроку) и записать googleId учителю
   completeLink(link: PendingGoogleLink, tokenHash: string, now: Date): Promise<GoogleLinkResult>

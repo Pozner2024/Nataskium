@@ -50,13 +50,15 @@ export function makeGoogleSignIn(deps: GoogleSignInDeps) {
     // Сырые токен и секрет — только во фрагмент ссылки и в cookie, в базе — их HMAC
     const linkToken = deps.tokens.generateOpaqueToken()
     const linkSecret = deps.tokens.generateOpaqueToken()
-    await deps.pendingGoogleLinks.replaceForTeacher({
+    const saved = await deps.pendingGoogleLinks.replaceForTeacher({
       teacherId: result.teacherId,
       googleId: profile.googleId,
       tokenHash: deps.tokens.hashOpaqueToken(linkToken),
       linkSecretHash: deps.tokens.hashOpaqueToken(linkSecret),
       expiresAt: new Date(now.getTime() + GOOGLE_LINK_TTL_MS),
     })
+    // Учителя с этим email удалили между поиском и записью: привязывать не к кому
+    if (!saved) return { ok: false, reason: 'invalidToken' }
     return { ok: true, kind: 'linkRequired', linkToken, linkSecret }
   }
 }

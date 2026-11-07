@@ -163,9 +163,15 @@ export const googleLinkSchema = z.object({
   password: loginPasswordSchema,
 })
 
+// Удаление аккаунта: текущий пароль — как при входе (без минимума и блок-листа: пароль уже есть)
+export const deleteAccountSchema = z.object({
+  password: loginPasswordSchema,
+})
+
 export type RegisterInput = z.infer<typeof registerSchema>
 export type LoginInput = z.infer<typeof loginSchema>
 export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>
 export type GoogleLinkInput = z.infer<typeof googleLinkSchema>
+export type DeleteAccountInput = z.infer<typeof deleteAccountSchema>

@@ -119,6 +119,18 @@ describe('requestPasswordReset', () => {
     expect(PASSWORD_RESET_TTL_MS).toBe(EXPECTED_TTL_MS)
   })
 
+  it('учителя удалили между поиском и записью (replaceForTeacher → false) — тот же ответ без ошибки, письма нет', async () => {
+    const { request, resets, email } = setupRequest()
+    resets.state.teacherGone = true
+
+    await expect(request(forgotPasswordSchema.parse({ email: EMAIL }))).resolves.toBeUndefined()
+    await flushBackground()
+
+    expect(email.sent).toEqual([])
+    expect(resets.rows).toEqual([])
+    expect(calls).toContain('passwordResets.replaceForTeacher')
+  })
+
   it('учитель с паролем: запись с HMAC токена и сроком now + 1 ч, письмо с сырым токеном и именем', async () => {
     const { request, resets, email } = setupRequest()
 

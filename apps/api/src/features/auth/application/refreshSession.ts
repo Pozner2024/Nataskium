@@ -52,8 +52,15 @@ export function makeRefreshSession(deps: RefreshSessionDeps) {
       },
       now,
     )
-    // Токен успели ротировать параллельно: два предъявления одного токена — то же, что повторное использование
-    if (!rotated) {
+    // Учителя удалили между проверкой и записью: его токены ушли каскадом
+    if (rotated === 'teacherGone') throw sessionInvalid()
+    // Транзакцию прервал PostgreSQL (гонка с удалением аккаунта): новый токен не выдан — нужен вход.
+    // Семью не отзываем: это не повторное использование
+    if (rotated === 'conflict') throw sessionInvalid()
+    if (rotated === 'alreadyUsed') {
+      // Токен исчез вместе с удалённым учителем — это не повторное использование
+      if ((await deps.teachers.findById(session.teacherId)) === null) throw sessionInvalid()
+      // Токен успели ротировать параллельно: два предъявления одного токена — то же, что повторное использование
       console.warn('Refresh token reuse detected', { teacherId: session.teacherId })
       return revokeFamily(deps.refreshTokens, session.familyId)
     }

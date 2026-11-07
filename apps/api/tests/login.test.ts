@@ -140,6 +140,7 @@ describe('login: отказ', () => {
       },
       findById: async () => null,
       signInWithGoogle: async () => ({ status: 'conflict' }),
+      deleteAccount: async () => false,
     }
     const { login, limiter } = setup({ teachers: failing })
 
@@ -193,5 +194,19 @@ describe('login: успех', () => {
     expect(text).not.toContain(EMAIL)
     expect(text).not.toContain(PASSWORD)
     expect(text).not.toContain(WRONG_PASSWORD)
+  })
+})
+
+describe('login: учителя удалили во время сверки пароля', () => {
+  it('createFamily → false — 401 «сессия недействительна», сессии нет, неудача не засчитана', async () => {
+    const { login, refresh, limiter } = setup()
+    refresh.state.teacherGone = true
+
+    const error = await rejectionOf(login(input()))
+
+    expect(error).toBeInstanceOf(AppError)
+    expect(error).toMatchObject({ status: 401, message: 'Session is invalid or expired, sign in again' })
+    expect(refresh.rows).toEqual([])
+    expect(limiter.state.failures).toBe(0)
   })
 })

@@ -1,2 +1,2 @@
 export { createPrismaClient } from './prisma'
-export { isTransactionConflict, isUniqueViolation } from './prismaErrors'
+export { isForeignKeyViolation, isTransactionConflict, isUniqueViolation } from './prismaErrors'

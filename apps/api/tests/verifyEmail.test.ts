@@ -259,3 +259,16 @@ describe('verifyEmail: сессия после подтверждения', () =
     expect((await verifyEmail({ token: rawToken, password: PASSWORD })).teacher.displayName).toBeNull()
   })
 })
+
+describe('verifyEmail: учителя удалили сразу после активации', () => {
+  it('createFamily → false — 401 «сессия недействительна», сессии нет', async () => {
+    const { verifyEmail, rawToken, refresh } = await setup()
+    refresh.state.teacherGone = true
+
+    const error = await rejectionOf(verifyEmail({ token: rawToken, password: PASSWORD }))
+
+    expect(error).toBeInstanceOf(AppError)
+    expect(error).toMatchObject({ status: 401, message: 'Session is invalid or expired, sign in again' })
+    expect(refresh.families).toEqual([])
+  })
+})
