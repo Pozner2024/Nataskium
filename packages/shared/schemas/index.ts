@@ -18,3 +18,11 @@ export {
   verifyEmailSchema,
 } from './auth'
 export type { ForgotPasswordInput, GoogleLinkInput, LoginInput, RegisterInput, ResetPasswordInput, VerifyEmailInput } from './auth'
+export {
+  apiErrorResponseSchema,
+  authSessionResponseSchema,
+  meResponseSchema,
+  messageResponseSchema,
+  teacherViewSchema,
+} from './authResponses'
+export type { ApiErrorResponse, AuthSessionResponse, MeResponse, MessageResponse, TeacherView } from './authResponses'

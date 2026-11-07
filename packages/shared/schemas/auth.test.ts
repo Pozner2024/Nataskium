@@ -624,6 +624,8 @@ describe('схемы auth: публичный API', () => {
     const exported = Object.keys(schemas).filter((name) => name.endsWith('Schema')).sort()
 
     expect(exported).toEqual([
+      'apiErrorResponseSchema',
+      'authSessionResponseSchema',
       'authTokenSchema',
       'displayNameSchema',
       'emailSchema',
@@ -631,9 +633,12 @@ describe('схемы auth: публичный API', () => {
       'googleLinkSchema',
       'loginPasswordSchema',
       'loginSchema',
+      'meResponseSchema',
+      'messageResponseSchema',
       'passwordSchema',
       'registerSchema',
       'resetPasswordSchema',
+      'teacherViewSchema',
       'verifyEmailSchema',
     ])
   })

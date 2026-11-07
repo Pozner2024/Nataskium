@@ -1,5 +1,5 @@
 <template>
-  <component :is="to ? NuxtLink : 'button'" class="app-button" :class="`app-button--${color}`" :to="to" :type="to ? undefined : 'button'">
+  <component :is="to ? NuxtLink : 'button'" class="app-button" :class="`app-button--${color}`" :to="to" :type="to ? undefined : type" :disabled="to ? undefined : disabled">
     <span class="app-button__text"><slot /></span>
     <svg class="app-button__arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6" /></svg>
   </component>
@@ -12,7 +12,10 @@ withDefaults(defineProps<{
   color?: 'orange' | 'blue'
   // С адресом кнопка становится настоящей ссылкой: работает без JS и открывается в новой вкладке
   to?: string
-}>(), { color: 'orange', to: undefined })
+  // Submit нужен кнопкам форм; у остальных кнопок остаётся button, чтобы не отправлять форму случайно
+  type?: 'button' | 'submit'
+  disabled?: boolean
+}>(), { color: 'orange', to: undefined, type: 'button', disabled: false })
 </script>
 
 <style scoped lang="scss">
@@ -50,6 +53,14 @@ withDefaults(defineProps<{
       transform: none;
     }
   }
+
+  // Отключённая кнопка (например, пока идёт отправка) не реагирует на нажатие и наведение
+  &:disabled {
+    cursor: progress;
+    opacity: 0.7;
+    box-shadow: none;
+    transform: none;
+  }
 }
 
 // Решение пользователя (2026-11-01): фирменный оранжевый с белым текстом, контраст 2.52:1 ниже нормы 3:1 осознанно.
@@ -58,7 +69,7 @@ withDefaults(defineProps<{
   background: var(--color-orange);
   box-shadow: 0 10px 24px rgb(var(--rgb-orange) / 0.4);
 
-  &:hover {
+  &:hover:not(:disabled) {
     box-shadow: 0 14px 28px rgb(var(--rgb-orange) / 0.45);
   }
 }
@@ -69,7 +80,7 @@ withDefaults(defineProps<{
     var(--color-blue);
   box-shadow: 0 10px 24px rgb(var(--rgb-blue) / 0.4);
 
-  &:hover {
+  &:hover:not(:disabled) {
     box-shadow: 0 14px 28px rgb(var(--rgb-blue) / 0.45);
   }
 }
@@ -86,7 +97,7 @@ withDefaults(defineProps<{
   transition: transform 0.2s ease;
 
   @media (hover: hover) and (prefers-reduced-motion: no-preference) {
-    .app-button:hover & {
+    .app-button:hover:not(:disabled) & {
       transform: translateX(4px);
     }
   }

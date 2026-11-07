@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     "./grading": "./grading/index.ts",
-    "./schemas": "./schemas/index.ts"
+    "./schemas": "./schemas/index.ts",
+    "./routes": "./routes/index.ts"
   },
   "scripts": {
     "test": "vitest run",

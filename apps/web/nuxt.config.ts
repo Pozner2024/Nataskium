@@ -1,10 +1,12 @@
 import { fileURLToPath } from 'node:url'
 
-const DEV_ONLY_PATHS = ['/nat']
+const DEV_ONLY_PATHS = ['/nat', '/auth-card-preview']
+// Порт API в dev (API_PORT по умолчанию в apps/api)
+const DEV_API_PORT = 3001
 
 export default defineNuxtConfig({
   compatibilityDate: '2026-10-20',
-  modules: ['@nuxt/fonts', '@nuxt/eslint'],
+  modules: ['@nuxt/fonts', '@nuxt/eslint', '@pinia/nuxt'],
   fonts: {
     families: [
       { name: 'Unbounded', provider: 'google', weights: [500, 700] },
@@ -31,6 +33,17 @@ export default defineNuxtConfig({
     },
     nodeTsConfig: {
       include: ['../playwright.config.ts', '../vitest.config.ts'],
+    },
+  },
+  // Страницы входа — только в браузере: токены из ссылок не попадают в HTML и кэш
+  routeRules: {
+    '/auth/**': { ssr: false },
+  },
+  nitro: {
+    // Только nuxt dev: фронт ходит на относительный /api, запросы same-origin, и cookie с Path=/api/auth уходит.
+    // В production /api отдаёт Caddy, в сборку это не попадает
+    devProxy: {
+      '/api': { target: `http://127.0.0.1:${DEV_API_PORT}/api`, changeOrigin: true },
     },
   },
   app: {

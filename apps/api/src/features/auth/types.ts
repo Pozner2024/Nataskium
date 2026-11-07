@@ -1,3 +1,5 @@
+import type { TeacherView } from '@nataskium/shared/schemas'
+
 // Контракты фичи auth без типов Prisma: application/ знает только их, реализации — в infrastructure/
 
 export type TeacherAccount = {
@@ -209,14 +211,8 @@ export type FailureLimiter = {
 
 export type Clock = () => Date
 
-// Что учитель видит о себе: без хэша пароля и googleId
-export type TeacherView = {
-  id: string
-  email: string
-  displayName: string | null
-  hasPassword: boolean
-  hasGoogle: boolean
-}
+// Что учитель видит о себе — из схемы ответа в shared: фронтенд разбирает ответ той же схемой
+export type { TeacherView }
 
 export type AuthSession = {
   accessToken: string
