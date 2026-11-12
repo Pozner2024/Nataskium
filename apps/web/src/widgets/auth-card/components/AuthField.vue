@@ -2,7 +2,7 @@
   <div class="auth-field" :class="{ 'auth-field--invalid': error }">
     <label class="auth-field__label" :for="id">
       {{ label }}
-      <span v-if="optional" class="auth-field__optional">необязательно</span>
+      <span v-if="optional" class="auth-field__optional">{{ t('auth.field.optional') }}</span>
     </label>
 
     <div class="auth-field__control">
@@ -25,7 +25,7 @@
         v-if="type === 'password'"
         class="auth-field__reveal"
         type="button"
-        aria-label="Показать пароль"
+        :aria-label="t('auth.field.showPassword')"
         :aria-pressed="isRevealed"
         :aria-controls="id"
         @click="isRevealed = !isRevealed"
@@ -52,6 +52,7 @@
 
 <script setup lang="ts">
 import { computed, ref, useTemplateRef } from 'vue'
+import { useI18n } from '#imports'
 
 type FieldType = 'text' | 'email' | 'password'
 
@@ -64,6 +65,8 @@ const props = withDefaults(defineProps<{
   required?: boolean
   optional?: boolean
 }>(), { type: 'text', autocomplete: undefined, error: undefined, required: false, optional: false })
+
+const { t } = useI18n()
 
 const model = defineModel<string>({ default: '' })
 

@@ -1,3 +1,4 @@
+import { DEFAULT_LOCALE } from '@nataskium/shared/locales'
 import type { RegisterInput } from '@nataskium/shared/schemas'
 import type {
   Clock,
@@ -28,6 +29,8 @@ export type RegisterDeps = {
 // Учитель создаётся только при подтверждении (verifyEmail) — до этого пароль лежит в записи регистрации
 export function makeRegister(deps: RegisterDeps) {
   return async function register(input: RegisterInput): Promise<void> {
+    // Язык письма — тот, на котором учитель видит сайт; без поля — язык по умолчанию
+    const locale = input.locale ?? DEFAULT_LOCALE
     // Первым шагом во всех ветках: иначе ~10 мс argon2 выдали бы по времени, есть ли адрес
     const passwordHash = await deps.hasher.hash(input.password)
 
@@ -36,7 +39,7 @@ export function makeRegister(deps: RegisterDeps) {
 
     const existing = await deps.teachers.findByEmail(input.email)
     if (existing !== null) {
-      sendInBackground('register.accountExists', () => deps.emailSender.sendAccountExistsEmail(input.email, existing.displayName))
+      sendInBackground('register.accountExists', () => deps.emailSender.sendAccountExistsEmail(input.email, existing.displayName, locale))
       return
     }
 
@@ -51,6 +54,6 @@ export function makeRegister(deps: RegisterDeps) {
       tokenHash: deps.tokens.hashOpaqueToken(rawToken),
       expiresAt: new Date(deps.now().getTime() + PENDING_REGISTRATION_TTL_MS),
     })
-    sendInBackground('register.verification', () => deps.emailSender.sendVerificationEmail(input.email, rawToken))
+    sendInBackground('register.verification', () => deps.emailSender.sendVerificationEmail(input.email, rawToken, locale))
   }
 }

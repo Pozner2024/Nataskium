@@ -6,11 +6,13 @@ export {
   MAX_PASSWORD_LENGTH,
   MIN_PASSWORD_LENGTH,
   authTokenSchema,
+  changePasswordSchema,
   deleteAccountSchema,
   displayNameSchema,
   emailSchema,
   forgotPasswordSchema,
   googleLinkSchema,
+  localeSchema,
   loginPasswordSchema,
   loginSchema,
   passwordSchema,
@@ -18,7 +20,7 @@ export {
   resetPasswordSchema,
   verifyEmailSchema,
 } from './auth'
-export type { DeleteAccountInput, ForgotPasswordInput, GoogleLinkInput, LoginInput, RegisterInput, ResetPasswordInput, VerifyEmailInput } from './auth'
+export type { ChangePasswordInput, DeleteAccountInput, ForgotPasswordInput, GoogleLinkInput, LoginInput, RegisterInput, ResetPasswordInput, VerifyEmailInput } from './auth'
 export {
   apiErrorResponseSchema,
   authSessionResponseSchema,

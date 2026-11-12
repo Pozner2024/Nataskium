@@ -141,6 +141,7 @@ describe('login: отказ', () => {
       findById: async () => null,
       signInWithGoogle: async () => ({ status: 'conflict' }),
       deleteAccount: async () => false,
+      changePassword: async () => false,
     }
     const { login, limiter } = setup({ teachers: failing })
 

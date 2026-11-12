@@ -6,6 +6,9 @@ $list-marker-size: 26px;
 $list-marker-gap: 14px;
 $bokeh-middle-share: 0.4;
 $seam-glow-center: 18px;
+$board-tile-size: 320px;
+$board-pattern: '@/assets/images/nataskium-pcb-pattern.svg';
+$board-white: '@/assets/images/pcb-white.webp';
 
 @mixin body-text {
   margin: 0;
@@ -75,20 +78,62 @@ $seam-glow-center: 18px;
   @return radial-gradient(circle $radius at $x $y, rgb(#{$rgb} / #{$alpha}), rgb(#{$rgb} / #{$middle-alpha}) 60%, transparent);
 }
 
-// Шапка и первый экран рисуют один круг, каждый со своей привязкой по высоте: так на стыке нет шва
 @function -seam-glow($position) {
   @return bokeh(var(--rgb-blue), 200px, $position, 0.38, $crosses-edge: true);
 }
 
-@function header-glow() {
-  @return -seam-glow(112% bottom $seam-glow-center);
-}
-
-@function hero-glow() {
-  @return -seam-glow(112% (-$seam-glow-center));
-}
-
-// Панель уже экрана: 12vw вместо 12%, чтобы круг совпал с кругом шапки
+// Панель уже экрана: 12vw вместо 12%
 @function menu-glow() {
   @return -seam-glow(calc(100% + 12vw) (-$seam-glow-center));
+}
+
+$board-glow-radius: 80px;
+
+// Композиция масок: первый слой списка — верхний. Его оператор описывает, как он сочетается с нижними слоями,
+// поэтому пятно курсора стоит первым с пересечением, а зоны ниже складываются между собой
+@function board-glow-composite($count, $union, $intersect) {
+  $ops: list.append((), $intersect, comma);
+  @for $i from 1 through $count {
+    $ops: list.append($ops, $union, comma);
+  }
+  @return $ops;
+}
+
+// Узор платы виден только в зонах: $zones — radial-gradient масок, вне них узора нет.
+// Узор лежит под содержимым секции и не перехватывает клики.
+// Слой ::after — тот же узор, насыщеннее, видимый только в пятне за курсором (--pcb-x, --pcb-y)
+@mixin board-zones($zones...) {
+  $glow: radial-gradient(circle #{$board-glow-radius} at var(--pcb-x, -1000px) var(--pcb-y, -1000px), #000 0%, rgb(0 0 0 / 0.5) 45%, transparent 100%);
+  $layers: list.join($glow, $zones, comma);
+  $count: list.length($zones);
+
+  position: relative;
+  isolation: isolate;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: url($board-pattern) 0 0 / #{$board-tile-size} auto repeat;
+    opacity: 0.18;
+    -webkit-mask-image: $zones;
+            mask-image: $zones;
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: url($board-pattern) 0 0 / #{$board-tile-size} auto repeat;
+    opacity: var(--pcb-glow-opacity, 0);
+    transition: opacity 2.4s ease;
+    -webkit-mask-image: $layers;
+            mask-image: $layers;
+    -webkit-mask-composite: board-glow-composite($count, source-over, source-in);
+            mask-composite: board-glow-composite($count, add, intersect);
+  }
 }

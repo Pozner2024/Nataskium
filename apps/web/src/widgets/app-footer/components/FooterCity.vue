@@ -44,6 +44,7 @@
       <img class="footer-city__trees footer-city__trees--right" :src="treesRightImage" alt="" loading="lazy">
 
       <CityLamps />
+      <div class="footer-city__fade" />
     </div>
   </div>
 </template>
@@ -96,6 +97,28 @@ $scene-min-width: 800px;
 
 .footer-city__layer--city {
   top: 22.985%;
+}
+
+// Вода с отражениями плавно уходит в фон футера. Стоит после воды и до флага с транспортом, поэтому они не тускнеют
+// Проценты от высоты stage: её низ обрезан, видимый низ сцены — примерно в 16% от её низа.
+// Зона начинается в нижней части воды, под мостом; ступени мягкие, без заметной границы
+.footer-city__fade {
+  position: absolute;
+  right: 0;
+  bottom: 16%;
+  left: 0;
+  height: 20%;
+  background: linear-gradient(
+    to bottom,
+    rgb(var(--rgb-footer-night) / 0) 0%,
+    rgb(var(--rgb-footer-night) / 0.03) 30%,
+    rgb(var(--rgb-footer-night) / 0.2) 55%,
+    rgb(var(--rgb-footer-night) / 0.5) 72%,
+    rgb(var(--rgb-footer-night) / 0.8) 85%,
+    rgb(var(--rgb-footer-night) / 0.95) 93%,
+    rgb(var(--rgb-footer-night)) 100%
+  );
+  pointer-events: none;
 }
 
 .footer-city__image {

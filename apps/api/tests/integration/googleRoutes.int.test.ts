@@ -121,7 +121,7 @@ describe('GET /api/auth/google/start', () => {
 
     const value = JSON.parse(Buffer.from(cookie.split('=')[1] ?? '', 'base64url').toString())
 
-    expect(value).toEqual({ state: STATE, codeVerifier: VERIFIER, nonce: NONCE })
+    expect(value).toEqual({ state: STATE, codeVerifier: VERIFIER, nonce: NONCE, locale: 'ru' })
   })
 
   it('без настроенного Google маршрутов нет — 404', async () => {
@@ -386,7 +386,7 @@ describe('привязка Google к учителю с паролем', () => {
     expect(setCookies(response).some((each) => /^__Secure-refresh_token=[A-Za-z0-9_-]{43};/.test(each))).toBe(true)
     expect((await prisma.teacher.findUnique({ where: { id: teacher.id } }))?.googleId).toBe('google-sub-anna')
     expect(await prisma.pendingGoogleLink.count()).toBe(0)
-    expect(client.email.sent).toEqual([{ kind: 'googleLinked', to: EMAIL, displayName: 'Анна Ли' }])
+    expect(client.email.sent).toEqual([{ kind: 'googleLinked', to: EMAIL, displayName: 'Анна Ли', locale: 'ru' }])
     const cleared = setCookies(response).find((each) => each.startsWith('__Secure-google_link='))
     expect(cleared).toContain('Max-Age=0')
     expect(cleared).toContain('Path=/api/auth/google')
@@ -529,5 +529,129 @@ describe('сброс пароля отменяет начатую привязк
     }
     expect(await prisma.pendingGoogleLink.count()).toBe(0)
     expect((await prisma.teacher.findUnique({ where: { id: teacher.id } }))?.googleId).toBeNull()
+  })
+})
+
+describe('язык сайта в потоке Google: start → callback → страницы на том же языке', () => {
+  const EN_ORIGIN = `${TEST_WEB_ORIGIN}/en`
+
+  async function startWith(client: ReturnType<typeof makeClient>, query: string): Promise<string> {
+    const response = await client.get(`/start${query}`)
+    return (response.headers.get('set-cookie') ?? '').split(';')[0] ?? ''
+  }
+
+  async function teacherWithPassword() {
+    const hasher = await makePasswordHasher()
+    return prisma.teacher.create({
+      data: { email: EMAIL, passwordHash: await hasher.hash(PASSWORD), displayName: 'Анна Ли', emailVerifiedAt: new Date() },
+    })
+  }
+
+  function cookieValue(cookie: string) {
+    return JSON.parse(Buffer.from(cookie.split('=')[1] ?? '', 'base64url').toString())
+  }
+
+  it.each([
+    ['?locale=en', 'en'],
+    ['?locale=ru', 'ru'],
+    ['?locale=de', 'de'],
+    ['?locale=fr', 'fr'],
+    ['', 'ru'],
+    ['?locale=xx', 'ru'],
+    ['?locale=EN', 'ru'],
+    ['?locale=', 'ru'],
+  ])('start%s — в cookie язык «%s»', async (query, expected) => {
+    const client = makeClient(verified())
+
+    const response = await client.get(`/start${query}`)
+
+    expect(response.status).toBe(302)
+    expect(response.headers.get('location')).toBe(GOOGLE_AUTH_URL)
+    expect(cookieValue((response.headers.get('set-cookie') ?? '').split(';')[0] ?? '').locale).toBe(expected)
+  })
+
+  it('успешный вход с английского сайта: редирект на /en/auth/callback', async () => {
+    const client = makeClient(verified())
+
+    const response = await client.get(`/callback?code=qa-code&state=${STATE}`, await startWith(client, '?locale=en'))
+
+    expect(response.status).toBe(302)
+    expect(response.headers.get('location')).toBe(`${EN_ORIGIN}/auth/callback`)
+  })
+
+  it('ошибка Google на английском сайте: /en/auth/login?error=…, и «Отмена», и несовпадение state', async () => {
+    const client = makeClient(verified())
+    const cookie = await startWith(client, '?locale=en')
+
+    const cancelled = await client.get(`/callback?error=access_denied&state=${STATE}`, cookie)
+    const badState = await client.get(`/callback?code=qa-code&state=${'x'.repeat(40)}`, cookie)
+
+    expect(cancelled.headers.get('location')).toBe(`${EN_ORIGIN}/auth/login?error=google_cancelled`)
+    expect(badState.headers.get('location')).toBe(`${EN_ORIGIN}/auth/login?error=google_state`)
+  })
+
+  it('ошибка проверки токена Google и сбой Google: тоже на английской странице входа', async () => {
+    const invalid = makeClient(async () => ({ ok: false, reason: 'invalidToken' }))
+    const unavailable = makeClient(async () => {
+      throw new ExternalServiceError('google', 503)
+    })
+
+    const first = await invalid.get(`/callback?code=qa-code&state=${STATE}`, await startWith(invalid, '?locale=en'))
+    const second = await unavailable.get(`/callback?code=qa-code&state=${STATE}`, await startWith(unavailable, '?locale=en'))
+
+    expect(first.headers.get('location')).toBe(`${EN_ORIGIN}/auth/login?error=google_failed`)
+    expect(second.headers.get('location')).toBe(`${EN_ORIGIN}/auth/login?error=google_unavailable`)
+  })
+
+  it('без cookie (чужой браузер) ошибка ведёт на страницу входа на языке по умолчанию', async () => {
+    const response = await makeClient(verified()).get(`/callback?code=qa-code&state=${STATE}`)
+
+    expect(response.headers.get('location')).toBe(`${SIGN_IN_ERROR}google_state`)
+  })
+
+  it('cookie со старым форматом без языка — язык по умолчанию, а не ошибка', async () => {
+    const client = makeClient(verified())
+    const legacy = `__Secure-oauth=${Buffer.from(JSON.stringify({ state: STATE, codeVerifier: VERIFIER, nonce: NONCE })).toString('base64url')}`
+
+    const response = await client.get(`/callback?code=qa-code&state=${STATE}`, legacy)
+
+    expect(response.headers.get('location')).toBe(DONE)
+  })
+
+  it('cookie с незнакомым языком не принимается: ошибка state, а не страница на чужом языке', async () => {
+    const client = makeClient(verified())
+    const forged = `__Secure-oauth=${Buffer.from(JSON.stringify({ state: STATE, codeVerifier: VERIFIER, nonce: NONCE, locale: 'xx' })).toString('base64url')}`
+
+    const response = await client.get(`/callback?code=qa-code&state=${STATE}`, forged)
+
+    expect(response.headers.get('location')).toBe(`${SIGN_IN_ERROR}google_state`)
+  })
+
+  it('учитель с паролем: редирект на /en/auth/link-google#token, письмо о привязке — на языке запроса', async () => {
+    await teacherWithPassword()
+    const client = makeClient(verified())
+    const response = await client.get(`/callback?code=qa-code&state=${STATE}`, await startWith(client, '?locale=en'))
+    const location = response.headers.get('location') ?? ''
+    expect(location.startsWith(`${EN_ORIGIN}/auth/link-google#token=`)).toBe(true)
+    client.browser.linkCookie = (response.headers.getSetCookie().find((each) => each.startsWith('__Secure-google_link=')) ?? '').split(';')[0] ?? ''
+    const token = decodeURIComponent(location.slice(`${EN_ORIGIN}/auth/link-google#token=`.length))
+
+    const linked = await client.postLink({ token, password: PASSWORD, locale: 'en' })
+    await flushBackground()
+
+    expect(linked.status).toBe(200)
+    expect(client.email.sent.map((each) => each.locale)).toEqual(['en'])
+  })
+
+  it('привязка: незнакомый язык в теле — 400, ссылка цела', async () => {
+    await teacherWithPassword()
+    const client = makeClient(verified())
+    const token = await client.callbackForLink()
+
+    const response = await client.postLink({ token, password: PASSWORD, locale: 'xx' })
+
+    expect(response.status).toBe(400)
+    expect((await response.json()).issues.map((issue: { path: string[] }) => issue.path.join('.'))).toEqual(['locale'])
+    expect(await prisma.pendingGoogleLink.count()).toBe(1)
   })
 })

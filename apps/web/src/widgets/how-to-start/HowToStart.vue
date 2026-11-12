@@ -1,6 +1,7 @@
 <template>
-  <section class="how-to-start" aria-labelledby="how-to-start-title">
-    <h2 id="how-to-start-title" class="how-to-start__title">Как начать</h2>
+  <section class="how-to-start" aria-labelledby="how-to-start-title" data-pcb>
+    <div class="how-to-start__fade" aria-hidden="true" />
+    <h2 id="how-to-start-title" class="how-to-start__title">{{ t('home.howToStart.title') }}</h2>
 
     <div class="how-to-start__nat">
       <NatGear compact />
@@ -8,20 +9,23 @@
 
     <ol class="how-to-start__steps">
       <li class="how-to-start__step how-to-start__step--blue">
-        Выберите формат задания (викторина, тест, сопоставление, игра и т.д.) и шаблон оформления.
+        {{ t('home.howToStart.stepFormat') }}
       </li>
       <li class="how-to-start__step how-to-start__step--green">
-        Добавьте свои вопросы или попросите Ната помочь их составить.
+        {{ t('home.howToStart.stepQuestions') }}
       </li>
       <li class="how-to-start__step how-to-start__step--orange">
-        Отправьте ссылку ученикам, и пусть учатся с удовольствием.
+        {{ t('home.howToStart.stepShare') }}
       </li>
     </ol>
   </section>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from '#imports'
 import { NatGear } from '@/shared'
+
+const { t } = useI18n()
 </script>
 
 <style scoped lang="scss">
@@ -30,10 +34,22 @@ import { NatGear } from '@/shared'
 .how-to-start {
   @include section;
 
-  background:
-    bokeh(var(--rgb-green), 150px, -14% 170px, 0.53),
-    bokeh(var(--rgb-green), 160px, 114% bottom 170px, 0.45),
-    var(--color-white);
+  @include board-zones(
+    radial-gradient(ellipse 68% 52% at 0% 20%, #000 0%, transparent 100%),
+    radial-gradient(ellipse 68% 52% at 100% 85%, #000 0%, transparent 100%)
+  );
+
+  background: var(--color-white);
+
+}
+
+// Узор у нижнего края секции плавно уходит в белый. Отдельный элемент, чтобы не перекрывать ::after с узором
+.how-to-start__fade {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(to bottom, transparent 88%, var(--color-white) 100%);
 }
 
 .how-to-start__title {

@@ -25,7 +25,8 @@
   --bg-mid: #bedaed;
   --bg-end: #d2e5f2;
 
-  --color-night: #141a36;
+  --color-night: #171b3a;
+  --rgb-footer-night: 23 27 58;
   --rgb-night-sky: 2 45 160;
   --color-night-text: #9fa9d6;
   --rgb-night-text: 159 169 214;
@@ -41,6 +42,7 @@
 
   --z-pre-footer: 1;
   --z-header: calc(var(--z-pre-footer) + 1);
+  --z-language-menu: calc(var(--z-header) + 1);
 
   --font-display: 'Unbounded', 'Arial Black', system-ui, sans-serif;
   --font-body: 'Onest', system-ui, -apple-system, 'Segoe UI', sans-serif;

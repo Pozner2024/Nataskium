@@ -1,9 +1,10 @@
 import { expect, test, type Page } from '@playwright/test'
 
 const HYDRATION_MESSAGE = /hydrat/i
-const ROWS = '.footer-nav__list li > *'
-const ROWS_COUNT = 12
-const MIN_ROW_HEIGHT_PX = 44
+const ROWS = '.footer-nav__list > .footer-nav__item:not(.footer-nav__item--language) > *'
+const ROWS_COUNT = 11
+// 32px — решение пользователя 2026-11-12, ниже рекомендуемых 44px
+const MIN_ROW_HEIGHT_PX = 32
 const NARROW_WIDTHS = [320, 375]
 const VIEWPORT_HEIGHT = 800
 const WHITE = 'rgb(255, 255, 255)'
@@ -32,14 +33,14 @@ test.describe('AppFooter', () => {
     expect(heights.filter(height => height < MIN_ROW_HEIGHT_PX)).toEqual([])
   }
 
-  test('все строки футера не ниже 44px', async ({ page }) => {
+  test('все строки футера не ниже 32px', async ({ page }) => {
     await page.goto('/')
 
     await expectRowsTallEnough(page)
   })
 
   for (const width of NARROW_WIDTHS) {
-    test(`строки футера не ниже 44px на ${width} px`, async ({ page }) => {
+    test(`строки футера не ниже 32px на ${width} px`, async ({ page }) => {
       await page.setViewportSize({ width, height: VIEWPORT_HEIGHT })
       await page.goto('/')
 
@@ -47,16 +48,20 @@ test.describe('AppFooter', () => {
     })
   }
 
-  test('строка языка — ссылка и отзывается на наведение', async ({ page }, testInfo) => {
+  test('ссылка другого языка — ссылка и отзывается на наведение', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', 'нужна мышь')
     await page.goto('/')
-    const language = page.locator('.footer-nav__link', { hasText: 'Язык: Русский' })
+    const switcher = page.locator('.footer-nav__item--language .language-switcher')
+    await switcher.locator('summary').click()
+    const language = switcher.getByRole('link', { name: 'English' })
     await language.scrollIntoViewIfNeeded()
-    await expect(language).toHaveAttribute('href', '/language')
+    await expect(language).toHaveAttribute('href', '/en')
+    const background = () => language.evaluate(element => getComputedStyle(element).backgroundColor)
+    const idle = await background()
 
     await language.hover()
 
-    await expect(language).toHaveCSS('color', WHITE)
+    await expect.poll(background).not.toBe(idle)
   })
 
   test('ссылка футера отзывается на наведение и нажатие', async ({ page }, testInfo) => {

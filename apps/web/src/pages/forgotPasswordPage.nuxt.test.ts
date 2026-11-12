@@ -51,7 +51,7 @@ describe('ForgotPasswordPage', () => {
 
     expect(calls).toHaveLength(1)
     expect(calls[0]?.url).toBe('/api/auth/forgot-password')
-    expect(JSON.parse(String(calls[0]?.init.body))).toEqual({ email: 'qa-anna@example.test' })
+    expect(JSON.parse(String(calls[0]?.init.body))).toEqual({ email: 'qa-anna@example.test', locale: 'ru' })
   })
 
   // По экрану не понять, есть ли аккаунт: текст один для любого адреса

@@ -18,6 +18,8 @@ const WAVE_AMPLITUDE_STEP = 0.04
 const GLINT_COUNT = 16
 const GLINT_SPREAD_X = 1.2
 const GLINT_TOP: [number, number] = [80.3, 83.3]
+// Нижний край каждой полосы воды «дышит»: граница с футером слегка колышется
+const WAVE_BOTTOM_BOB_MAX = 70
 
 const between = createRandomBetween(RANDOM_SEED)
 const sliceHeight = WATER_HEIGHT / WAVE_SLICES
@@ -28,6 +30,7 @@ const waves = Array.from({ length: WAVE_SLICES }, (_, index) => ({
     top: `${WATER_TOP + index * sliceHeight}%`,
     height: `${sliceHeight}%`,
     '--amplitude': `${WAVE_BASE_AMPLITUDE + index * WAVE_AMPLITUDE_STEP}%`,
+    '--bob': `${((index * 37) % WAVE_BOTTOM_BOB_MAX) + 10}%`,
     animationDuration: `${1.4 + (index % 3) * 0.35}s`,
     animationDelay: `${-index * 0.3}s`,
   },
@@ -56,7 +59,12 @@ const glints = Array.from({ length: GLINT_COUNT }, (_, index) => {
   overflow: hidden;
   // Границы привязаны к кустам и фонарям на картинке: они стоят в воде и качаться не должны
   mask-image: linear-gradient(90deg, transparent 17%, #000 21%, #000 83%, transparent 87%);
-  animation: wave ease-in-out infinite alternate;
+  animation: wave ease-in-out infinite alternate, wave-bottom ease-in-out infinite alternate;
+}
+
+@keyframes wave-bottom {
+  from { clip-path: inset(0 0 0 0); }
+  to { clip-path: inset(0 0 var(--bob) 0); }
 }
 
 .city-water__wave-image {

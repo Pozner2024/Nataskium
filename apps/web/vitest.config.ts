@@ -24,7 +24,14 @@ export default defineConfig({
         test: {
           name: 'nuxt',
           environment: 'nuxt',
-          environmentOptions: { nuxt: { domEnvironment: 'happy-dom' } },
+          environmentOptions: {
+            nuxt: {
+              domEnvironment: 'happy-dom',
+              // У happy-dom язык браузера английский: без этого i18n перенаправляет корень на /en и сбрасывает
+              // адрес, который подставляют тесты. Определение языка проверяет e2e
+              overrides: { i18n: { detectBrowserLanguage: false } },
+            },
+          },
           include: [NUXT_TESTS],
         },
       }),

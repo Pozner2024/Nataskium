@@ -19,20 +19,22 @@ withDefaults(defineProps<{
 </script>
 
 <style scoped lang="scss">
+@use '@/assets/styles/breakpoints.module' as *;
+
 .app-button {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  width: 320px;
+  width: 280px;
   max-width: 100%;
-  min-height: 60px;
+  min-height: 52px;
   padding: 8px 14px;
   border: 0;
   border-radius: 999px;
   color: var(--color-white);
   font: inherit;
-  font-size: 18.7px;
+  font-size: 16px;
   font-weight: 700;
   line-height: 1.25;
   text-align: center;
@@ -41,6 +43,12 @@ withDefaults(defineProps<{
   transition:
     transform 0.2s ease,
     box-shadow 0.2s ease;
+
+  @include tablet {
+    width: 320px;
+    min-height: 60px;
+    font-size: 18.7px;
+  }
 
   &:active {
     transform: scale(0.98);
@@ -87,8 +95,14 @@ withDefaults(defineProps<{
 
 .app-button__arrow {
   flex: none;
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
+
+  @include tablet {
+    width: 24px;
+    height: 24px;
+  }
+
   fill: none;
   stroke: currentColor;
   stroke-width: 2.4;

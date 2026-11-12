@@ -1,5 +1,6 @@
 import { ref } from 'vue'
-import { type AuthFieldName, type AuthFormContext, type AuthFormErrors, authErrorMessages, emptyFieldErrors, issuesToFormErrors } from './authErrors'
+import { useNuxtApp } from '#imports'
+import { type AuthFieldName, type AuthFormContext, type AuthFormErrors, type Translate, authErrorMessages, emptyFieldErrors, issuesToFormErrors } from './authErrors'
 
 // Схемы из @nataskium/shared: та же проверка, что на сервере, — подсказки до запроса. Сервер проверяет снова
 type InputSchema<T> = {
@@ -9,6 +10,8 @@ type InputSchema<T> = {
 }
 
 export function useAuthForm(context: AuthFormContext) {
+  // Переводчик берётся при создании формы, внутри setup: обработчики отправки вызываются уже после await
+  const t: Translate = useNuxtApp().$i18n.t
   const isLoading = ref(false)
   const formError = ref<string | undefined>()
   // Каждый раз новый объект: AuthCard по смене объекта переводит фокус на первое поле с ошибкой
@@ -32,7 +35,7 @@ export function useAuthForm(context: AuthFormContext) {
   ): Promise<void> {
     if (isLoading.value) return
 
-    const empty = emptyFieldErrors(values)
+    const empty = emptyFieldErrors(t, values)
     if (Object.keys(empty).length > 0) {
       showErrors({ fieldErrors: empty })
       return
@@ -41,7 +44,7 @@ export function useAuthForm(context: AuthFormContext) {
     const parsed = schema.safeParse(payload)
     if (!parsed.success) {
       const issues = parsed.error.issues.map((issue) => ({ path: issue.path.map(String), message: issue.message }))
-      showErrors(issuesToFormErrors(context, issues))
+      showErrors(issuesToFormErrors(t, context, issues))
       return
     }
 
@@ -50,7 +53,7 @@ export function useAuthForm(context: AuthFormContext) {
     try {
       await action(parsed.data)
     } catch (error) {
-      showErrors(authErrorMessages(context, error))
+      showErrors(authErrorMessages(t, context, error))
     } finally {
       isLoading.value = false
     }

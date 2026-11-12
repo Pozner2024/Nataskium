@@ -95,7 +95,7 @@ describe('POST /api/auth/forgot-password', () => {
       expect(response.status).toBe(202)
       expect(await response.json()).toEqual(RESET_REQUESTED)
     }
-    expect(client.resetEmails()).toEqual([{ kind: 'passwordReset', to: EMAIL, rawToken: expect.any(String), displayName: 'Анна' }])
+    expect(client.resetEmails()).toEqual([{ kind: 'passwordReset', to: EMAIL, rawToken: expect.any(String), displayName: 'Анна', locale: 'ru' }])
     expect(await prisma.passwordReset.count()).toBe(1)
   })
 
@@ -184,7 +184,7 @@ describe('POST /api/auth/reset-password', () => {
     await flushBackground()
 
     expect(client.email.sent.filter((each) => each.kind === 'passwordChanged')).toEqual([
-      { kind: 'passwordChanged', to: EMAIL, displayName: 'Анна' },
+      { kind: 'passwordChanged', to: EMAIL, displayName: 'Анна', locale: 'ru' },
     ])
   })
 

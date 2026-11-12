@@ -1,4 +1,5 @@
 import { timingSafeEqual } from 'node:crypto'
+import { DEFAULT_LOCALE } from '@nataskium/shared/locales'
 import type { GoogleLinkInput } from '@nataskium/shared/schemas'
 import { AppError, RateLimitedError } from '../../../shared/errors'
 import type { AuthSession, EmailSender, FailureLimiter, PasswordHasher, PendingGoogleLinkRepository } from '../types'
@@ -76,7 +77,7 @@ export function makeGoogleLink(deps: GoogleLinkDeps) {
 
     // Пароль введён, но если это был не владелец (пароль утёк), владелец узнает и сбросит пароль
     const { email, displayName } = result.teacher
-    sendInBackground('google.linked', () => deps.emailSender.sendGoogleLinkedEmail(email, displayName))
+    sendInBackground('google.linked', () => deps.emailSender.sendGoogleLinkedEmail(email, displayName, input.locale ?? DEFAULT_LOCALE))
     return issueSession(deps, result.teacher)
   }
 }

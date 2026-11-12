@@ -3,19 +3,20 @@ import type { VueWrapper } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { useRouter } from '#imports'
+import { authApi, useAuthStore } from '@/features/auth'
+import { ApiError } from '@/shared'
 import { AppHeader } from '@/widgets/app-header'
 
 const OTHER_ROUTE = '/nat'
 const MENU_GROUPS = [
   [['Главная', '/'], ['Библиотека заданий', '/library'], ['Тарифные планы', '/pricing']],
-  [['Вопросы и ответы', '/faq'], ['Центр помощи', '/help'], ['Язык: Русский', '/language']],
+  [['Вопросы и ответы', '/faq'], ['Центр помощи', '/help']],
 ]
 const HREF_LINKS = [
   'Библиотека заданий',
   'Тарифные планы',
   'Вопросы и ответы',
   'Центр помощи',
-  'Язык: Русский',
   'Зарегистрироваться',
 ]
 
@@ -48,6 +49,8 @@ function activeElementToBody() {
 
 afterEach(async () => {
   wrapper.unmount()
+  useAuthStore().clearSession()
+  vi.restoreAllMocks()
   await useRouter().push('/')
 })
 
@@ -112,14 +115,15 @@ describe('AppHeader', () => {
 
       const auth = wrapper.find('.app-header__auth')
       expect(auth.findAll('a, button').map(element => element.text())).toEqual(['Войти', 'Зарегистрироваться'])
-      expect(auth.find('.app-header__register').attributes('href')).toBe('/register')
+      expect(auth.find('.app-header__register').attributes('href')).toBe('/auth/register')
     })
 
     it('«Войти» — AppButton со стрелкой', async () => {
       await mountHeader()
 
       const login = wrapper.find('.app-header__login')
-      expect(login.element.tagName).toBe('BUTTON')
+      expect(login.element.tagName).toBe('A')
+      expect(login.attributes('href')).toBe('/auth/login')
       expect(login.classes()).toEqual(expect.arrayContaining(['app-button', 'app-button--blue']))
       expect(login.find('.app-button__arrow').exists()).toBe(true)
     })
@@ -267,6 +271,115 @@ describe('AppHeader', () => {
       expect(removeListener).toHaveBeenCalledWith('keydown', keydownCall![1])
       addListener.mockRestore()
       removeListener.mockRestore()
+    })
+  })
+
+  describe('английская версия', () => {
+    const ENGLISH_GROUPS = [
+      [['Home', '/en'], ['Activity library', '/en/library'], ['Pricing plans', '/en/pricing']],
+      [['FAQ', '/en/faq'], ['Help center', '/en/help']],
+    ]
+
+    async function mountEnglishHeader() {
+      wrapper = await mountSuspended(AppHeader, { route: '/en', attachTo: document.body })
+      return wrapper
+    }
+
+    it('пункты меню на английском, адреса с префиксом /en', async () => {
+      await mountEnglishHeader()
+
+      const lists = wrapper.findAll('.app-header__list').map(list =>
+        list.findAll('a').map(item => [item.text(), item.attributes('href')]))
+      expect(lists).toEqual(ENGLISH_GROUPS)
+    })
+
+    it('вход, регистрация и подписи кнопок на английском', async () => {
+      await mountEnglishHeader()
+
+      const login = wrapper.find('.app-header__login')
+      expect([login.text(), login.attributes('href')]).toEqual(['Sign in', '/en/auth/login'])
+      const register = wrapper.find('.app-header__register')
+      expect([register.text(), register.attributes('href')]).toEqual(['Sign up', '/en/auth/register'])
+      expect(wrapper.find('nav').attributes('aria-label')).toBe('Menu')
+      expect(wrapper.find('.app-header__burger').attributes('aria-label')).toBe('Open menu')
+      expect(wrapper.find('.app-header__logo').attributes('href')).toBe('/en')
+    })
+
+    it('«Выйти» — «Sign out», пункты учителя на английском', async () => {
+      useAuthStore().setSession({
+        accessToken: 'access-1',
+        teacher: { id: '6f1c2a4e-8d3b-4f5a-9c7e-1b2d3e4f5a6b', email: 'qa-anna@example.test', displayName: 'Anna', hasPassword: true, hasGoogle: false },
+      })
+      await mountEnglishHeader()
+
+      expect(wrapper.find('.app-header__logout').text()).toBe('Sign out')
+      expect(wrapper.find('.app-header__list').findAll('a').map(item => item.text())).toEqual([
+        'Create activity',
+        'My activities',
+        'Manage subscription',
+      ])
+    })
+  })
+
+  describe('учитель вошёл', () => {
+    const TEACHER_ROWS = [
+      ['Создать задание', '/teacher/activities/new'],
+      ['Мои задания', '/teacher/activities'],
+      ['Управление подпиской', '/teacher/subscription'],
+    ]
+
+    function signIn() {
+      useAuthStore().setSession({
+        accessToken: 'access-1',
+        teacher: {
+          id: '6f1c2a4e-8d3b-4f5a-9c7e-1b2d3e4f5a6b',
+          email: 'qa-anna@example.test',
+          displayName: 'Анна',
+          hasPassword: true,
+          hasGoogle: false,
+        },
+      })
+    }
+
+    it('первым в меню идёт список учителя, внизу только «Выйти»', async () => {
+      signIn()
+      await mountHeader()
+
+      const firstList = wrapper.find('.app-header__list').findAll('a')
+      expect(firstList.map(item => [item.text(), item.attributes('href')])).toEqual(TEACHER_ROWS)
+      expect(wrapper.findAll('.app-header__list')).toHaveLength(MENU_GROUPS.length + 1)
+      const auth = wrapper.find('.app-header__auth')
+      expect(auth.findAll('a, button').map(element => element.text())).toEqual(['Выйти'])
+    })
+
+    it('«Выйти» завершает сессию на сервере, закрывает меню и возвращает вход', async () => {
+      const logout = vi.spyOn(authApi, 'logout').mockResolvedValue()
+      signIn()
+      await mountHeader()
+      await openMenu()
+
+      await wrapper.find('.app-header__logout').trigger('click')
+      await vi.waitFor(() => expect(useAuthStore().status).toBe('anonymous'))
+      await nextTick()
+
+      expect(logout).toHaveBeenCalledOnce()
+      expect(isMenuOpen()).toBe(false)
+      expect(wrapper.find('.app-header__login').exists()).toBe(true)
+      expect(wrapper.findAll('.app-header__list')).toHaveLength(MENU_GROUPS.length)
+    })
+
+    it('сервер не подтвердил выход — учитель остаётся вошедшим', async () => {
+      const logout = vi.spyOn(authApi, 'logout').mockRejectedValue(new ApiError(503))
+      signIn()
+      await mountHeader()
+      await openMenu()
+
+      await wrapper.find('.app-header__logout').trigger('click')
+      await vi.waitFor(() => expect(logout).toHaveBeenCalledOnce())
+      await nextTick()
+
+      expect(useAuthStore().status).toBe('authenticated')
+      expect(wrapper.find('.app-header__logout').exists()).toBe(true)
     })
   })
 

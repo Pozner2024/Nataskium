@@ -1,13 +1,13 @@
 <template>
-  <section class="why-us" aria-labelledby="why-us-title">
-    <h2 id="why-us-title" class="why-us__title">Почему выбирают Nataskium</h2>
+  <section class="why-us" aria-labelledby="why-us-title" data-pcb>
+    <h2 id="why-us-title" class="why-us__title">{{ t('home.whyUs.title') }}</h2>
 
     <div class="why-us__nat">
       <NatMusic compact />
     </div>
 
     <ul class="why-us__list">
-      <li v-for="reason in REASONS" :key="reason.title" class="why-us__item">
+      <li v-for="reason in reasons" :key="reason.key" class="why-us__item">
         <p class="why-us__text">
           <strong class="why-us__lead">{{ reason.title }}</strong>
           {{ reason.text }}
@@ -18,20 +18,20 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useI18n } from '#imports'
 import { NatMusic } from '@/shared'
 
-interface Reason {
-  title: string
-  text: string
-}
+const REASON_KEYS = ['friendly', 'quick', 'grading', 'audio', 'library'] as const
 
-const REASONS: Reason[] = [
-  { title: 'Дружелюбный интерфейс и яркие шаблоны,', text: 'которые удерживают внимание учеников.' },
-  { title: 'Задание создаётся быстро и легко:', text: 'разобраться можно без инструкций или с подсказками Ната, вашего виртуального помощника.' },
-  { title: 'Оценивание по вашим правилам:', text: 'готовые критерии оценивания или свои собственные.' },
-  { title: 'Задания можно слушать:', text: 'вопросы и варианты ответов озвучиваются. Удобно малышам, которые ещё плохо читают, и на уроках иностранного языка.' },
-  { title: 'Библиотека готовых заданий:', text: 'можно взять готовое и сразу отправить ученикам.' },
-]
+const { t } = useI18n()
+const reasons = computed(() =>
+  REASON_KEYS.map((key) => ({
+    key,
+    title: t(`home.whyUs.reasons.${key}.title`),
+    text: t(`home.whyUs.reasons.${key}.text`),
+  })),
+)
 </script>
 
 <style scoped lang="scss">
@@ -40,11 +40,12 @@ const REASONS: Reason[] = [
 .why-us {
   @include section;
 
-  background:
-    bokeh(var(--rgb-orange), 150px, 114% 180px, 0.49),
-    bokeh(var(--rgb-orange), 140px, -14% 50%, 0.45),
-    bokeh(var(--rgb-orange), 170px, 112% bottom 180px, 0.43),
-    var(--color-white);
+  @include board-zones(
+    radial-gradient(ellipse 60% 34% at 100% 35%, #000 0%, transparent 100%),
+    radial-gradient(ellipse 36% 42% at 60% 30%, #000 0%, transparent 100%)
+  );
+
+  background: var(--color-white);
 }
 
 .why-us__title {

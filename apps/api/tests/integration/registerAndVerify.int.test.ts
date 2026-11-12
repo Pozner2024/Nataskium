@@ -122,7 +122,7 @@ describe('register → verifyEmail на настоящей базе', () => {
     await flow.register(registerSchema.parse({ email: EMAIL, password: OTHER_PASSWORD }))
     await flushBackground()
 
-    expect(flow.email.sent.at(-1)).toEqual({ kind: 'accountExists', to: EMAIL, displayName: null })
+    expect(flow.email.sent.at(-1)).toEqual({ kind: 'accountExists', to: EMAIL, displayName: null, locale: 'ru' })
     expect(await prisma.pendingRegistration.count()).toBe(0)
   })
 

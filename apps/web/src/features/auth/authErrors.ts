@@ -9,6 +9,9 @@ export type AuthFormErrors = {
   fieldErrors: Partial<Record<AuthFieldName, string>>
 }
 
+// Переводчик текущего языка: функции этого файла чистые, язык им передаёт вызывающий
+export type Translate = (key: string, params?: Record<string, unknown>) => string
+
 const BAD_REQUEST_STATUS = 400
 const UNAUTHORIZED_STATUS = 401
 const CONFLICT_STATUS = 409
@@ -18,118 +21,119 @@ const SECONDS_PER_MINUTE = 60
 
 // API отвечает одинаково на разные причины отказа (нет учителя, неверный пароль, неверная ссылка):
 // здесь тоже один текст на такой ответ, без подсказки, что именно не так
-const REJECTED_MESSAGES: Record<AuthFormContext, string> = {
-  login: 'Неверная почта или пароль',
-  register: 'Не удалось зарегистрироваться. Проверьте данные и попробуйте ещё раз',
-  verifyEmail: 'Ссылка недействительна или устарела, или пароль неверный',
-  googleLink: 'Неверный пароль или ссылка устарела. Попробуйте войти через Google ещё раз',
-  forgotPassword: 'Не удалось отправить ссылку. Проверьте почту и попробуйте ещё раз',
-  resetPassword: 'Ссылка недействительна или устарела. Запросите новую',
+const REJECTED_MESSAGE_KEYS: Record<AuthFormContext, string> = {
+  login: 'auth.errors.rejected.login',
+  register: 'auth.errors.rejected.register',
+  verifyEmail: 'auth.errors.rejected.verifyEmail',
+  googleLink: 'auth.errors.rejected.googleLink',
+  forgotPassword: 'auth.errors.rejected.forgotPassword',
+  resetPassword: 'auth.errors.rejected.resetPassword',
 }
 
-const CONFLICT_MESSAGES: Partial<Record<AuthFormContext, string>> = {
-  verifyEmail: 'Аккаунт с этой почтой уже есть — войдите',
-  googleLink: 'Этот аккаунт Google нельзя связать с вашим аккаунтом',
+const CONFLICT_MESSAGE_KEYS: Partial<Record<AuthFormContext, string>> = {
+  verifyEmail: 'auth.errors.conflict.verifyEmail',
+  googleLink: 'auth.errors.conflict.googleLink',
 }
 
-const NETWORK_MESSAGE = 'Нет связи с сервером. Проверьте интернет и попробуйте ещё раз'
-const BUSY_MESSAGE = 'Сервер сейчас занят. Попробуйте через минуту'
-const UNKNOWN_MESSAGE = 'Что-то пошло не так. Попробуйте ещё раз'
+const NETWORK_MESSAGE_KEY = 'auth.errors.network'
+const BUSY_MESSAGE_KEY = 'auth.errors.busy'
+const UNKNOWN_MESSAGE_KEY = 'auth.errors.unknown'
 
-// Сообщения схем из @nataskium/shared (одинаковые на сервере и в браузере) → русский текст у поля
-const ISSUE_MESSAGES: { prefix: string; text: string }[] = [
-  { prefix: 'Email must use only Latin letters', text: 'До @ — только латинские буквы, цифры и символы' },
-  { prefix: 'Email must be at most', text: 'Слишком длинный адрес почты' },
-  { prefix: 'Email must have at most', text: 'Слишком длинная часть адреса до @' },
-  { prefix: 'Invalid email', text: 'Проверьте адрес почты: например, name@school.ru' },
-  { prefix: 'Password is required', text: 'Введите пароль' },
-  { prefix: 'Password must be at least', text: `Пароль — не короче ${MIN_PASSWORD_LENGTH} символов` },
-  { prefix: 'Password must be at most', text: `Пароль — не длиннее ${MAX_PASSWORD_LENGTH} символов` },
-  { prefix: 'Password is too common', text: 'Этот пароль слишком простой — придумайте другой' },
-  { prefix: 'Password contains invalid characters', text: 'В пароле есть недопустимые символы' },
-  { prefix: 'Display name must be at most', text: `Имя — не длиннее ${DISPLAY_NAME_MAX_LENGTH} символов` },
-  { prefix: 'Display name contains invalid characters', text: 'В имени есть недопустимые символы' },
+// Сообщения схем из @nataskium/shared (английские и одинаковые на сервере и в браузере) → текст у поля на языке интерфейса
+const ISSUE_MESSAGES: { prefix: string; key: string; params?: Record<string, unknown> }[] = [
+  { prefix: 'Email must use only Latin letters', key: 'auth.errors.issue.emailLatin' },
+  { prefix: 'Email must be at most', key: 'auth.errors.issue.emailTooLong' },
+  { prefix: 'Email must have at most', key: 'auth.errors.issue.emailLocalTooLong' },
+  { prefix: 'Invalid email', key: 'auth.errors.issue.emailInvalid' },
+  { prefix: 'Password is required', key: 'auth.errors.issue.passwordRequired' },
+  { prefix: 'Password must be at least', key: 'auth.errors.issue.passwordMin', params: { min: MIN_PASSWORD_LENGTH } },
+  { prefix: 'Password must be at most', key: 'auth.errors.issue.passwordMax', params: { max: MAX_PASSWORD_LENGTH } },
+  { prefix: 'Password is too common', key: 'auth.errors.issue.passwordCommon' },
+  { prefix: 'Password contains invalid characters', key: 'auth.errors.issue.passwordChars' },
+  { prefix: 'Display name must be at most', key: 'auth.errors.issue.nameMax', params: { max: DISPLAY_NAME_MAX_LENGTH } },
+  { prefix: 'Display name contains invalid characters', key: 'auth.errors.issue.nameChars' },
 ]
 
-const FIELD_FALLBACKS: Record<AuthFieldName, string> = {
-  displayName: 'Проверьте имя',
-  email: 'Проверьте адрес почты',
-  password: 'Проверьте пароль',
+const FIELD_FALLBACK_KEYS: Record<AuthFieldName, string> = {
+  displayName: 'auth.errors.field.displayName',
+  email: 'auth.errors.field.email',
+  password: 'auth.errors.field.password',
 }
 
-const EMPTY_FIELD_MESSAGES: Partial<Record<AuthFieldName, string>> = {
-  email: 'Введите почту',
-  password: 'Введите пароль',
+const EMPTY_FIELD_MESSAGE_KEYS: Partial<Record<AuthFieldName, string>> = {
+  email: 'auth.errors.empty.email',
+  password: 'auth.errors.empty.password',
 }
 
 function isFieldName(value: string | undefined): value is AuthFieldName {
   return value === 'displayName' || value === 'email' || value === 'password'
 }
 
-function translateIssue(field: AuthFieldName, message: string): string {
-  return ISSUE_MESSAGES.find((entry) => message.startsWith(entry.prefix))?.text ?? FIELD_FALLBACKS[field]
+function translateIssue(t: Translate, field: AuthFieldName, message: string): string {
+  const entry = ISSUE_MESSAGES.find((each) => message.startsWith(each.prefix))
+  return entry === undefined ? t(FIELD_FALLBACK_KEYS[field]) : t(entry.key, entry.params)
 }
 
 // Первая ошибка каждого поля. Ошибки токена ссылки (поле token) — общая ошибка формы
-export function issuesToFormErrors(context: AuthFormContext, issues: readonly ApiIssue[]): AuthFormErrors {
+export function issuesToFormErrors(t: Translate, context: AuthFormContext, issues: readonly ApiIssue[]): AuthFormErrors {
   const fieldErrors: AuthFormErrors['fieldErrors'] = {}
   let formError: string | undefined
   for (const issue of issues) {
     const field = issue.path[0]
     if (!isFieldName(field)) {
-      formError ??= REJECTED_MESSAGES[context]
+      formError ??= t(REJECTED_MESSAGE_KEYS[context])
       continue
     }
-    fieldErrors[field] ??= translateIssue(field, issue.message)
+    fieldErrors[field] ??= translateIssue(t, field, issue.message)
   }
   return { formError, fieldErrors }
 }
 
 // Пустые обязательные поля — понятнее, чем «проверьте адрес»
-export function emptyFieldErrors(values: Partial<Record<AuthFieldName, string>>): AuthFormErrors['fieldErrors'] {
+export function emptyFieldErrors(t: Translate, values: Partial<Record<AuthFieldName, string>>): AuthFormErrors['fieldErrors'] {
   const errors: AuthFormErrors['fieldErrors'] = {}
-  for (const [field, message] of Object.entries(EMPTY_FIELD_MESSAGES)) {
-    if (isFieldName(field) && values[field] !== undefined && values[field]?.trim() === '') errors[field] = message
+  for (const [field, key] of Object.entries(EMPTY_FIELD_MESSAGE_KEYS)) {
+    if (isFieldName(field) && values[field] !== undefined && values[field]?.trim() === '') errors[field] = t(key)
   }
   return errors
 }
 
-function retryText(retryAfterSeconds: number | null): string {
-  if (retryAfterSeconds === null) return 'Слишком много попыток. Попробуйте позже'
+function retryText(t: Translate, retryAfterSeconds: number | null): string {
+  if (retryAfterSeconds === null) return t('auth.errors.retryLater')
   const minutes = Math.max(1, Math.ceil(retryAfterSeconds / SECONDS_PER_MINUTE))
-  return `Слишком много попыток. Попробуйте через ${minutes} мин.`
+  return t('auth.errors.retry', { minutes })
 }
 
-// Текст API не показываем: он английский и намеренно общий. Выбираем русский по статусу и форме
-export function authErrorMessages(context: AuthFormContext, error: unknown): AuthFormErrors {
-  if (!(error instanceof ApiError)) return { formError: UNKNOWN_MESSAGE, fieldErrors: {} }
+// Текст API не показываем: он английский и намеренно общий. Выбираем текст на языке интерфейса по статусу и форме
+export function authErrorMessages(t: Translate, context: AuthFormContext, error: unknown): AuthFormErrors {
+  if (!(error instanceof ApiError)) return { formError: t(UNKNOWN_MESSAGE_KEY), fieldErrors: {} }
 
-  if (error.status === BAD_REQUEST_STATUS && error.issues.length > 0) return issuesToFormErrors(context, error.issues)
+  if (error.status === BAD_REQUEST_STATUS && error.issues.length > 0) return issuesToFormErrors(t, context, error.issues)
   if (error.status === BAD_REQUEST_STATUS || error.status === UNAUTHORIZED_STATUS) {
-    return { formError: REJECTED_MESSAGES[context], fieldErrors: {} }
+    return { formError: t(REJECTED_MESSAGE_KEYS[context]), fieldErrors: {} }
   }
   if (error.status === CONFLICT_STATUS) {
-    return { formError: CONFLICT_MESSAGES[context] ?? UNKNOWN_MESSAGE, fieldErrors: {} }
+    return { formError: t(CONFLICT_MESSAGE_KEYS[context] ?? UNKNOWN_MESSAGE_KEY), fieldErrors: {} }
   }
-  if (error.status === TOO_MANY_REQUESTS_STATUS) return { formError: retryText(error.retryAfterSeconds), fieldErrors: {} }
-  if (error.status === SERVICE_UNAVAILABLE_STATUS) return { formError: BUSY_MESSAGE, fieldErrors: {} }
-  if (error.status === NETWORK_ERROR_STATUS) return { formError: NETWORK_MESSAGE, fieldErrors: {} }
-  return { formError: UNKNOWN_MESSAGE, fieldErrors: {} }
+  if (error.status === TOO_MANY_REQUESTS_STATUS) return { formError: retryText(t, error.retryAfterSeconds), fieldErrors: {} }
+  if (error.status === SERVICE_UNAVAILABLE_STATUS) return { formError: t(BUSY_MESSAGE_KEY), fieldErrors: {} }
+  if (error.status === NETWORK_ERROR_STATUS) return { formError: t(NETWORK_MESSAGE_KEY), fieldErrors: {} }
+  return { formError: t(UNKNOWN_MESSAGE_KEY), fieldErrors: {} }
 }
 
 // Коды ?error= после редиректа API из входа через Google
-const GOOGLE_FALLBACK_MESSAGE = 'Не удалось войти через Google. Попробуйте ещё раз'
+const GOOGLE_FALLBACK_KEY = 'auth.errors.google.failed'
 // Map, а не объект: код приходит из адреса, и ?error=__proto__ или constructor не должны найти свойство прототипа
-const GOOGLE_ERROR_MESSAGES = new Map<string, string>(Object.entries({
-  google_cancelled: 'Вход через Google отменён',
-  google_state: 'Не удалось войти через Google. Начните заново',
-  google_unavailable: 'Google сейчас недоступен. Попробуйте позже или войдите по паролю',
-  google_failed: GOOGLE_FALLBACK_MESSAGE,
-  google_email_unverified: 'Почта в аккаунте Google не подтверждена',
-  google_account_conflict: 'К этой почте уже привязан другой аккаунт Google',
+const GOOGLE_ERROR_KEYS = new Map<string, string>(Object.entries({
+  google_cancelled: 'auth.errors.google.cancelled',
+  google_state: 'auth.errors.google.state',
+  google_unavailable: 'auth.errors.google.unavailable',
+  google_failed: GOOGLE_FALLBACK_KEY,
+  google_email_unverified: 'auth.errors.google.emailUnverified',
+  google_account_conflict: 'auth.errors.google.accountConflict',
 }))
 
-export function googleErrorMessage(code: unknown): string | undefined {
+export function googleErrorMessage(t: Translate, code: unknown): string | undefined {
   if (typeof code !== 'string') return undefined
-  return GOOGLE_ERROR_MESSAGES.get(code) ?? GOOGLE_FALLBACK_MESSAGE
+  return t(GOOGLE_ERROR_KEYS.get(code) ?? GOOGLE_FALLBACK_KEY)
 }

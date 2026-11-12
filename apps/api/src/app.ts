@@ -12,6 +12,7 @@ import {
   makeAuthLimiters,
   makeAuthRouter,
   makeCleanupExpiredAuthRecords,
+  makeChangePassword,
   makeDeleteAccount,
   makeGetMe,
   GOOGLE_LINK_TTL_MS,
@@ -145,6 +146,13 @@ export function createApp({ env, prisma, limits, passwordHasher, emailSender, go
       }),
       resetPassword: makeResetPassword({ passwordResets, hasher: passwordHasher, tokens, emailSender, now }),
       deleteAccount: makeDeleteAccount({ teachers, hasher: passwordHasher, failureLimiter: limiters.failureLimiter }),
+      changePassword: makeChangePassword({
+        ...sessionDeps,
+        teachers,
+        hasher: passwordHasher,
+        failureLimiter: limiters.failureLimiter,
+        emailSender,
+      }),
       google:
         googleIdentity === null
           ? null

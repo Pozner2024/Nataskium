@@ -1,3 +1,4 @@
+import { DEFAULT_LOCALE } from '@nataskium/shared/locales'
 import type { ForgotPasswordInput } from '@nataskium/shared/schemas'
 import type { Clock, EmailQuota, EmailSender, PasswordResetRepository, TeacherRepository, TokenService } from '../types'
 import { sendInBackground } from './sendInBackground'
@@ -38,7 +39,7 @@ export function makeRequestPasswordReset(deps: RequestPasswordResetDeps) {
     // Учителя удалили между поиском и записью: письма нет, ответ тот же, что для любого email
     if (!saved) return
     sendInBackground('passwordReset.request', () =>
-      deps.emailSender.sendPasswordResetEmail(teacher.email, rawToken, teacher.displayName),
+      deps.emailSender.sendPasswordResetEmail(teacher.email, rawToken, teacher.displayName, input.locale ?? DEFAULT_LOCALE),
     )
   }
 }

@@ -1,3 +1,4 @@
+import { DEFAULT_LOCALE } from '@nataskium/shared/locales'
 import type { ResetPasswordInput } from '@nataskium/shared/schemas'
 import { AppError } from '../../../shared/errors'
 import type { Clock, EmailSender, PasswordHasher, PasswordResetRepository, TokenService } from '../types'
@@ -36,6 +37,6 @@ export function makeResetPassword(deps: ResetPasswordDeps) {
     // Одно письмо на сброс: completeReset вернул 'reset' ровно одному запросу (CAS по ссылке).
     // Отдельный лимит не нужен — ссылку выдаёт сам владелец почты, и она одноразовая
     const { email, displayName } = result.teacher
-    sendInBackground('passwordReset.changed', () => deps.emailSender.sendPasswordChangedEmail(email, displayName))
+    sendInBackground('passwordReset.changed', () => deps.emailSender.sendPasswordChangedEmail(email, displayName, input.locale ?? DEFAULT_LOCALE))
   }
 }

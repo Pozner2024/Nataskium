@@ -1,11 +1,11 @@
 <template>
-  <section class="how-it-works" aria-labelledby="how-it-works-title">
-    <h2 id="how-it-works-title" class="how-it-works__title">Как это работает</h2>
+  <section class="how-it-works" aria-labelledby="how-it-works-title" data-pcb>
+    <h2 id="how-it-works-title" class="how-it-works__title">{{ t('home.howItWorks.title') }}</h2>
 
     <article class="how-it-works__role">
-      <h3 class="how-it-works__role-title how-it-works__role-title--blue">Учителя и репетиторы</h3>
+      <h3 class="how-it-works__role-title how-it-works__role-title--blue">{{ t('home.howItWorks.teachersTitle') }}</h3>
       <p class="how-it-works__text">
-        Создают наборы заданий и сами решают, ставить ли оценку. Если оценка нужна, выбирают готовые критерии оценивания или создают свои. Когда задание готово, остаётся отправить ученикам ссылку.
+        {{ t('home.howItWorks.teachersText') }}
       </p>
     </article>
 
@@ -13,16 +13,19 @@
       <div class="how-it-works__nat how-it-works__nat--students">
         <NatStudents compact />
       </div>
-      <h3 class="how-it-works__role-title how-it-works__role-title--green">Ученики и студенты</h3>
+      <h3 class="how-it-works__role-title how-it-works__role-title--green">{{ t('home.howItWorks.studentsTitle') }}</h3>
       <p class="how-it-works__text">
-        Отвечают на вопросы с личных телефонов, планшетов и компьютеров или с устройств в классе. Регистрироваться не нужно: достаточно открыть ссылку. В конце задания сразу видят свой результат и оценку.
+        {{ t('home.howItWorks.studentsText') }}
       </p>
     </article>
   </section>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from '#imports'
 import { NatStudents } from '@/shared'
+
+const { t } = useI18n()
 </script>
 
 <style scoped lang="scss">
@@ -33,11 +36,9 @@ import { NatStudents } from '@/shared'
 
   // Наезд на 1px на секцию выше: при дробной высоте той секции иначе проступает щель с фоном страницы
   margin-top: -1px;
-  background:
-    bokeh(var(--rgb-blue), 160px, -14% 200px, 0.49),
-    bokeh(var(--rgb-blue), 140px, 114% 45%, 0.45),
-    bokeh(var(--rgb-blue), 180px, -12% bottom 190px, 0.43),
-    var(--color-white);
+  @include board-zones(radial-gradient(ellipse 60% 68% at 0% 45%, #000 0%, transparent 100%));
+
+  background: var(--color-white);
 }
 
 .how-it-works__title {

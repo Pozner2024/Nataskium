@@ -103,7 +103,7 @@ describe('ResetPasswordPage: новый пароль', () => {
 
     expect(calls).toHaveLength(1)
     expect(calls[0]?.url).toBe('/api/auth/reset-password')
-    expect(JSON.parse(String(calls[0]?.init.body))).toEqual({ token: TOKEN, password: NEW_PASSWORD })
+    expect(JSON.parse(String(calls[0]?.init.body))).toEqual({ token: TOKEN, password: NEW_PASSWORD, locale: 'ru' })
     expect(page.find('h1').text()).toBe('Пароль изменён')
     expect(page.find('form').exists()).toBe(false)
     expect(page.find('a[href="/auth/login"]').exists()).toBe(true)

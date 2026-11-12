@@ -28,6 +28,7 @@
         <NatAntennaCap />
         <path :d="antenna.springPath" fill="none" stroke="#A7B0C8" stroke-width="5" stroke-linecap="round" />
         <NatAntennaBall :cx="255" :cy="antenna.ballY" :radius="ANTENNA_BALL_RADIUS" :flash="antenna.flash" :ball-id="ids.antBall" :halo-id="ids.antHalo" />
+        <EnergyOrb :x="255 - ENERGY_ORB_SIZE / 2" :y="antenna.ballY - ENERGY_ORB_SIZE / 2" :width="ENERGY_ORB_SIZE" :height="ENERGY_ORB_SIZE" :energy="ENERGY_ORB_ACTIVE" pulse />
       </g>
     </template>
 
@@ -124,6 +125,7 @@ import { onBeforeUnmount, ref, shallowRef, useId } from 'vue'
 import NatRobot from '../NatRobot.vue'
 import NatAntennaBall from '../parts/NatAntennaBall.vue'
 import NatAntennaCap from '../parts/NatAntennaCap.vue'
+import EnergyOrb from '../../ui/EnergyOrb.vue'
 import { createSpring, idleSway, kickSpring, MAX_SPRING_DT_S, RAD_TO_DEG, stepSpring, zigzag } from '../lib/spring'
 import { useFrameLoop } from '../lib/useFrameLoop'
 
@@ -146,6 +148,10 @@ const MAX_DT_S = 0.05
 const NAT_CENTER = { x: 255, y: 285 }
 const ANTENNA_HEIGHT = 62
 const ANTENNA_BALL_RADIUS = 17
+// Сфера энергии в единицах сцены: при --nat-unit 0.6px это около 40px
+const ENERGY_ORB_SIZE = 67
+// Сфера всегда активна: пульсирует от этого уровня до максимума (клик на неё не влияет)
+const ENERGY_ORB_ACTIVE = 0.45
 
 const MATCHES = [
   { number: '1', letter: 'a' },

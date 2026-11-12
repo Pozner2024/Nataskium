@@ -11,7 +11,7 @@
 
       <template v-if="isSent">
         <p class="auth-card__switch">
-          <NuxtLink class="auth-card__link" :to="AUTH_PATHS.login">Вернуться ко входу</NuxtLink>
+          <NuxtLink class="auth-card__link" :to="localePath(AUTH_PATHS.login)">{{ t('auth.card.backToLogin') }}</NuxtLink>
         </p>
       </template>
 
@@ -41,7 +41,7 @@
             ref="nameField"
             v-model="displayName"
             class="auth-card__field"
-            label="Имя"
+            :label="t('auth.field.name')"
             autocomplete="name"
             optional
             :error="fieldErrors.displayName"
@@ -52,7 +52,7 @@
             ref="emailField"
             v-model="email"
             class="auth-card__field"
-            label="Почта"
+            :label="t('auth.field.email')"
             type="email"
             autocomplete="email"
             required
@@ -64,7 +64,7 @@
             ref="passwordField"
             v-model="password"
             class="auth-card__field"
-            :label="mode === 'resetPassword' ? 'Новый пароль' : 'Пароль'"
+            :label="mode === 'resetPassword' ? t('auth.field.newPassword') : t('auth.field.password')"
             type="password"
             :autocomplete="isNewPassword ? 'new-password' : 'current-password'"
             required
@@ -77,15 +77,15 @@
         </form>
 
         <p v-if="mode === 'login'" class="auth-card__switch">
-          <NuxtLink class="auth-card__link" :to="AUTH_PATHS.forgotPassword">Забыли пароль?</NuxtLink>
+          <NuxtLink class="auth-card__link" :to="localePath(AUTH_PATHS.forgotPassword)">{{ t('auth.card.forgotPasswordLink') }}</NuxtLink>
         </p>
 
         <template v-if="hasGoogle">
           <div class="auth-card__divider" aria-hidden="true">
-            <span>или</span>
+            <span>{{ t('auth.card.or') }}</span>
           </div>
 
-          <a class="auth-card__google" href="/api/auth/google/start">Войти через Google</a>
+          <a class="auth-card__google" :href="googleStartUrl(currentLocale)">{{ t('auth.card.googleButton') }}</a>
         </template>
 
         <p class="auth-card__switch">
@@ -100,7 +100,9 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, useId, useTemplateRef, watch } from 'vue'
 import { NuxtLink } from '#components'
-import { AppButton, AUTH_PATHS } from '@/shared'
+import { useI18n, useLocalePath } from '#imports'
+import { googleStartUrl } from '@/features/auth'
+import { AppButton, AUTH_PATHS, useCurrentLocale } from '@/shared'
 import AuthField from './components/AuthField.vue'
 import type { AuthCardFieldName, AuthCardMode, AuthCardProps, AuthCardSubmitPayload } from './types'
 
@@ -110,89 +112,17 @@ const emit = defineEmits<{
   submit: [payload: AuthCardSubmitPayload]
 }>()
 
-const COPY = {
-  login: {
-    title: 'Вход',
-    subtitle: 'Войдите в кабинет учителя',
-    submit: 'Войти',
-    submitBusy: 'Входим…',
-    switchText: 'Нет аккаунта?',
-    switchLabel: 'Зарегистрироваться',
-    switchTo: AUTH_PATHS.register,
-  },
-  register: {
-    title: 'Регистрация',
-    subtitle: 'Создайте аккаунт учителя',
-    submit: 'Зарегистрироваться',
-    submitBusy: 'Регистрируем…',
-    switchText: 'Уже есть аккаунт?',
-    switchLabel: 'Войти',
-    switchTo: AUTH_PATHS.login,
-  },
-  // Ниже — режимы без макета: тексты и состав формы для проверки дизайнером
-  verifyEmail: {
-    title: 'Подтверждение почты',
-    subtitle: 'Введите пароль, который вы задали при регистрации',
-    submit: 'Подтвердить',
-    submitBusy: 'Подтверждаем…',
-    switchText: '',
-    switchLabel: 'Вернуться ко входу',
-    switchTo: AUTH_PATHS.login,
-  },
-  linkGoogle: {
-    title: 'Вход через Google',
-    subtitle: 'У вас уже есть аккаунт с этой почтой. Введите его пароль, чтобы входить и через Google',
-    submit: 'Связать и войти',
-    submitBusy: 'Связываем…',
-    switchText: '',
-    switchLabel: 'Вернуться ко входу',
-    switchTo: AUTH_PATHS.login,
-  },
-  forgotPassword: {
-    title: 'Восстановление пароля',
-    subtitle: 'Введите почту аккаунта — пришлём ссылку для нового пароля',
-    submit: 'Отправить ссылку',
-    submitBusy: 'Отправляем…',
-    switchText: 'Вспомнили пароль?',
-    switchLabel: 'Войти',
-    switchTo: AUTH_PATHS.login,
-  },
-  resetPassword: {
-    title: 'Новый пароль',
-    subtitle: 'Придумайте новый пароль. Слишком простые пароли не подойдут',
-    submit: 'Сохранить пароль',
-    submitBusy: 'Сохраняем…',
-    switchText: '',
-    switchLabel: 'Вернуться ко входу',
-    switchTo: AUTH_PATHS.login,
-  },
-  googleCallback: {
-    title: 'Входим через Google',
-    subtitle: 'Секунду…',
-    submit: '',
-    submitBusy: '',
-    switchText: '',
-    switchLabel: '',
-    switchTo: AUTH_PATHS.login,
-  },
-} as const
-
-const SENT_COPY = {
-  title: 'Проверьте почту',
-  subtitle: 'Мы отправили письмо со ссылкой. Откройте его и подтвердите почту.',
-}
+// Куда ведёт ссылка под формой: из входа — в регистрацию, из остальных режимов — ко входу
+const SWITCH_PATHS: Partial<Record<AuthCardMode, string>> = { login: AUTH_PATHS.register }
+// Режимы, у которых над ссылкой есть подпись («Нет аккаунта?»); остальным ссылка называется «Вернуться ко входу»
+const MODES_WITH_SWITCH_TEXT: AuthCardMode[] = ['login', 'register', 'forgotPassword']
 // Итоговые экраны режимов, где он свой. Для запроса сброса — одинаковый текст для любой почты: по экрану
 // не понять, есть ли аккаунт
-const SENT_COPY_BY_MODE: Partial<Record<AuthCardMode, { title: string; subtitle: string }>> = {
-  forgotPassword: {
-    title: 'Проверьте почту',
-    subtitle: 'Если аккаунт с этой почтой есть, мы отправили письмо со ссылкой для нового пароля.',
-  },
-  resetPassword: {
-    title: 'Пароль изменён',
-    subtitle: 'Войдите с новым паролем. На других устройствах нужно будет войти заново.',
-  },
+const SENT_KEYS_BY_MODE: Partial<Record<AuthCardMode, string>> = {
+  forgotPassword: 'auth.card.sentForgotPassword',
+  resetPassword: 'auth.card.sentResetPassword',
 }
+const SENT_KEYS_DEFAULT = 'auth.card.sent'
 
 // Порядок фокуса совпадает с порядком полей на экране
 const FIELD_FOCUS_ORDER: AuthCardFieldName[] = ['displayName', 'email', 'password']
@@ -208,14 +138,39 @@ const emailField = useTemplateRef<InstanceType<typeof AuthField>>('emailField')
 const passwordField = useTemplateRef<InstanceType<typeof AuthField>>('passwordField')
 const fieldRefs = { displayName: nameField, email: emailField, password: passwordField }
 
-const copy = computed(() => COPY[props.mode])
+const { t, te } = useI18n()
+const currentLocale = useCurrentLocale()
+const localePath = useLocalePath()
+
+// Подписи, которых у режима нет (у экрана ожидания Google нет кнопки), — пустые
+function optionalText(key: string): string {
+  return te(key) ? t(key) : ''
+}
+
+const copy = computed(() => {
+  const base = `auth.card.${props.mode}`
+  const hasSwitchText = MODES_WITH_SWITCH_TEXT.includes(props.mode)
+  return {
+    title: t(`${base}.title`),
+    subtitle: t(`${base}.subtitle`),
+    submit: optionalText(`${base}.submit`),
+    submitBusy: optionalText(`${base}.submitBusy`),
+    switchText: hasSwitchText ? t(`${base}.switchText`) : '',
+    switchLabel: hasSwitchText ? t(`${base}.switchLabel`) : t('auth.card.backToLogin'),
+    switchTo: localePath(SWITCH_PATHS[props.mode] ?? AUTH_PATHS.login),
+  }
+})
 // Почта — во входе, регистрации и запросе сброса; в остальных режимах её даёт ссылка. Google — только во входе
 // и регистрации
 const hasEmail = computed(() => props.mode === 'login' || props.mode === 'register' || props.mode === 'forgotPassword')
 const hasPassword = computed(() => props.mode !== 'forgotPassword')
 const hasGoogle = computed(() => props.mode === 'login' || props.mode === 'register')
 const isNewPassword = computed(() => props.mode === 'register' || props.mode === 'resetPassword')
-const heading = computed(() => (props.isSent ? (SENT_COPY_BY_MODE[props.mode] ?? SENT_COPY) : copy.value))
+const heading = computed(() => {
+  if (!props.isSent) return copy.value
+  const base = SENT_KEYS_BY_MODE[props.mode] ?? SENT_KEYS_DEFAULT
+  return { title: t(`${base}.title`), subtitle: t(`${base}.subtitle`) }
+})
 
 function fieldId(name: string) {
   return `${uid}-${name}`

@@ -3,32 +3,36 @@
     <!-- Затемнение и шторка идут в разметке раньше полосы шапки, чтобы рисоваться под ней -->
     <div class="app-header__dim" aria-hidden="true" @click="closeMenu" />
 
-    <nav id="app-header-menu" ref="menu" class="app-header__menu" aria-label="Меню" :inert="!isMenuOpen">
+    <nav id="app-header-menu" ref="menu" class="app-header__menu" :aria-label="t('header.menu')" :inert="!isMenuOpen">
       <div ref="groups" class="app-header__groups">
-        <ul v-for="(group, index) in MENU_GROUPS" :key="index" class="app-header__list">
+        <ul v-for="(group, index) in menuGroups" :key="index" class="app-header__list">
           <li v-for="item in group" :key="item.label">
             <component :is="item.to ? NuxtLink : 'a'" class="app-header__item" v-bind="linkProps(item)" @click="closeMenu">
               {{ item.label }}
             </component>
           </li>
         </ul>
+        <LanguageSwitcher class="app-header__language" />
       </div>
 
       <div class="app-header__auth">
-        <AppButton class="app-header__login" color="blue">Войти</AppButton>
-        <component
-          :is="REGISTER_LINK.to ? NuxtLink : 'a'"
-          class="app-header__register"
-          v-bind="linkProps(REGISTER_LINK)"
-          @click="closeMenu"
-        >
-          {{ REGISTER_LINK.label }}
-        </component>
+        <button v-if="auth.isAuthenticated" class="app-header__logout" type="button" @click="logout">{{ t('header.logout') }}</button>
+        <template v-else>
+          <AppButton class="app-header__login" color="blue" :to="loginLink.to">{{ loginLink.label }}</AppButton>
+          <component
+            :is="registerLink.to ? NuxtLink : 'a'"
+            class="app-header__register"
+            v-bind="linkProps(registerLink)"
+            @click="closeMenu"
+          >
+            {{ registerLink.label }}
+          </component>
+        </template>
       </div>
     </nav>
 
     <div class="app-header__bar">
-      <NuxtLink class="app-header__logo" to="/" @click="closeMenu">
+      <NuxtLink class="app-header__logo" :to="localePath('/')" @click="closeMenu">
         <AppLogo />
       </NuxtLink>
 
@@ -37,7 +41,7 @@
         class="app-header__burger"
         :class="{ 'app-header__burger--open': isMenuOpen }"
         type="button"
-        :aria-label="isMenuOpen ? 'Закрыть меню' : 'Открыть меню'"
+        :aria-label="isMenuOpen ? t('header.closeMenu') : t('header.openMenu')"
         :aria-expanded="isMenuOpen"
         aria-controls="app-header-menu"
         @click="toggleMenu"
@@ -51,31 +55,44 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue'
 import { NuxtLink } from '#components'
-import { useRoute } from '#imports'
-import { AppButton, AppLogo, SITE_LINKS } from '@/shared'
-import type { SiteLink } from '@/shared'
+import { useI18n, useLocalePath, useRoute } from '#imports'
+import { authApi, useAuthStore, useSessionSync } from '@/features/auth'
+import { LanguageSwitcher } from '@/features/language-switcher'
+import { AppButton, AppLogo, SITE_LINKS, useSiteLink } from '@/shared'
+import type { ResolvedSiteLink, SiteLink } from '@/shared'
 
 defineProps<{
   // Голубое пятно боке в правом углу — его продолжает фон первого экрана главной
   hasGlow?: boolean
 }>()
 
-const MENU_GROUPS: SiteLink[][] = [
+const SITE_GROUPS: SiteLink[][] = [
   [SITE_LINKS.home, SITE_LINKS.library, SITE_LINKS.pricing],
-  [SITE_LINKS.faq, SITE_LINKS.help, SITE_LINKS.language],
+  [SITE_LINKS.faq, SITE_LINKS.help],
 ]
+const TEACHER_GROUP: SiteLink[] = [SITE_LINKS.createActivity, SITE_LINKS.myActivities, SITE_LINKS.subscription]
 
-const REGISTER_LINK: SiteLink = SITE_LINKS.register
-
-const FOCUSABLE = 'a[href], button:not([disabled])'
+// summary — кнопка переключателя языка (<details>)
+const FOCUSABLE = 'a[href], button:not([disabled]), summary'
 
 const isMenuOpen = ref(false)
 const menu = useTemplateRef<HTMLElement>('menu')
 const groups = useTemplateRef<HTMLElement>('groups')
 const burger = useTemplateRef<HTMLButtonElement>('burger')
 const route = useRoute()
+const auth = useAuthStore()
+
+const { t } = useI18n()
+const localePath = useLocalePath()
+const resolveLink = useSiteLink()
+
+const menuGroups = computed(() =>
+  (auth.isAuthenticated ? [TEACHER_GROUP, ...SITE_GROUPS] : SITE_GROUPS).map((group) => group.map(resolveLink)),
+)
+const loginLink = computed(() => resolveLink(SITE_LINKS.login))
+const registerLink = computed(() => resolveLink(SITE_LINKS.register))
 
 function toggleMenu() {
   isMenuOpen.value = !isMenuOpen.value
@@ -85,7 +102,18 @@ function closeMenu() {
   isMenuOpen.value = false
 }
 
-function linkProps({ to, href }: SiteLink) {
+async function logout() {
+  try {
+    await authApi.logout()
+  } catch {
+    // Сервер не подтвердил выход: сессия остаётся видимой, чтобы учитель не ушёл с общего компьютера, считая, что вышел
+    return
+  }
+  useSessionSync().publishLogout()
+  closeMenu()
+}
+
+function linkProps({ to, href }: ResolvedSiteLink) {
   return to ? { to, exactActiveClass: 'app-header__item--active' } : { href }
 }
 
@@ -93,12 +121,21 @@ function lockPageScroll(isLocked: boolean) {
   document.documentElement.style.overflow = isLocked ? 'hidden' : ''
 }
 
+// Содержимое закрытого <details> скрыто через content-visibility: у ссылок есть размеры, но фокус они не принимают.
+// checkVisibility это учитывает; без него (Safari до 17.4) — отдельная проверка закрытого <details>
+function isRendered(element: HTMLElement): boolean {
+  if (typeof element.checkVisibility === 'function') return element.checkVisibility()
+  const details = element.closest('details')
+  return details === null || details.open || element.tagName === 'SUMMARY'
+}
+
 // Пока шторка открыта, Tab ходит по кругу: бургер-крестик и элементы шторки.
 // Переводим фокус сами: в разметке бургер стоит после шторки, и браузер увёл бы фокус на страницу
 function trapFocus(event: KeyboardEvent) {
   if (!menu.value || !burger.value) return
   event.preventDefault()
-  const focusable = [burger.value, ...menu.value.querySelectorAll<HTMLElement>(FOCUSABLE)]
+  // Только отрисованные: ссылки языков внутри закрытого <details> не получают фокус, и Tab застрял бы на них
+  const focusable = [burger.value, ...menu.value.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(isRendered)
   const current = focusable.indexOf(document.activeElement as HTMLElement)
   const step = event.shiftKey ? -1 : 1
   const next = (current + step + focusable.length) % focusable.length
@@ -145,6 +182,7 @@ onBeforeUnmount(() => {
 <style scoped lang="scss">
 @use 'sass:math';
 @use '@/assets/styles/mixins' as *;
+@use '@/assets/styles/breakpoints.module' as *;
 
 $line-height: 4px;
 $line-gap: 6px;
@@ -161,12 +199,17 @@ $line-width-orange: 24px;
 $menu-duration: 0.45s;
 $menu-easing: cubic-bezier(0.4, 0, 0.2, 1);
 $menu-divider: 1px solid rgb(var(--rgb-blue) / 0.13);
-$bar-height: 68px;
 
 .app-header {
+  --bar-height: 56px;
+
   position: sticky;
   top: 0;
   z-index: var(--z-header);
+
+  @include tablet {
+    --bar-height: 68px;
+  }
 }
 
 .app-header__bar {
@@ -175,15 +218,9 @@ $bar-height: 68px;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  min-height: $bar-height;
-  padding: 12px var(--gutter);
+  min-height: var(--bar-height);
+  padding: 6px var(--gutter);
   background: var(--color-white);
-}
-
-.app-header--glow .app-header__bar {
-  background:
-    header-glow(),
-    var(--color-white);
 }
 
 .app-header__dim {
@@ -205,7 +242,7 @@ $bar-height: 68px;
 
 .app-header__menu {
   position: fixed;
-  top: $bar-height;
+  top: var(--bar-height);
   right: 0;
   bottom: 0;
   display: flex;
@@ -260,6 +297,20 @@ $bar-height: 68px;
     margin-inline: -16px;
     padding: 12px 16px 0;
     border-top: $menu-divider;
+  }
+}
+
+.app-header__language {
+  margin-inline: -16px;
+  padding: 12px 28px 0;
+  border-top: $menu-divider;
+  color: var(--color-text);
+
+  // Панель прокручивается: меню, открытое вверх, обрезалось её верхней границей.
+  // В шапке раскрываем список вниз, поверх следующих пунктов панели.
+  :deep(.language-switcher__menu) {
+    top: calc(100% + 6px);
+    bottom: auto;
   }
 }
 
@@ -321,7 +372,8 @@ li:nth-child(3n + 3) > .app-header__item::before {
   width: 100%;
 }
 
-.app-header__register {
+.app-header__register,
+.app-header__logout {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -339,6 +391,15 @@ li:nth-child(3n + 3) > .app-header__item::before {
   &:active {
     background: rgb(var(--rgb-blue) / 0.13);
   }
+}
+
+.app-header__logout {
+  width: 100%;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
 }
 
 .app-header__logo {

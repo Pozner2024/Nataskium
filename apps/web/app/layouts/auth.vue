@@ -1,19 +1,26 @@
 <template>
   <div class="auth-layout">
     <header class="auth-layout__header">
-      <NuxtLink class="auth-layout__logo" to="/">
+      <NuxtLink class="auth-layout__logo" :to="localePath('/')">
         <AppLogo />
       </NuxtLink>
     </header>
     <main class="auth-layout__main">
       <slot />
     </main>
+    <footer class="auth-layout__footer">
+      <LanguageSwitcher />
+    </footer>
   </div>
 </template>
 
 <script setup lang="ts">
 import { NuxtLink } from '#components'
+import { useLocalePath } from '#imports'
+import { LanguageSwitcher } from '@/features/language-switcher'
 import { AppLogo } from '@/shared'
+
+const localePath = useLocalePath()
 </script>
 
 <style scoped lang="scss">
@@ -42,6 +49,14 @@ import { AppLogo } from '@/shared'
   width: 120px;
   min-height: 44px;
   border-radius: 12px;
+}
+
+.auth-layout__footer {
+  display: flex;
+  justify-content: center;
+  text-align: center;
+  padding: 0 var(--gutter) 16px;
+  color: var(--color-text);
 }
 
 .auth-layout__main {

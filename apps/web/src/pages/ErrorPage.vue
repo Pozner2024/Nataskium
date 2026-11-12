@@ -4,13 +4,13 @@
     <p v-if="status" class="error-page__code">{{ status }}</p>
     <h1 class="error-page__title">{{ text.title }}</h1>
     <p class="error-page__description">{{ text.description }}</p>
-    <AppButton color="blue" to="/">На главную</AppButton>
+    <AppButton color="blue" :to="localePath('/')">{{ t('errorPage.home') }}</AppButton>
   </main>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useSeoMeta } from '#imports'
+import { useI18n, useLocalePath, useSeoMeta } from '#imports'
 import { AppButton, NatGear } from '@/shared'
 
 const props = defineProps<{
@@ -19,17 +19,14 @@ const props = defineProps<{
 
 const NOT_FOUND_CODE = 404
 
-// Текст ошибки с сервера не показываем: в нём могут быть внутренние детали
-const NOT_FOUND_TEXT = {
-  title: 'Такой страницы нет',
-  description: 'Возможно, ссылка устарела или в ней опечатка.',
-}
-const SERVER_ERROR_TEXT = {
-  title: 'Что-то пошло не так',
-  description: 'Нат уже чинит. Попробуйте зайти чуть позже.',
-}
+const { t } = useI18n()
+const localePath = useLocalePath()
 
-const text = computed(() => (props.status === NOT_FOUND_CODE ? NOT_FOUND_TEXT : SERVER_ERROR_TEXT))
+// Текст ошибки с сервера не показываем: в нём могут быть внутренние детали
+const text = computed(() => {
+  const base = props.status === NOT_FOUND_CODE ? 'errorPage.notFound' : 'errorPage.serverError'
+  return { title: t(`${base}.title`), description: t(`${base}.description`) }
+})
 
 useSeoMeta({ title: () => text.value.title, robots: 'noindex, nofollow' })
 </script>
@@ -38,6 +35,8 @@ useSeoMeta({ title: () => text.value.title, robots: 'noindex, nofollow' })
 @use '@/assets/styles/mixins' as *;
 
 .error-page {
+  --nat-unit: 0.34px;
+
   display: flex;
   flex: 1;
   flex-direction: column;

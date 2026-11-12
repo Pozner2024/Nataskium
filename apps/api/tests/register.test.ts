@@ -122,7 +122,7 @@ describe('register: email уже занят', () => {
     await expect(register(input())).resolves.toBeUndefined()
     await flushBackground()
 
-    expect(email.sent).toEqual([{ kind: 'accountExists', to: EMAIL, displayName: null }])
+    expect(email.sent).toEqual([{ kind: 'accountExists', to: EMAIL, displayName: null, locale: 'ru' }])
     expect(pending.rows).toEqual([])
   })
 })
@@ -180,7 +180,7 @@ describe('register: новая регистрация', () => {
     await flushBackground()
 
     expect(email.sent).toEqual([
-      { kind: 'verification', to: EMAIL, rawToken: expect.stringMatching(BASE64URL_43) },
+      { kind: 'verification', to: EMAIL, rawToken: expect.stringMatching(BASE64URL_43), locale: 'ru' },
     ])
   })
 
@@ -192,7 +192,7 @@ describe('register: новая регистрация', () => {
     await register(input({ displayName: 'Visit evil.example now' }))
     await flushBackground()
 
-    expect(email.sent).toEqual([{ kind: 'verification', to: EMAIL, rawToken: expect.stringMatching(BASE64URL_43) }])
+    expect(email.sent).toEqual([{ kind: 'verification', to: EMAIL, rawToken: expect.stringMatching(BASE64URL_43), locale: 'ru' }])
   })
 
   it('письмо «аккаунт уже есть» получает имя существующего учителя, а не из формы', async () => {
@@ -201,7 +201,7 @@ describe('register: новая регистрация', () => {
     await register(input({ displayName: 'Самозванец' }))
     await flushBackground()
 
-    expect(email.sent).toEqual([{ kind: 'accountExists', to: EMAIL, displayName: 'Анна Ли' }])
+    expect(email.sent).toEqual([{ kind: 'accountExists', to: EMAIL, displayName: 'Анна Ли', locale: 'ru' }])
   })
 
   it('у каждой регистрации свой токен', async () => {

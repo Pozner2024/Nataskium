@@ -18,6 +18,7 @@ const REFRESH_TTL_SECONDS = 14 * 24 * 60 * 60
 const MAX_AGE_TOLERANCE_SECONDS = 5
 const LOGIN_PER_IP_EMAIL = 10
 const LOGIN_FAILURES_PER_EMAIL = 10
+const REGISTER_PER_IP = 3
 // Ниже лимита неудач по email: 429 в тестах X-Real-IP может прийти только от лимита по IP + email
 const STRICT_IP_EMAIL_LIMIT = { max: 3, windowMs: 15 * 60 * 1000 }
 const SESSION_INVALID = { error: 'Session is invalid or expired, sign in again' }
@@ -116,7 +117,7 @@ describe('POST /api/auth/register', () => {
 
     expect(response.status).toBe(202)
     expect(await response.json()).toEqual({ message: 'Check your email to finish registration' })
-    expect(client.email.sent).toEqual([{ kind: 'verification', to: EMAIL, rawToken: expect.any(String) }])
+    expect(client.email.sent).toEqual([{ kind: 'verification', to: EMAIL, rawToken: expect.any(String), locale: 'ru' }])
   })
 
   it('для занятого email ответ тот же', async () => {
@@ -136,6 +137,26 @@ describe('POST /api/auth/register', () => {
     const body = await response.json()
     expect(body.issues.map((issue: { path: string[] }) => issue.path.join('.')).sort()).toEqual(['displayName', 'email', 'password'])
     expect(JSON.stringify(body)).not.toContain('not-an-email')
+  })
+
+  it(`${REGISTER_PER_IP + 1}-й запрос с одного IP — 429 с Retry-After, письмо не уходит`, async () => {
+    const client = makeClient({ limits: { registerPerIp: { max: REGISTER_PER_IP, windowMs: 60 * 60 * 1000 } } })
+    for (let attempt = 0; attempt < REGISTER_PER_IP; attempt++) {
+      const allowed = await client.post('/register', { email: `qa-limit-${attempt}@example.test`, password: PASSWORD }, { ip: '192.0.2.50' })
+      expect(allowed.status).toBe(202)
+    }
+    await flushBackground()
+    const sentBefore = client.email.sent.length
+
+    const blocked = await client.post('/register', { email: 'qa-limit-over@example.test', password: PASSWORD }, { ip: '192.0.2.50' })
+    const otherIp = await client.post('/register', { email: 'qa-limit-other@example.test', password: PASSWORD }, { ip: '192.0.2.51' })
+    await flushBackground()
+
+    expect(blocked.status).toBe(429)
+    expect(await blocked.json()).toEqual(RATE_LIMITED)
+    expect(Number(blocked.headers.get('retry-after'))).toBeGreaterThan(0)
+    expect(otherIp.status).toBe(202)
+    expect(client.email.sent.length).toBe(sentBefore + 1)
   })
 })
 
@@ -181,6 +202,21 @@ describe('POST /api/auth/login', () => {
     expect(wrong.status).toBe(401)
     expect(await wrong.json()).toEqual({ error: 'Wrong email or password' })
     expect(wrong.headers.get('set-cookie')).toBeNull()
+  })
+
+  it('неизвестный email и неверный пароль — одинаковые статус, тело, заголовки и без cookie', async () => {
+    const client = makeClient()
+    await client.signUp()
+
+    const wrongPassword = await client.post('/login', { email: EMAIL, password: WRONG_PASSWORD }, { ip: '192.0.2.60' })
+    const unknownEmail = await client.post('/login', { email: 'qa-nobody@example.test', password: WRONG_PASSWORD }, { ip: '192.0.2.61' })
+
+    expect(unknownEmail.status).toBe(401)
+    expect(unknownEmail.status).toBe(wrongPassword.status)
+    expect(await unknownEmail.text()).toBe(await wrongPassword.text())
+    expect(unknownEmail.headers.get('set-cookie')).toBeNull()
+    expect(wrongPassword.headers.get('set-cookie')).toBeNull()
+    expect([...unknownEmail.headers].sort()).toEqual([...wrongPassword.headers].sort())
   })
 
   it(`${LOGIN_PER_IP_EMAIL + 1}-я попытка одного email с одного IP — 429 с Retry-After`, async () => {
@@ -298,6 +334,18 @@ describe('POST /api/auth/refresh', () => {
     expect(await reused.json()).toEqual(SESSION_INVALID)
     expectClearedCookie(reused)
     expect((await client.withCookie('/refresh', second)).status).toBe(401)
+  })
+
+  it('новая cookie после ротации: те же атрибуты, что при входе', async () => {
+    const client = makeClient()
+    const first = cookieOf(await client.signUp())
+
+    const rotated = await client.withCookie('/refresh', first)
+
+    const attributes = attributesOf(rotated)
+    expect(attributes[0]).toMatch(new RegExp(`^${REFRESH_COOKIE}=[A-Za-z0-9_-]{43}$`))
+    expect(attributes).toEqual(expect.arrayContaining(['Path=/api/auth', 'HttpOnly', 'Secure', 'SameSite=Strict']))
+    expect(Math.abs(maxAgeOf(rotated) - REFRESH_TTL_SECONDS)).toBeLessThanOrEqual(MAX_AGE_TOLERANCE_SECONDS)
   })
 
   it.each([

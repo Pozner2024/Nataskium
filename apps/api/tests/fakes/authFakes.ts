@@ -122,6 +122,13 @@ export function makeFakeTeachers(calls: CallLog, accounts: TeacherAccount[] = []
       accounts.push(teacher)
       return { status: 'signedIn', teacher }
     },
+    async changePassword(teacherId, passwordHash) {
+      calls.push('teachers.changePassword')
+      const account = accounts.find((each) => each.id === teacherId)
+      if (account === undefined) return false
+      account.passwordHash = passwordHash
+      return true
+    },
     // false — учителя уже нет (параллельное удаление)
     async deleteAccount(teacherId, email) {
       calls.push(`teachers.deleteAccount:${email}`)

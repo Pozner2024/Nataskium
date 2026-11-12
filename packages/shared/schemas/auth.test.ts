@@ -3,13 +3,16 @@ import type { ZodType } from 'zod'
 import * as schemas from './index'
 import {
   authTokenSchema,
+  changePasswordSchema,
   googleLinkSchema,
   displayNameSchema,
   emailSchema,
+  forgotPasswordSchema,
   loginPasswordSchema,
   loginSchema,
   passwordSchema,
   registerSchema,
+  resetPasswordSchema,
   verifyEmailSchema,
 } from './index'
 import { COMMON_PASSWORDS } from './passwordBlocklist'
@@ -627,11 +630,13 @@ describe('схемы auth: публичный API', () => {
       'apiErrorResponseSchema',
       'authSessionResponseSchema',
       'authTokenSchema',
+      'changePasswordSchema',
       'deleteAccountSchema',
       'displayNameSchema',
       'emailSchema',
       'forgotPasswordSchema',
       'googleLinkSchema',
+      'localeSchema',
       'loginPasswordSchema',
       'loginSchema',
       'meResponseSchema',
@@ -1086,5 +1091,37 @@ describe('googleLinkSchema', () => {
     const token = newAuthToken()
 
     expect(googleLinkSchema.parse({ token, password: 'x', googleId: 'evil' })).toEqual({ token, password: 'x' })
+  })
+})
+
+describe('поле locale: язык, на котором уйдёт письмо', () => {
+  const CASES = [
+    ['registerSchema', registerSchema, { email: 'qa-anna@example.test', password: 'qa-correct-horse-1957' }],
+    ['forgotPasswordSchema', forgotPasswordSchema, { email: 'qa-anna@example.test' }],
+    ['resetPasswordSchema', resetPasswordSchema, { token: 'a'.repeat(AUTH_TOKEN_LENGTH), password: 'qa-correct-horse-1957' }],
+    ['googleLinkSchema', googleLinkSchema, { token: 'a'.repeat(AUTH_TOKEN_LENGTH), password: 'qa-correct-horse' }],
+    ['changePasswordSchema', changePasswordSchema, { currentPassword: 'qa-correct-horse', newPassword: 'qa-correct-horse-1957' }],
+  ] as const
+
+  it.each(CASES)('%s: без locale — допустимо', (_name, schema, input) => {
+    expect(schema.safeParse(input).success).toBe(true)
+  })
+
+  it.each(CASES)('%s: ru и en принимаются', (_name, schema, input) => {
+    expect(schema.safeParse({ ...input, locale: 'ru' }).success).toBe(true)
+    expect(schema.safeParse({ ...input, locale: 'en' }).success).toBe(true)
+  })
+
+  it.each(CASES)('%s: de и fr принимаются', (_name, schema, input) => {
+    expect(schema.safeParse({ ...input, locale: 'de' }).success).toBe(true)
+    expect(schema.safeParse({ ...input, locale: 'fr' }).success).toBe(true)
+  })
+
+  it.each(CASES)('%s: незнакомый язык — ошибка по полю locale', (_name, schema, input) => {
+    for (const locale of ['xx', 'EN', '', 'en-US', 1, null]) {
+      const result = schema.safeParse({ ...input, locale })
+      expect(result.success, String(locale)).toBe(false)
+      expect(result.error?.issues.map((issue) => issue.path.join('.'))).toEqual(['locale'])
+    }
   })
 })

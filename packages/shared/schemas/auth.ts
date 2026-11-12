@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { SUPPORTED_LOCALES } from '../locales'
 import { isCommonPassword } from './passwordBlocklist'
 
 export const MAX_EMAIL_LENGTH = 254
@@ -130,10 +131,15 @@ export const authTokenSchema = z
   .string({ error: 'Token must be a string' })
   .regex(AUTH_TOKEN_PATTERN, { error: 'Invalid token' })
 
+// Язык интерфейса, на котором учитель сейчас видит сайт: на нём уходит письмо и по нему строится ссылка в письме.
+// Без поля — язык по умолчанию. Другой код — ошибка 400, а не тихая подмена
+export const localeSchema = z.enum(SUPPORTED_LOCALES, { error: 'Unsupported locale' })
+
 export const registerSchema = z.object({
   email: emailSchema,
   password: passwordSchema,
   displayName: displayNameSchema.optional(),
+  locale: localeSchema.optional(),
 })
 
 export const loginSchema = z.object({
@@ -149,23 +155,33 @@ export const verifyEmailSchema = z.object({
 
 export const forgotPasswordSchema = z.object({
   email: emailSchema,
+  locale: localeSchema.optional(),
 })
 
 // Новый пароль — по правилам регистрации: NFC, минимум, блок-лист
 export const resetPasswordSchema = z.object({
   token: authTokenSchema,
   password: passwordSchema,
+  locale: localeSchema.optional(),
 })
 
 // Привязка Google к учителю с паролем: пароль — как при входе (без минимума и блок-листа)
 export const googleLinkSchema = z.object({
   token: authTokenSchema,
   password: loginPasswordSchema,
+  locale: localeSchema.optional(),
 })
 
 // Удаление аккаунта: текущий пароль — как при входе (без минимума и блок-листа: пароль уже есть)
 export const deleteAccountSchema = z.object({
   password: loginPasswordSchema,
+})
+
+// Смена пароля вошедшим учителем: текущий — как при входе, новый — по правилам регистрации
+export const changePasswordSchema = z.object({
+  currentPassword: loginPasswordSchema,
+  newPassword: passwordSchema,
+  locale: localeSchema.optional(),
 })
 
 export type RegisterInput = z.infer<typeof registerSchema>
@@ -175,3 +191,4 @@ export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>
 export type GoogleLinkInput = z.infer<typeof googleLinkSchema>
 export type DeleteAccountInput = z.infer<typeof deleteAccountSchema>
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>

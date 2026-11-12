@@ -28,7 +28,7 @@ test.describe('Страница ошибки', () => {
     await expect(page.locator('.error-page__code')).toHaveText('404')
     await expect(page.locator('h1')).toHaveCount(1)
     await expect(page.locator('h1')).toHaveText('Такой страницы нет')
-    await expect(page).toHaveTitle('Такой страницы нет')
+    await expect(page).toHaveTitle('Такой страницы нет — Nataskium')
   })
 
   test('закрыта от индексации', async ({ page }) => {

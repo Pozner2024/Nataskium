@@ -1,3 +1,4 @@
+import type { Locale } from '@nataskium/shared/locales'
 import type { TeacherView } from '@nataskium/shared/schemas'
 
 // Контракты фичи auth без типов Prisma: application/ знает только их, реализации — в infrastructure/
@@ -36,6 +37,9 @@ export type TeacherRepository = {
   // refresh-токены, ссылки сброса и привязки Google. false — учителя уже нет
   // Взаимоблокировка — один повтор, затем ServiceBusyError (503)
   deleteAccount(teacherId: string, email: string): Promise<boolean>
+  // Одна транзакция: новый хэш пароля, удалить все refresh-токены учителя, его ссылки сброса и ожидающие привязки
+  // Google (они ждали старый пароль). false — учителя уже нет
+  changePassword(teacherId: string, passwordHash: string): Promise<boolean>
 }
 
 export type RefreshSession = {
@@ -195,14 +199,14 @@ export type TokenService = {
 // Отправка вне критического пути ответа; ссылки из сырого токена строит реализация (часть F), токен — только в письмо
 export type EmailSender = {
   // Без имени: его задал ещё не подтверждённый регистрирующийся — иначе это фишинговый текст с нашего домена
-  sendVerificationEmail(to: string, rawToken: string): Promise<void>
+  sendVerificationEmail(to: string, rawToken: string, locale: Locale): Promise<void>
   // Имя подтверждённого владельца аккаунта; реализация обязана экранировать его в HTML
-  sendAccountExistsEmail(to: string, displayName?: string | null): Promise<void>
-  sendPasswordResetEmail(to: string, rawToken: string, displayName?: string | null): Promise<void>
+  sendAccountExistsEmail(to: string, displayName: string | null | undefined, locale: Locale): Promise<void>
+  sendPasswordResetEmail(to: string, rawToken: string, displayName: string | null | undefined, locale: Locale): Promise<void>
   // После успешного сброса: если это был не владелец, он узнает и сбросит пароль снова. Ссылка — без токена
-  sendPasswordChangedEmail(to: string, displayName?: string | null): Promise<void>
+  sendPasswordChangedEmail(to: string, displayName: string | null | undefined, locale: Locale): Promise<void>
   // К существующему аккаунту привязан вход через Google. Ссылка — без токена
-  sendGoogleLinkedEmail(to: string, displayName?: string | null): Promise<void>
+  sendGoogleLinkedEmail(to: string, displayName: string | null | undefined, locale: Locale): Promise<void>
 }
 
 // Бюджет писем на адрес (часть E: in-memory, по нормализованному email); false — бюджет исчерпан

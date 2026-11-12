@@ -137,7 +137,7 @@ describe('requestPasswordReset', () => {
     await request(forgotPasswordSchema.parse({ email: ' QA-Anna@Example.TEST ' }))
     await flushBackground()
 
-    expect(email.sent).toEqual([{ kind: 'passwordReset', to: EMAIL, rawToken: expect.stringMatching(BASE64URL_43), displayName: 'Анна' }])
+    expect(email.sent).toEqual([{ kind: 'passwordReset', to: EMAIL, rawToken: expect.stringMatching(BASE64URL_43), displayName: 'Анна', locale: 'ru' }])
     const [sent] = email.sent
     const rawToken = sent?.kind === 'passwordReset' ? sent.rawToken : ''
     expect(resets.rows).toEqual([
@@ -321,7 +321,7 @@ describe('resetPassword: письмо «пароль изменён»', () => {
     await resetPassword(resetInput(raw))
     await flushBackground()
 
-    expect(email.sent).toEqual([{ kind: 'passwordChanged', to: EMAIL, displayName: 'Анна' }])
+    expect(email.sent).toEqual([{ kind: 'passwordChanged', to: EMAIL, displayName: 'Анна', locale: 'ru' }])
     expect(JSON.stringify(email.sent)).not.toContain(raw)
   })
 
@@ -332,7 +332,7 @@ describe('resetPassword: письмо «пароль изменён»', () => {
     await resetPassword(resetInput(seedLink()))
     await flushBackground()
 
-    expect(email.sent).toEqual([{ kind: 'passwordChanged', to: 'qa-renamed@example.test', displayName: null }])
+    expect(email.sent).toEqual([{ kind: 'passwordChanged', to: 'qa-renamed@example.test', displayName: null, locale: 'ru' }])
   })
 
   it.each([

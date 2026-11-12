@@ -1,3 +1,4 @@
+import type { Locale } from '@nataskium/shared/locales'
 import {
   type AuthSessionResponse,
   type ForgotPasswordInput,
@@ -41,5 +42,7 @@ export const authApi = {
     apiRequestWithoutBody('/auth/reset-password', { body: input }),
 }
 
-// Обычная ссылка, не fetch: полный переход на Google и обратно
-export const GOOGLE_START_URL = '/api/auth/google/start'
+// Обычная ссылка, не fetch: полный переход на Google и обратно. Язык — чтобы после возврата учитель остался на нём
+export function googleStartUrl(locale: Locale): string {
+  return `/api/auth/google/start?locale=${locale}`
+}

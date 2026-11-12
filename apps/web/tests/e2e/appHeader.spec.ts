@@ -3,7 +3,8 @@ import { expect, test, type Page } from '@playwright/test'
 // Служебная страница есть только в режиме разработки, E2E идут на dev-сервере
 const OTHER_ROUTE = '/nat'
 const ACTIVE_ITEM_CLASS = /app-header__item--active/
-const LOGIN_HEIGHT_PX = 60
+// Высота «Войти» различается по проектам: на phone 52px, на desktop 60px (решение дизайна)
+const LOGIN_HEIGHT_PX: Record<string, number> = { desktop: 60, phone: 52 }
 const LINE_TOLERANCE_PX = 1
 const TRANSPARENT = 'rgba(0, 0, 0, 0)'
 const PANEL_MAX_WIDTH_PX = 320
@@ -18,7 +19,7 @@ const MENU_TAB_ORDER = [
   'Тарифные планы',
   'Вопросы и ответы',
   'Центр помощи',
-  'Язык: Русский',
+  'Язык:🇷🇺 Русский',
   'Войти',
   'Зарегистрироваться',
   'Закрыть меню',
@@ -96,7 +97,7 @@ test.describe('AppHeader', () => {
     await expect(page.locator('.app-header__item').first()).not.toHaveClass(ACTIVE_ITEM_CLASS)
   })
 
-  test('«Войти» в панели — кнопка на всю ширину панели с высотой 60px', async ({ page }) => {
+  test('«Войти» в панели — кнопка на всю ширину панели с высотой по проекту', async ({ page }, testInfo) => {
     await page.goto('/')
     await waitForHydration(page)
     await page.locator('.app-header__burger').click()
@@ -107,7 +108,7 @@ test.describe('AppHeader', () => {
     await waitForPanel(page)
     const box = await login.boundingBox()
     const panel = await panelRect(page)
-    expect(box?.height).toBe(LOGIN_HEIGHT_PX)
+    expect(box?.height).toBe(LOGIN_HEIGHT_PX[testInfo.project.name])
     expect(box!.x).toBeCloseTo(panel.left + PANEL_PADDING_PX)
     expect(box!.x + box!.width).toBeCloseTo(panel.right - PANEL_PADDING_PX)
     expect(box!.x + box!.width).toBeLessThanOrEqual(page.viewportSize()!.width)
@@ -218,13 +219,15 @@ test.describe('AppHeader', () => {
       expect(order).toEqual(MENU_TAB_ORDER)
     })
 
-    test('строка языка отзывается на наведение', async ({ page }, testInfo) => {
+    test('ссылка другого языка отзывается на наведение', async ({ page }, testInfo) => {
       test.skip(testInfo.project.name !== 'desktop', 'нужна мышь')
       await page.goto('/')
       await waitForHydration(page)
       await page.locator('.app-header__burger').click()
       await waitForPanel(page)
-      const language = page.locator('.app-header__item', { hasText: 'Язык: Русский' })
+      const switcher = page.locator('.app-header__menu .language-switcher')
+      await switcher.locator('summary').click()
+      const language = switcher.getByRole('link', { name: 'English' })
       const background = () => language.evaluate(element => getComputedStyle(element).backgroundColor)
       const idle = await background()
 
@@ -260,7 +263,7 @@ test.describe('AppHeader', () => {
       // У правого края: на dev-сервере панель Nuxt DevTools перехватывает клики внизу по центру
       await register.click({ position: { x: box!.width - EDGE_POINT_PX, y: box!.height / 2 } })
 
-      await expect(page).toHaveURL('/register')
+      await expect(page).toHaveURL('/auth/register')
     })
   })
 

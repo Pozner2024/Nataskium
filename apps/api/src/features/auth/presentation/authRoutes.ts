@@ -1,6 +1,8 @@
 // HTTP-интерфейс auth: разбор тела shared-схемами, лимиты, refresh-токен в httpOnly cookie.
 // Маршруты монтируются на /api/auth (план 1.7): Caddy префикс не срезает, в dev — nitro.devProxy
+import { DEFAULT_LOCALE, type Locale } from '@nataskium/shared/locales'
 import {
+  type ChangePasswordInput,
   type DeleteAccountInput,
   type ForgotPasswordInput,
   type GoogleLinkInput,
@@ -8,9 +10,11 @@ import {
   type RegisterInput,
   type ResetPasswordInput,
   type VerifyEmailInput,
+  changePasswordSchema,
   deleteAccountSchema,
   forgotPasswordSchema,
   googleLinkSchema,
+  localeSchema,
   loginSchema,
   registerSchema,
   resetPasswordSchema,
@@ -24,7 +28,7 @@ import { readJsonBody } from '../../../shared/utils'
 import { z } from 'zod'
 import type { GoogleSignInInput, GoogleSignInOutcome } from '../application/googleAuth'
 import type { AuthSession, GoogleAuthorizationRequest, TeacherView } from '../types'
-import { GOOGLE_SIGN_IN_DONE_PATH, LINK_GOOGLE_PATH, SIGN_IN_PATH } from '../webPaths'
+import { GOOGLE_SIGN_IN_DONE_PATH, LINK_GOOGLE_PATH, SIGN_IN_PATH, webPageUrl } from '../webPaths'
 
 export const AUTH_ROUTES_BASE_PATH = '/api/auth'
 
@@ -64,7 +68,14 @@ const GOOGLE_LINK_COOKIE_OPTIONS = {
   prefix: REFRESH_COOKIE_PREFIX,
 } as const
 const MAX_OAUTH_PARAM_LENGTH = 2048
-const oauthCookieSchema = z.object({ state: z.string().min(1), codeVerifier: z.string().min(1), nonce: z.string().min(1) })
+// Язык сайта, с которого учитель нажал «Войти через Google»: после возврата из Google он остаётся на нём
+const oauthCookieSchema = z.object({
+  state: z.string().min(1),
+  codeVerifier: z.string().min(1),
+  nonce: z.string().min(1),
+  locale: localeSchema.optional(),
+})
+const startQuerySchema = z.object({ locale: localeSchema.optional() })
 const callbackQuerySchema = z.object({
   code: z.string().min(1).max(MAX_OAUTH_PARAM_LENGTH),
   state: z.string().min(1).max(MAX_OAUTH_PARAM_LENGTH),
@@ -106,6 +117,7 @@ export type AuthRouterDeps = {
   requestPasswordReset: (input: ForgotPasswordInput) => Promise<void>
   resetPassword: (input: ResetPasswordInput) => Promise<void>
   deleteAccount: (teacherId: string, input: DeleteAccountInput) => Promise<void>
+  changePassword: (teacherId: string, input: ChangePasswordInput) => Promise<AuthSession>
   // null — Google не настроен (вне production без GOOGLE_*): маршруты /google/* не подключаются
   google: {
     createAuthorizationRequest: () => GoogleAuthorizationRequest
@@ -130,6 +142,7 @@ export type AuthRouterDeps = {
     googleCallbackPerIp: IpLimiter
     googleLinkPerIp: IpLimiter
     deleteAccountPerIp: IpLimiter
+    changePasswordPerIp: IpLimiter
   }
 }
 
@@ -237,6 +250,16 @@ export function makeAuthRouter(deps: AuthRouterDeps) {
     return c.body(null, NO_CONTENT_STATUS)
   })
 
+  // Текущий пароль сверяется в use-case. Прежние сессии удалены: этот браузер получает новую, cookie незавершённой
+  // привязки Google стирается — привязка ждала старый пароль
+  router.post('/change-password', deps.limiters.changePasswordPerIp.middleware(byIp), deps.requireAuth, async (c) => {
+    const input = await readJsonBody(c, changePasswordSchema)
+    const session = await deps.changePassword(c.get('teacherId'), input)
+    setRefreshCookie(c, session)
+    deleteCookie(c, GOOGLE_LINK_COOKIE_NAME, GOOGLE_LINK_COOKIE_OPTIONS)
+    return c.json(sessionBody(session))
+  })
+
   // Пароль сверяется в use-case (лимит неудач по email — там же). Сессий учителя больше нет: стираем cookie
   // этого браузера, включая секрет незавершённой привязки Google
   router.post('/delete-account', deps.limiters.deleteAccountPerIp.middleware(byIp), deps.requireAuth, async (c) => {
@@ -249,16 +272,19 @@ export function makeAuthRouter(deps: AuthRouterDeps) {
 
   if (deps.google !== null) {
     const google = deps.google
-    const signInError = (c: Context, code: string) => {
-      const url = new URL(`${deps.webOrigin}${SIGN_IN_PATH}`)
+    const signInError = (c: Context, code: string, locale: Locale) => {
+      const url = new URL(webPageUrl(deps.webOrigin, locale, SIGN_IN_PATH))
       url.searchParams.set(ERROR_QUERY_PARAM, code)
       return c.redirect(url.toString())
     }
 
     router.get('/google/start', deps.limiters.googleStartPerIp.middleware(byIp), (c) => {
+      // Незнакомый язык в адресе — не ошибка: ссылка ведёт на Google, а не на страницу, где её показать
+      const query = startQuerySchema.safeParse({ locale: c.req.query('locale') })
+      const locale = query.success ? (query.data.locale ?? DEFAULT_LOCALE) : DEFAULT_LOCALE
       const request = google.createAuthorizationRequest()
       const value = Buffer.from(
-        JSON.stringify({ state: request.state, codeVerifier: request.codeVerifier, nonce: request.nonce }),
+        JSON.stringify({ state: request.state, codeVerifier: request.codeVerifier, nonce: request.nonce, locale }),
       ).toString(OAUTH_COOKIE_ENCODING)
       setCookie(c, OAUTH_COOKIE_NAME, value, { ...OAUTH_COOKIE_OPTIONS, maxAge: OAUTH_COOKIE_MAX_AGE_SECONDS })
       return c.redirect(request.url)
@@ -269,14 +295,17 @@ export function makeAuthRouter(deps: AuthRouterDeps) {
       // Одноразовая: и при успехе, и при любой ошибке
       deleteCookie(c, OAUTH_COOKIE_NAME, OAUTH_COOKIE_OPTIONS)
 
+      const cookie = oauthCookieSchema.safeParse(parseOauthCookie(rawCookie))
+      // Без cookie язык неизвестен: язык по умолчанию
+      const locale = cookie.success ? (cookie.data.locale ?? DEFAULT_LOCALE) : DEFAULT_LOCALE
+
       // Учитель нажал «Отмена» или Google вернул ошибку
-      if (c.req.query(ERROR_QUERY_PARAM) !== undefined) return signInError(c, GOOGLE_ERROR_CODES.cancelled)
+      if (c.req.query(ERROR_QUERY_PARAM) !== undefined) return signInError(c, GOOGLE_ERROR_CODES.cancelled, locale)
 
       const query = callbackQuerySchema.safeParse(c.req.query())
-      const cookie = oauthCookieSchema.safeParse(parseOauthCookie(rawCookie))
       // state из cookie этого браузера: ответ, начатый в чужом браузере (login CSRF), не примется
       if (!query.success || !cookie.success || query.data.state !== cookie.data.state) {
-        return signInError(c, GOOGLE_ERROR_CODES.state)
+        return signInError(c, GOOGLE_ERROR_CODES.state, locale)
       }
 
       try {
@@ -285,7 +314,7 @@ export function makeAuthRouter(deps: AuthRouterDeps) {
           codeVerifier: cookie.data.codeVerifier,
           nonce: cookie.data.nonce,
         })
-        if (!outcome.ok) return signInError(c, GOOGLE_ERROR_CODES[outcome.reason])
+        if (!outcome.ok) return signInError(c, GOOGLE_ERROR_CODES[outcome.reason], locale)
 
         // Учитель с этим email уже есть без Google: сначала ввод пароля. Токен — во фрагменте, как в письмах
         if (outcome.kind === 'linkRequired') {
@@ -294,21 +323,21 @@ export function makeAuthRouter(deps: AuthRouterDeps) {
             maxAge: google.linkTtlSeconds,
           })
           const token = encodeURIComponent(outcome.linkToken)
-          return c.redirect(`${deps.webOrigin}${LINK_GOOGLE_PATH}#${TOKEN_FRAGMENT_PARAM}=${token}`)
+          return c.redirect(`${webPageUrl(deps.webOrigin, locale, LINK_GOOGLE_PATH)}#${TOKEN_FRAGMENT_PARAM}=${token}`)
         }
 
         setRefreshCookie(c, outcome.session)
         // Access-токен в URL не передаём: страница получит его через /api/auth/refresh
-        return c.redirect(`${deps.webOrigin}${GOOGLE_SIGN_IN_DONE_PATH}`)
+        return c.redirect(webPageUrl(deps.webOrigin, locale, GOOGLE_SIGN_IN_DONE_PATH))
       } catch (error) {
         // Учителя удалили, пока шёл вход (sessionInvalid из issueSession): не сбой Google, а обычный отказ
         if (error instanceof AppError && error.status === UNAUTHORIZED_STATUS) {
-          return signInError(c, GOOGLE_ERROR_CODES.invalidToken)
+          return signInError(c, GOOGLE_ERROR_CODES.invalidToken, locale)
         }
         // Только тип: в ошибках Google и сети бывают параметры запроса
         const status = error instanceof ExternalServiceError ? error.status : undefined
         console.error('Google sign-in failed', { errorType: error instanceof Error ? error.name : typeof error, status })
-        return signInError(c, GOOGLE_ERROR_CODES.unavailable)
+        return signInError(c, GOOGLE_ERROR_CODES.unavailable, locale)
       }
     })
   }

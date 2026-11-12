@@ -3,7 +3,7 @@
     <FooterCity />
     <FooterNav class="app-footer__nav" />
     <div class="app-footer__bottom">
-      <NuxtLink class="app-footer__logo" to="/">
+      <NuxtLink class="app-footer__logo" :to="localePath('/')">
         <AppLogo on-dark />
       </NuxtLink>
       <!-- Название не повторяем: его даёт лого рядом -->
@@ -14,11 +14,12 @@
 
 <script setup lang="ts">
 import { useTemplateRef } from 'vue'
-import { useState } from '#imports'
+import { useLocalePath, useState } from '#imports'
 import { AppLogo, useOffscreenPause } from '@/shared'
 import FooterCity from './components/FooterCity.vue'
 import FooterNav from './components/FooterNav.vue'
 
+const localePath = useLocalePath()
 const root = useTemplateRef<HTMLElement>('root')
 const { isPaused } = useOffscreenPause(root)
 // Через useState клиент берёт год сервера: на границе года и в разных поясах они расходятся, и гидратация сломалась бы
@@ -26,6 +27,9 @@ const currentYear = useState('footer-year', () => new Date().getFullYear())
 </script>
 
 <style scoped lang="scss">
+@use '@/assets/styles/mixins' as *;
+@use '@/assets/styles/breakpoints.module' as *;
+
 .app-footer {
   --focus-color: var(--color-white);
 
@@ -39,7 +43,22 @@ const currentYear = useState('footer-year', () => new Date().getFullYear())
 }
 
 .app-footer__nav {
+  position: relative;
+  isolation: isolate;
   padding: 24px var(--gutter);
+
+  // Узор только в левом нижнем углу блока, к остальной части плавно угасает
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: url($board-white) 0 0 / #{$board-tile-size} auto repeat;
+    -webkit-mask-image: radial-gradient(ellipse 73% 100% at 0% 100%, #000 0%, transparent 100%);
+            mask-image: radial-gradient(ellipse 73% 100% at 0% 100%, #000 0%, transparent 100%);
+  }
+
 }
 
 .app-footer__bottom {
@@ -48,8 +67,12 @@ const currentYear = useState('footer-year', () => new Date().getFullYear())
   justify-content: space-between;
   gap: 16px;
   margin-inline: var(--gutter);
-  padding: 12px 0 16px;
+  padding: 6px 0 10px;
   border-top: 1px solid rgb(var(--rgb-night-text) / 0.2);
+
+  @include tablet {
+    padding: 12px 0 16px;
+  }
 }
 
 .app-footer__logo {

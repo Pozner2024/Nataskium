@@ -1,5 +1,6 @@
 export * from './api'
 export * from './config'
+export * from './i18n'
 export * from './nat'
 export * from './lib'
 export * from './ui'

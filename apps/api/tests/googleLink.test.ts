@@ -283,7 +283,7 @@ describe('googleLink: успех', () => {
     await link(input(seedLink()))
     await flushBackground()
 
-    expect(email.sent).toEqual([{ kind: 'googleLinked', to: EMAIL, displayName: 'Анна Ли' }])
+    expect(email.sent).toEqual([{ kind: 'googleLinked', to: EMAIL, displayName: 'Анна Ли', locale: 'ru' }])
   })
 
   it('сбой письма не мешает привязке; в логе нет адреса', async () => {

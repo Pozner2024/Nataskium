@@ -1,14 +1,18 @@
 import { describe, expect, it } from 'vitest'
+import { useNuxtApp } from '#imports'
 import { ApiError, NETWORK_ERROR_STATUS } from '@/shared'
-import { type AuthFormContext, authErrorMessages, emptyFieldErrors, googleErrorMessage, issuesToFormErrors } from '@/features/auth'
+import { type AuthFormContext, type Translate, authErrorMessages, emptyFieldErrors, googleErrorMessage, issuesToFormErrors } from '@/features/auth'
+
+// Тексты проверяются по-русски: язык по умолчанию
+const t: Translate = (key, params) => useNuxtApp().$i18n.t(key, params ?? {})
 
 const CONTEXTS: AuthFormContext[] = ['login', 'register', 'verifyEmail', 'googleLink', 'forgotPassword', 'resetPassword']
 const UNKNOWN = 'Что-то пошло не так. Попробуйте ещё раз'
 
 describe('authErrorMessages: один текст на «отказ» без подсказки, что именно не так', () => {
   it.each(CONTEXTS)('%s: 400 без issues и 401 — один и тот же текст формы', (context) => {
-    const badRequest = authErrorMessages(context, new ApiError(400))
-    const unauthorized = authErrorMessages(context, new ApiError(401))
+    const badRequest = authErrorMessages(t, context, new ApiError(400))
+    const unauthorized = authErrorMessages(t, context, new ApiError(401))
 
     expect(badRequest).toEqual(unauthorized)
     expect(badRequest.formError).toBeTruthy()
@@ -19,17 +23,17 @@ describe('authErrorMessages: один текст на «отказ» без по
     ['resetPassword', 'Ссылка недействительна или устарела. Запросите новую'],
     ['forgotPassword', 'Не удалось отправить ссылку. Проверьте почту и попробуйте ещё раз'],
   ] as const)('%s: 400 — «%s»', (context, text) => {
-    expect(authErrorMessages(context, new ApiError(400)).formError).toBe(text)
+    expect(authErrorMessages(t, context, new ApiError(400)).formError).toBe(text)
   })
 
   it('resetPassword: ошибка токена в issues — общая ошибка формы про ссылку', () => {
-    expect(issuesToFormErrors('resetPassword', [{ path: ['token'], message: 'Invalid token' }]).formError).toBe(
+    expect(issuesToFormErrors(t, 'resetPassword', [{ path: ['token'], message: 'Invalid token' }]).formError).toBe(
       'Ссылка недействительна или устарела. Запросите новую',
     )
   })
 
   it('вход — «Неверная почта или пароль»', () => {
-    expect(authErrorMessages('login', new ApiError(401)).formError).toBe('Неверная почта или пароль')
+    expect(authErrorMessages(t, 'login', new ApiError(401)).formError).toBe('Неверная почта или пароль')
   })
 
   it.each([
@@ -38,7 +42,7 @@ describe('authErrorMessages: один текст на «отказ» без по
     ['login', UNKNOWN],
     ['register', UNKNOWN],
   ] as const)('409 в %s — %s', (context, text) => {
-    expect(authErrorMessages(context, new ApiError(409)).formError).toBe(text)
+    expect(authErrorMessages(t, context, new ApiError(409)).formError).toBe(text)
   })
 
   it.each([
@@ -47,19 +51,19 @@ describe('authErrorMessages: один текст на «отказ» без по
     [1, 1],
     [900, 15],
   ])('429 с Retry-After %i с — «через %i мин.»', (seconds, minutes) => {
-    expect(authErrorMessages('login', new ApiError(429, [], seconds)).formError).toBe(`Слишком много попыток. Попробуйте через ${minutes} мин.`)
+    expect(authErrorMessages(t, 'login', new ApiError(429, [], seconds)).formError).toBe(`Слишком много попыток. Попробуйте через ${minutes} мин.`)
   })
 
   it('429 без Retry-After — «попробуйте позже»', () => {
-    expect(authErrorMessages('login', new ApiError(429)).formError).toBe('Слишком много попыток. Попробуйте позже')
+    expect(authErrorMessages(t, 'login', new ApiError(429)).formError).toBe('Слишком много попыток. Попробуйте позже')
   })
 
   it('503 — сервер занят', () => {
-    expect(authErrorMessages('login', new ApiError(503)).formError).toBe('Сервер сейчас занят. Попробуйте через минуту')
+    expect(authErrorMessages(t, 'login', new ApiError(503)).formError).toBe('Сервер сейчас занят. Попробуйте через минуту')
   })
 
   it('сеть или неверный формат ответа (статус 0) — нет связи', () => {
-    expect(authErrorMessages('register', new ApiError(NETWORK_ERROR_STATUS)).formError).toBe('Нет связи с сервером. Проверьте интернет и попробуйте ещё раз')
+    expect(authErrorMessages(t, 'register', new ApiError(NETWORK_ERROR_STATUS)).formError).toBe('Нет связи с сервером. Проверьте интернет и попробуйте ещё раз')
   })
 
   it.each([
@@ -68,11 +72,11 @@ describe('authErrorMessages: один текст на «отказ» без по
     ['не ApiError', new Error('boom')],
     ['строка', 'boom'],
   ])('%s — общий текст', (_name, error) => {
-    expect(authErrorMessages('login', error)).toEqual({ formError: UNKNOWN, fieldErrors: {} })
+    expect(authErrorMessages(t, 'login', error)).toEqual({ formError: UNKNOWN, fieldErrors: {} })
   })
 
   it('400 с issues — ошибки у полей, а не у формы', () => {
-    const errors = authErrorMessages('register', new ApiError(400, [{ path: ['email'], message: 'Invalid email' }]))
+    const errors = authErrorMessages(t, 'register', new ApiError(400, [{ path: ['email'], message: 'Invalid email' }]))
 
     expect(errors).toEqual({ formError: undefined, fieldErrors: { email: 'Проверьте адрес почты: например, name@school.ru' } })
   })
@@ -92,7 +96,7 @@ describe('issuesToFormErrors: словарь сообщений схем', () =>
     ['displayName', 'Display name must be at most 100 characters', 'Имя — не длиннее 100 символов'],
     ['displayName', 'Display name contains invalid characters', 'В имени есть недопустимые символы'],
   ])('%s: %s', (field, message, text) => {
-    expect(issuesToFormErrors('register', [{ path: [field], message }]).fieldErrors).toEqual({ [field]: text })
+    expect(issuesToFormErrors(t, 'register', [{ path: [field], message }]).fieldErrors).toEqual({ [field]: text })
   })
 
   it.each([
@@ -100,13 +104,13 @@ describe('issuesToFormErrors: словарь сообщений схем', () =>
     ['password', 'Проверьте пароль'],
     ['displayName', 'Проверьте имя'],
   ])('неизвестное сообщение для %s — общий текст поля, английский текст не показывается', (field, text) => {
-    const errors = issuesToFormErrors('register', [{ path: [field], message: 'Something new from the server' }])
+    const errors = issuesToFormErrors(t, 'register', [{ path: [field], message: 'Something new from the server' }])
 
     expect(errors.fieldErrors).toEqual({ [field]: text })
   })
 
   it('у поля — только первая ошибка', () => {
-    const errors = issuesToFormErrors('register', [
+    const errors = issuesToFormErrors(t, 'register', [
       { path: ['password'], message: 'Password must be at least 4 characters' },
       { path: ['password'], message: 'Password is too common' },
     ])
@@ -119,7 +123,7 @@ describe('issuesToFormErrors: словарь сообщений схем', () =>
     ['пустой путь', []],
     ['неизвестное поле', ['role']],
   ])('ошибка вне полей формы (%s) — общая ошибка формы', (_name, path) => {
-    const errors = issuesToFormErrors('verifyEmail', [{ path, message: 'Invalid token' }])
+    const errors = issuesToFormErrors(t, 'verifyEmail', [{ path, message: 'Invalid token' }])
 
     expect(errors).toEqual({ formError: 'Ссылка недействительна или устарела, или пароль неверный', fieldErrors: {} })
   })
@@ -127,15 +131,15 @@ describe('issuesToFormErrors: словарь сообщений схем', () =>
 
 describe('emptyFieldErrors', () => {
   it('пустые и из пробелов почта и пароль — «Введите…»', () => {
-    expect(emptyFieldErrors({ email: '   ', password: '' })).toEqual({ email: 'Введите почту', password: 'Введите пароль' })
+    expect(emptyFieldErrors(t, { email: '   ', password: '' })).toEqual({ email: 'Введите почту', password: 'Введите пароль' })
   })
 
   it('заполненные поля и необязательное имя — без ошибок', () => {
-    expect(emptyFieldErrors({ email: 'a@b.co', password: 'x', displayName: '' })).toEqual({})
+    expect(emptyFieldErrors(t, { email: 'a@b.co', password: 'x', displayName: '' })).toEqual({})
   })
 
   it('поля, которых нет в форме, не проверяются', () => {
-    expect(emptyFieldErrors({ password: '' })).toEqual({ password: 'Введите пароль' })
+    expect(emptyFieldErrors(t, { password: '' })).toEqual({ password: 'Введите пароль' })
   })
 })
 
@@ -148,15 +152,15 @@ describe('googleErrorMessage: ?error= после входа через Google', 
     ['google_email_unverified', 'Почта в аккаунте Google не подтверждена'],
     ['google_account_conflict', 'К этой почте уже привязан другой аккаунт Google'],
   ])('%s', (code, text) => {
-    expect(googleErrorMessage(code)).toBe(text)
+    expect(googleErrorMessage(t, code)).toBe(text)
   })
 
   // Код из адреса задаёт кто угодно: показываем только свои тексты
   it.each(['<script>alert(1)</script>', 'google_unknown', '', '__proto__', 'constructor'])('незнакомый код %j — общий текст Google', (code) => {
-    expect(googleErrorMessage(code)).toBe('Не удалось войти через Google. Попробуйте ещё раз')
+    expect(googleErrorMessage(t, code)).toBe('Не удалось войти через Google. Попробуйте ещё раз')
   })
 
   it.each([undefined, null, ['google_failed'], 42])('не строка (%j) — без сообщения', (code) => {
-    expect(googleErrorMessage(code)).toBeUndefined()
+    expect(googleErrorMessage(t, code)).toBeUndefined()
   })
 })

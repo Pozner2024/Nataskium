@@ -11,11 +11,15 @@
 <script setup lang="ts">
 import { loginSchema } from '@nataskium/shared/schemas'
 import { onMounted } from 'vue'
-import { navigateTo, useRoute, useRouter, useSeoMeta } from '#imports'
+import { navigateTo, useI18n, useRoute, useRouter, useSeoMeta } from '#imports'
 import { authApi, googleErrorMessage, safeNextPath, useAuthForm, useSessionSync } from '@/features/auth'
+import { useUnroutedPath } from '@/shared'
 import { AuthCard, type AuthCardSubmitPayload } from '@/widgets/auth-card'
 
-useSeoMeta({ title: 'Вход', robots: 'noindex, nofollow' })
+const { t } = useI18n()
+const unroutedPath = useUnroutedPath()
+
+useSeoMeta({ title: () => t('auth.card.login.title'), robots: 'noindex, nofollow' })
 
 const route = useRoute()
 const router = useRouter()
@@ -24,7 +28,7 @@ const sessionSync = useSessionSync()
 
 // После неудачного входа через Google API возвращает сюда с ?error=<код>: показываем текст и убираем код из адреса
 onMounted(() => {
-  const message = googleErrorMessage(route.query.error)
+  const message = googleErrorMessage(t, route.query.error)
   if (message === undefined) return
   form.showFormError(message)
   const { error: _error, ...query } = route.query
@@ -35,7 +39,7 @@ async function onSubmit(payload: AuthCardSubmitPayload) {
   const values = { email: payload.email ?? '', password: payload.password ?? '' }
   await form.submit(loginSchema, values, values, async (input) => {
     sessionSync.publishSession(await authApi.login(input))
-    await navigateTo(safeNextPath(route.query.next))
+    await navigateTo(unroutedPath(safeNextPath(route.query.next)))
   })
 }
 </script>

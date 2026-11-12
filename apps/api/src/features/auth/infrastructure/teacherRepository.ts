@@ -46,6 +46,18 @@ export function makeTeacherRepository(prisma: PrismaClient): TeacherRepository {
       }
     },
 
+    changePassword(teacherId, passwordHash) {
+      return prisma.$transaction(async (tx) => {
+        // Токены — до строки учителя, в том же порядке, что у rotate и deleteAccount: иначе взаимоблокировка
+        await tx.refreshToken.deleteMany({ where: { teacherId } })
+        const { count } = await tx.teacher.updateMany({ where: { id: teacherId }, data: { passwordHash } })
+        if (count !== 1) return false
+        await tx.passwordReset.deleteMany({ where: { teacherId } })
+        await tx.pendingGoogleLink.deleteMany({ where: { teacherId } })
+        return true
+      })
+    },
+
     async signInWithGoogle(profile, now) {
       try {
         return await prisma.$transaction(async (tx): Promise<GoogleSignInResult> => {

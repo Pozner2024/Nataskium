@@ -1,10 +1,10 @@
 <template>
-  <section class="home-hero" aria-labelledby="home-hero-title">
+  <section class="home-hero" aria-labelledby="home-hero-title" data-pcb>
     <h1 id="home-hero-title" class="home-hero__title">
-      Учи легко,<br>
-      учись
+      {{ t('home.hero.titleLine1') }}<br>
+      {{ t('home.hero.titleLine2') }}
       <span class="home-hero__title-mark">
-        весело
+        {{ t('home.hero.titleMark') }}
         <svg class="home-hero__title-wave" viewBox="0 0 120 12" preserveAspectRatio="none" aria-hidden="true">
           <path d="M3 8 Q 10 0 17 8 T 31 8 T 45 8 T 59 8 T 73 8 T 87 8 T 101 8 T 115 8" vector-effect="non-scaling-stroke" />
         </svg>
@@ -28,7 +28,7 @@
             <path d="M17.5 15.3v4.4M15.3 17.5h4.4" stroke="#fff" stroke-width="1.8" stroke-linecap="round" />
           </svg>
         </span>
-        <p class="home-hero__text">Создайте интерактивное задание за пару минут и отправьте ссылку ученикам.</p>
+        <p class="home-hero__text">{{ t('home.hero.pointCreate') }}</p>
       </li>
       <li class="home-hero__point">
         <span class="home-hero__icon home-hero__icon--green" aria-hidden="true">
@@ -38,7 +38,7 @@
             <rect x="16" y="3" width="4.5" height="18" rx="2" />
           </svg>
         </span>
-        <p class="home-hero__text">Решайте сами, ставить ли оценку и по каким критериям оценивания.</p>
+        <p class="home-hero__text">{{ t('home.hero.pointGrading') }}</p>
       </li>
       <li class="home-hero__point">
         <span class="home-hero__icon home-hero__icon--orange" aria-hidden="true">
@@ -47,16 +47,20 @@
             <path d="M12 2.5a6.5 6.5 0 0 0-3.8 11.8c.5.4.8.9.8 1.5v1.7h6v-1.7c0-.6.3-1.1.8-1.5A6.5 6.5 0 0 0 12 2.5Z" />
           </svg>
         </span>
-        <p class="home-hero__text">Обращайтесь к Нату, вашему виртуальному помощнику: он подскажет, с чего начать, и поможет собрать интерактивное задание быстрее.</p>
+        <p class="home-hero__text">{{ t('home.hero.pointNat') }}</p>
       </li>
     </ul>
 
-    <AppButton class="home-hero__button">Создать задание бесплатно</AppButton>
+    <AppButton class="home-hero__button">{{ t('home.hero.cta') }}</AppButton>
+    
   </section>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from '#imports'
 import { AppButton, NatCards } from '@/shared'
+
+const { t } = useI18n()
 </script>
 
 <style scoped lang="scss">
@@ -66,14 +70,9 @@ import { AppButton, NatCards } from '@/shared'
   // «Искорки» у заголовка на экранах 320px выступают за край — без горизонтальной прокрутки страницы
   overflow-x: clip;
   padding: 32px var(--gutter) 48px;
-  background:
-    hero-glow(),
-    bokeh(var(--rgb-orange), 145px, -14% 170px, 0.33),
-    bokeh(var(--rgb-green), 155px, -16% 42%, 0.43),
-    bokeh(var(--rgb-orange), 145px, 114% 50%, 0.4),
-    bokeh(var(--rgb-blue), 220px, -16% bottom 230px, 0.36),
-    bokeh(var(--rgb-green), 225px, 116% bottom 235px, 0.4),
-    var(--color-white);
+  @include board-zones(radial-gradient(ellipse 75% 65% at 100% 0%, #000 0%, transparent 100%));
+
+  background: var(--color-white);
 }
 
 .home-hero__title {
@@ -181,8 +180,9 @@ import { AppButton, NatCards } from '@/shared'
 }
 
 .home-hero__nat {
-  --nat-unit: 0.46px;
+  --nat-unit: 0.34px;
 
+  position: relative;
   display: flex;
   justify-content: center;
   margin-bottom: 18px;

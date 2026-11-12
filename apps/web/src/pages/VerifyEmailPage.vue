@@ -11,14 +11,16 @@
 <script setup lang="ts">
 import { verifyEmailSchema } from '@nataskium/shared/schemas'
 import { onMounted, ref } from 'vue'
-import { navigateTo, useSeoMeta } from '#imports'
+import { navigateTo, useI18n, useLocalePath, useSeoMeta } from '#imports'
 import { authApi, takeTokenFromHash, useAuthForm, useSessionSync } from '@/features/auth'
 import { AuthCard, type AuthCardSubmitPayload } from '@/widgets/auth-card'
 
-const MISSING_TOKEN_MESSAGE = 'Ссылка неполная. Откройте письмо и перейдите по ссылке ещё раз'
 const AFTER_SIGN_IN_PATH = '/'
 
-useSeoMeta({ title: 'Подтверждение почты', robots: 'noindex, nofollow' })
+const { t } = useI18n()
+const localePath = useLocalePath()
+
+useSeoMeta({ title: () => t('auth.card.verifyEmail.title'), robots: 'noindex, nofollow' })
 
 const form = useAuthForm('verifyEmail')
 const sessionSync = useSessionSync()
@@ -27,18 +29,18 @@ const token = ref<string | null>(null)
 
 onMounted(() => {
   token.value = takeTokenFromHash()
-  if (token.value === null) form.showFormError(MISSING_TOKEN_MESSAGE)
+  if (token.value === null) form.showFormError(t('auth.page.missingToken'))
 })
 
 async function onSubmit(payload: AuthCardSubmitPayload) {
   if (token.value === null) {
-    form.showFormError(MISSING_TOKEN_MESSAGE)
+    form.showFormError(t('auth.page.missingToken'))
     return
   }
   const values = { password: payload.password ?? '' }
   await form.submit(verifyEmailSchema, values, { token: token.value, ...values }, async (input) => {
     sessionSync.publishSession(await authApi.verifyEmail(input))
-    await navigateTo(AFTER_SIGN_IN_PATH)
+    await navigateTo(localePath(AFTER_SIGN_IN_PATH))
   })
 }
 </script>

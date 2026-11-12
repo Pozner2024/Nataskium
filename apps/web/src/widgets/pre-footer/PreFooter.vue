@@ -1,15 +1,15 @@
 <template>
   <section class="pre-footer" aria-labelledby="pre-footer-title">
     <div class="pre-footer__content">
-      <p class="pre-footer__eyebrow">Начните прямо сейчас</p>
+      <p class="pre-footer__eyebrow">{{ t('preFooter.eyebrow') }}</p>
 
       <h2 id="pre-footer-title" class="pre-footer__title">
-        Готовы сделать занятие современным и <span class="pre-footer__accent">интересным?</span>
+        {{ t('preFooter.titleStart') }} <span class="pre-footer__accent">{{ t('preFooter.titleAccent') }}</span>
       </h2>
 
-      <p class="pre-footer__description">Присоединяйтесь к Nataskium и превратите проверку знаний в игру.</p>
+      <p class="pre-footer__description">{{ t('preFooter.description') }}</p>
 
-      <AppButton class="pre-footer__button" color="blue">Присоединиться бесплатно</AppButton>
+      <AppButton class="pre-footer__button" color="blue">{{ t('preFooter.cta') }}</AppButton>
     </div>
 
     <div class="pre-footer__nat">
@@ -22,8 +22,11 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from '#imports'
 import { AppButton, NatBulb, TwinklingStars } from '@/shared'
 import type { StarPoint } from '@/shared'
+
+const { t } = useI18n()
 
 const STARS_SEED = 23
 
@@ -63,9 +66,6 @@ const SMALL_STARS: StarPoint[] = [
       )
       // +1px: при дробной высоте секции между слоями иначе остаётся щель в пиксель
       bottom / 100% calc(var(--overlap) + 1px) no-repeat,
-    bokeh(var(--rgb-blue), 150px, -14% 190px, 0.36) no-repeat,
-    bokeh(var(--rgb-blue), 140px, 114% 250px, 0.36) no-repeat,
-    bokeh(var(--rgb-blue), 80px, 88% 90px, 0.3) no-repeat,
     linear-gradient(
         to bottom,
         var(--color-white) 0%,

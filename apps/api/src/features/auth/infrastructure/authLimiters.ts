@@ -42,6 +42,7 @@ export function makeAuthLimiters(limits: AuthLimits) {
     googleCallbackPerIp: limiter(limits.googleCallbackPerIp),
     googleLinkPerIp: limiter(limits.googleLinkPerIp),
     deleteAccountPerIp: limiter(limits.deleteAccountPerIp),
+    changePasswordPerIp: limiter(limits.changePasswordPerIp),
   }
 
   const all = [

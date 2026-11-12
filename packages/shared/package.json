@@ -6,7 +6,8 @@
   "exports": {
     "./grading": "./grading/index.ts",
     "./schemas": "./schemas/index.ts",
-    "./routes": "./routes/index.ts"
+    "./routes": "./routes/index.ts",
+    "./locales": "./locales/index.ts"
   },
   "scripts": {
     "test": "vitest run",

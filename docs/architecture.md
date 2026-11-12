@@ -96,7 +96,7 @@ routeRules: {
 }
 ```
 
-`**` — этот адрес и всё, что после него (`/teacher/assignments`, `/teacher/scales`, …).
+`**` — этот адрес и всё, что после него (`/teacher/activities`, `/teacher/scales`, …).
 
 ### Роутинг: `app/pages` + `src/pages`
 
@@ -383,7 +383,7 @@ packages/shared/
 
 ### Аутентификация
 
-- **Маршруты:** `/api/auth/*` (`register`, `verify-email`, `login`, `refresh`, `logout`, `logout-all`, `me`). Hono монтирует их под `/api`, Caddy префикс не срезает, в dev Nuxt проксирует `/api` на API (`nitro.devProxy`) — пути одинаковы везде
+- **Маршруты:** `/api/auth/*` (`register`, `verify-email`, `login`, `refresh`, `logout`, `logout-all`, `me`, `forgot-password`, `reset-password`, `change-password`, `delete-account`, `google/*`). Hono монтирует их под `/api`, Caddy префикс не срезает, в dev Nuxt проксирует `/api` на API (`nitro.devProxy`) — пути одинаковы везде
 - **Регистрация:** учитель создаётся **только при подтверждении email**. До этого пароль (argon2id) хранится в записи `pending_registrations`; ссылка из письма активирует её только вместе с паролем этой регистрации, поэтому чужая регистрация на твой email не даёт войти в аккаунт
 - **Access token:** JWT (HS256, `typ: at+jwt`, `iss`, `aud`) на 15 минут, хранится только в памяти браузера
 - **Refresh token:** непрозрачная случайная строка (32 байта, base64url), в БД — только HMAC-SHA256. Хранится в cookie `__Secure-refresh_token`: `HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/api/auth`. Скользящий срок 14 дней, сессия — не дольше 30 дней с входа, до 5 сессий на учителя
