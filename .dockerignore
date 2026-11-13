@@ -1,0 +1,16 @@
+**/node_modules
+.git
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.test.example
+**/.nuxt
+**/.output
+**/.data
+apps/api/src/generated
+coverage
+test-results
+playwright-report
+.claude
+.superpowers
+.playwright-mcp

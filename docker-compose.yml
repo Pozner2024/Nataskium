@@ -16,5 +16,38 @@ services:
       timeout: 5s
       retries: 10
 
+  # После изменения зависимостей: docker compose up --build -V (-V пересоздаёт том с node_modules)
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    # Prisma Client из образа перекрыт папкой с диска — генерируем заново, иначе на свежем клоне API не стартует
+    command: sh -c "npm run db:generate -w apps/api && npm run dev -w apps/api"
+    environment:
+      # В контейнере база доступна по имени сервиса; переменные окружения важнее значений из .env
+      DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}"
+    volumes:
+      - .:/app
+      # node_modules под Linux из образа: папка с Mac их не перекрывает
+      - /app/node_modules
+    ports:
+      # web живёт в сети этого контейнера, поэтому порт фронта публикуется здесь. API слушает 127.0.0.1 и наружу не виден
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    command: npm run dev -w apps/web -- --host 0.0.0.0
+    network_mode: "service:api"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      - api
+
 volumes:
   nataskium-db:

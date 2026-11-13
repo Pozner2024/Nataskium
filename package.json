@@ -9,7 +9,7 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run dev -w apps/web",
+    "dev": "docker compose up -d db && (npm run dev -w apps/api & npm run dev -w apps/web & wait)",
     "build": "npm run build -w apps/web",
     "lint": "npm run lint -w apps/web && eslint apps/api packages/shared",
     "typecheck": "npm run typecheck --workspaces",

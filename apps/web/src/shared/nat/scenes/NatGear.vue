@@ -78,6 +78,7 @@ import { shallowRef, useId } from 'vue'
 import NatRobot from '../NatRobot.vue'
 import NatAntennaBall from '../parts/NatAntennaBall.vue'
 import NatAntennaCap from '../parts/NatAntennaCap.vue'
+import { playGearSound } from '../lib/natSounds'
 import { createSpring, idleSway, kickSpring, MAX_SPRING_DT_S, RAD_TO_DEG, stepSpring } from '../lib/spring'
 import { useFrameLoop } from '../lib/useFrameLoop'
 
@@ -211,6 +212,7 @@ function onPress() {
   kickSpring(spring)
   spring.flash = 1
   requestFrame()
+  playGearSound()
 }
 </script>
 

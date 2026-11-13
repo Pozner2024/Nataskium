@@ -96,6 +96,7 @@
 import { ref, shallowRef, useId } from 'vue'
 import NatRobot from '../NatRobot.vue'
 import NatAntennaCap from '../parts/NatAntennaCap.vue'
+import { playBulbOffSound, playBulbOnSound } from '../lib/natSounds'
 import { createSpring, idleSway, kickSpring, MAX_SPRING_DT_S, RAD_TO_DEG, stepSpring, zigzag } from '../lib/spring'
 import { useFrameLoop } from '../lib/useFrameLoop'
 
@@ -231,9 +232,11 @@ function onPress() {
   isOn.value = !isOn.value
   if (isOn.value) {
     idea()
+    playBulbOnSound()
   } else {
     ideaUntil = -1
     robot.value?.calm()
+    playBulbOffSound()
   }
   requestFrame()
 }

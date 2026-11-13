@@ -124,6 +124,7 @@ import { onBeforeUnmount, ref, shallowRef, useId } from 'vue'
 import NatRobot from '../NatRobot.vue'
 import NatAntennaBall from '../parts/NatAntennaBall.vue'
 import NatAntennaCap from '../parts/NatAntennaCap.vue'
+import { playGreetingSound } from '../lib/natSounds'
 import { createSpring, idleSway, kickSpring, MAX_SPRING_DT_S, RAD_TO_DEG, stepSpring, zigzag } from '../lib/spring'
 import { useFrameLoop } from '../lib/useFrameLoop'
 
@@ -375,6 +376,7 @@ function onPress() {
   celebrate()
   greet()
   requestFrame()
+  playGreetingSound()
 }
 
 onBeforeUnmount(() => clearTimeout(greetingTimer))

@@ -9,9 +9,6 @@
         <svg class="home-hero__title-wave" viewBox="0 0 120 12" preserveAspectRatio="none" aria-hidden="true">
           <path d="M3 8 Q 10 0 17 8 T 31 8 T 45 8 T 59 8 T 73 8 T 87 8 T 101 8 T 115 8" vector-effect="non-scaling-stroke" />
         </svg>
-        <svg class="home-hero__title-sparks" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M4 10 L9 3 M11 13 L20 11 M8 19 L15 20" />
-        </svg>
       </span>
     </h1>
 
@@ -68,7 +65,6 @@ const { t } = useI18n()
 @use '@/assets/styles/mixins' as *;
 
 .home-hero {
-  // «Искорки» у заголовка на экранах 320px выступают за край — без горизонтальной прокрутки страницы
   overflow-x: clip;
   padding: 32px var(--gutter) 48px;
   @include board-zones(radial-gradient(ellipse 75% 65% at 100% 0%, #000 0%, transparent 100%));
@@ -89,29 +85,17 @@ const { t } = useI18n()
   display: inline-block;
 }
 
-.home-hero__title-wave,
-.home-hero__title-sparks {
-  position: absolute;
-  overflow: visible;
-  fill: none;
-  stroke: var(--color-orange);
-  stroke-linecap: round;
-}
-
 .home-hero__title-wave {
+  position: absolute;
   bottom: -12px;
   left: 0;
+  overflow: visible;
   width: 100%;
   height: 12px;
+  fill: none;
+  stroke: var(--color-orange);
   stroke-width: 4.5px;
-}
-
-.home-hero__title-sparks {
-  top: -10px;
-  right: -26px;
-  width: 24px;
-  height: 24px;
-  stroke-width: 3px;
+  stroke-linecap: round;
 }
 
 .home-hero__points {
