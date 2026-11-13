@@ -107,7 +107,7 @@ test.describe('авторизация на двух языках', () => {
     await expect(page.locator('.auth-card__alert-text')).toHaveText('Too many attempts. Try again in 3 min.')
   })
 
-  test('вход на английской версии ведёт на английскую главную', async ({ page }) => {
+  test('вход на английской версии ведёт в кабинет на английском', async ({ page }) => {
     await page.route('**/api/auth/login', (route) => route.fulfill({ json: SESSION }))
     await page.goto('/en/auth/login')
     await waitForHydration(page)
@@ -116,7 +116,7 @@ test.describe('авторизация на двух языках', () => {
 
     await page.locator('button[type="submit"]').click()
 
-    await expect(page).toHaveURL(/\/en$/)
+    await expect(page).toHaveURL(/\/en\/teacher$/)
   })
 
   test('вход через Google вернулся с ошибкой: текст на языке страницы входа', async ({ page }) => {

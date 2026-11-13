@@ -15,12 +15,20 @@
         </p>
       </template>
 
-      <template v-else-if="mode === 'googleCallback'">
+      <template v-else-if="isStatusScreen">
         <div class="auth-card__alert" aria-live="polite">
           <p v-if="formError" class="auth-card__alert-text">
             <span>{{ formError }}</span>
           </p>
         </div>
+
+        <AppButton v-if="mode === 'accountDeleted'" class="auth-card__action" color="blue" :to="localePath('/')">{{ t('auth.card.toHome') }}</AppButton>
+        <template v-else-if="mode === 'accountNotDeleted'">
+          <AppButton class="auth-card__action" color="blue" :to="localePath(TEACHER_PATHS.settings)">{{ t('auth.card.toSettings') }}</AppButton>
+          <p class="auth-card__switch">
+            <NuxtLink class="auth-card__link" :to="localePath('/')">{{ t('auth.card.toHome') }}</NuxtLink>
+          </p>
+        </template>
       </template>
 
       <template v-else>
@@ -102,8 +110,7 @@ import { computed, nextTick, ref, useId, useTemplateRef, watch } from 'vue'
 import { NuxtLink } from '#components'
 import { useI18n, useLocalePath } from '#imports'
 import { googleStartUrl } from '@/features/auth'
-import { AppButton, AUTH_PATHS, useCurrentLocale } from '@/shared'
-import AuthField from './components/AuthField.vue'
+import { AppButton, AUTH_PATHS, AuthField, TEACHER_PATHS, useCurrentLocale } from '@/shared'
 import type { AuthCardFieldName, AuthCardMode, AuthCardProps, AuthCardSubmitPayload } from './types'
 
 const props = withDefaults(defineProps<AuthCardProps>(), { mode: 'login', isLoading: false, isSent: false, formError: undefined, fieldErrors: () => ({}) })
@@ -123,6 +130,7 @@ const SENT_KEYS_BY_MODE: Partial<Record<AuthCardMode, string>> = {
   resetPassword: 'auth.card.sentResetPassword',
 }
 const SENT_KEYS_DEFAULT = 'auth.card.sent'
+const STATUS_MODES: AuthCardMode[] = ['googleCallback', 'accountDeleted', 'accountNotDeleted']
 
 // Порядок фокуса совпадает с порядком полей на экране
 const FIELD_FOCUS_ORDER: AuthCardFieldName[] = ['displayName', 'email', 'password']
@@ -165,6 +173,8 @@ const copy = computed(() => {
 const hasEmail = computed(() => props.mode === 'login' || props.mode === 'register' || props.mode === 'forgotPassword')
 const hasPassword = computed(() => props.mode !== 'forgotPassword')
 const hasGoogle = computed(() => props.mode === 'login' || props.mode === 'register')
+// Экраны без формы: ожидание входа через Google и итог удаления аккаунта
+const isStatusScreen = computed(() => STATUS_MODES.includes(props.mode))
 const isNewPassword = computed(() => props.mode === 'register' || props.mode === 'resetPassword')
 const heading = computed(() => {
   if (!props.isSent) return copy.value
@@ -294,6 +304,10 @@ watch(() => props.isSent, async (isSent) => {
 .auth-card__form .auth-card__submit {
   width: 100%;
   margin-top: 20px;
+}
+
+.auth-card__panel .auth-card__action {
+  width: 100%;
 }
 
 .auth-card__divider {

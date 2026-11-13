@@ -1,5 +1,6 @@
 <template>
   <section class="home-hero" aria-labelledby="home-hero-title" data-pcb>
+    <PcbGlow />
     <h1 id="home-hero-title" class="home-hero__title">
       {{ t('home.hero.titleLine1') }}<br>
       {{ t('home.hero.titleLine2') }}
@@ -58,7 +59,7 @@
 
 <script setup lang="ts">
 import { useI18n } from '#imports'
-import { AppButton, NatCards } from '@/shared'
+import { AppButton, NatCards, PcbGlow } from '@/shared'
 
 const { t } = useI18n()
 </script>

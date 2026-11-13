@@ -1,5 +1,7 @@
 import type { SiteLink } from '../config'
-import { useI18n, useLocalePath, useNuxtApp } from '#imports'
+import { DEFAULT_LOCALE, SUPPORTED_LOCALES, localizedPath } from '@nataskium/shared/locales'
+import { useI18n, useLocalePath } from '#imports'
+import { useCurrentLocale } from './useCurrentLocale'
 
 export interface ResolvedSiteLink {
   label: string
@@ -8,21 +10,19 @@ export interface ResolvedSiteLink {
 }
 
 const INTERNAL_PATH_PREFIX = '/'
-const ROOT_PATH = '/'
 
 // Адрес страницы, которой ещё нет в роутере: localePath для неё вернул бы путь без префикса языка.
 // Когда страница появится, ссылку переводят с href на to — тогда префикс ставит localePath
-export function useUnroutedPath(): (path: string) => string {
-  const { locale } = useI18n()
-  const { $i18n } = useNuxtApp()
+// Путь уже с префиксом какого-либо языка, например ?next=/de/teacher со страницы входа на английском:
+// второй префикс дал бы /en/de/teacher
+function hasLocalePrefix(path: string): boolean {
+  return SUPPORTED_LOCALES.some((code) => code !== DEFAULT_LOCALE && (path === `/${code}` || path.startsWith(`/${code}/`)))
+}
 
-  return (path) => {
-    if (locale.value === $i18n.defaultLocale) return path
-    const prefix = `/${locale.value}`
-    // Путь мог уже прийти с префиксом, например из ?next=
-    if (path === prefix || path.startsWith(`${prefix}/`)) return path
-    return path === ROOT_PATH ? prefix : `${prefix}${path}`
-  }
+export function useUnroutedPath(): (path: string) => string {
+  const locale = useCurrentLocale()
+
+  return (path) => (hasLocalePrefix(path) ? path : localizedPath(locale.value, path))
 }
 
 // Подпись на текущем языке и адрес с префиксом языка. mailto: и внешние адреса остаются как есть

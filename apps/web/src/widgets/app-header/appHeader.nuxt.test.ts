@@ -22,8 +22,8 @@ const HREF_LINKS = [
 
 let wrapper: VueWrapper
 
-async function mountHeader(props: { hasGlow?: boolean } = {}) {
-  wrapper = await mountSuspended(AppHeader, { props, attachTo: document.body })
+async function mountHeader() {
+  wrapper = await mountSuspended(AppHeader, { attachTo: document.body })
   return wrapper
 }
 
@@ -128,13 +128,13 @@ describe('AppHeader', () => {
       expect(login.find('.app-button__arrow').exists()).toBe(true)
     })
 
-    it('включает пятно боке только по пропу hasGlow', async () => {
+    // Боке в шторке убрано: фон меню сплошной на всех страницах, класс пятна у шапки не ставится
+    it('шапка без класса пятна, меню рендерится с пунктами', async () => {
       await mountHeader()
-      expect(wrapper.find('.app-header').classes()).not.toContain('app-header--glow')
-      wrapper.unmount()
 
-      await mountHeader({ hasGlow: true })
-      expect(wrapper.find('.app-header').classes()).toContain('app-header--glow')
+      expect(wrapper.find('.app-header').classes()).not.toContain('app-header--glow')
+      expect(wrapper.find('.app-header__menu').exists()).toBe(true)
+      expect(wrapper.findAll('.app-header__menu .app-header__item').length).toBeGreaterThan(0)
     })
   })
 
@@ -316,16 +316,16 @@ describe('AppHeader', () => {
       expect(wrapper.find('.app-header__list').findAll('a').map(item => item.text())).toEqual([
         'Create activity',
         'My activities',
-        'Manage subscription',
+        'Settings',
       ])
     })
   })
 
   describe('учитель вошёл', () => {
     const TEACHER_ROWS = [
-      ['Создать задание', '/teacher/activities/new'],
-      ['Мои задания', '/teacher/activities'],
-      ['Управление подпиской', '/teacher/subscription'],
+      ['Создать задание', '/teacher/create'],
+      ['Мои задания', '/teacher'],
+      ['Настройки', '/teacher/settings'],
     ]
 
     function signIn() {

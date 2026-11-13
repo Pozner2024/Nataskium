@@ -6,7 +6,8 @@ import { makeDeleteAccount } from '../src/features/auth/application/deleteAccoun
 import type { TeacherAccount, TeacherRepository } from '../src/features/auth/types'
 import { Prisma, type PrismaClient } from '../src/generated/prisma/client'
 import { AppError, RateLimitedError, ServiceBusyError } from '../src/shared/errors'
-import { type CallLog, makeFakeHasher, makeFakeLimiter, makeFakeTeachers } from './fakes/authFakes'
+import { type CallLog, flushBackground, makeFakeHasher, makeFakeLimiter, makeFakeTeachers } from './fakes/authFakes'
+import { makeRecordingEmailSender } from './fakes/recordingEmailSender'
 
 const NOW = new Date('2026-11-07T12:00:00Z')
 const EMAIL = 'qa-anna@example.test'
@@ -15,7 +16,7 @@ const TEACHER_ID = '6f1c2a4e-8d3b-4f5a-9c7e-1b2d3e4f5a6b'
 const SESSION_INVALID = { status: 401, message: 'Session is invalid or expired, sign in again' }
 // 400, а не 401: на 401 фронтенд решил бы, что сессия истекла
 const WRONG_PASSWORD = { status: 400, message: 'Wrong password' }
-const GOOGLE_ONLY = { status: 409, message: 'Accounts created with Google can be deleted through support for now' }
+const GOOGLE_ONLY = { status: 409, message: 'Accounts without a password are deleted by signing in with Google' }
 
 let calls: CallLog
 
@@ -32,8 +33,14 @@ function setup(options: { teacher?: Partial<TeacherAccount> | null; teachers?: T
     ...options.teacher,
   }
   const fake = makeFakeTeachers(calls, options.teacher === null ? [] : [account])
-  const deleteAccount = makeDeleteAccount({ teachers: options.teachers ?? fake.teachers, hasher: hasher.hasher, failureLimiter: limiter.limiter })
-  return { deleteAccount, accounts: fake.accounts, hasher, limiter }
+  const emails = makeRecordingEmailSender()
+  const deleteAccount = makeDeleteAccount({
+    teachers: options.teachers ?? fake.teachers,
+    hasher: hasher.hasher,
+    failureLimiter: limiter.limiter,
+    emailSender: emails.sender,
+  })
+  return { deleteAccount, accounts: fake.accounts, hasher, limiter, emails }
 }
 
 function input(password = PASSWORD) {
@@ -165,7 +172,12 @@ describe('deleteAccount: после удаления', () => {
       ...makeFakeTeachers(calls, accounts).teachers,
       deleteAccount: async () => false,
     }
-    const racing = makeDeleteAccount({ teachers, hasher: makeFakeHasher(calls).hasher, failureLimiter: makeFakeLimiter(calls).limiter })
+    const racing = makeDeleteAccount({
+      teachers,
+      hasher: makeFakeHasher(calls).hasher,
+      failureLimiter: makeFakeLimiter(calls).limiter,
+      emailSender: makeRecordingEmailSender().sender,
+    })
 
     expect(await rejectionOf(racing(TEACHER_ID, input()))).toMatchObject(SESSION_INVALID)
     expect(logged).toEqual([])
@@ -236,5 +248,97 @@ describe('teacherRepository.deleteAccount: прерванная транзакц
 
     expect(await rejectionOf(makeTeacherRepository(prisma).deleteAccount(TEACHER_ID, EMAIL))).toBe(failure)
     expect(state.attempts).toBe(1)
+  })
+})
+
+// Письмо «аккаунт удалён» уходит при удалении по паролю: адрес и имя — из записи до удаления, язык — из locale
+describe('deleteAccount: письмо «аккаунт удалён»', () => {
+  it('верный пароль — одно письмо на адрес и с именем удалённого учителя, язык по умолчанию — ru', async () => {
+    const { deleteAccount, emails } = setup()
+
+    await deleteAccount(TEACHER_ID, input())
+    await flushBackground()
+
+    expect(emails.sent).toEqual([{ kind: 'accountDeleted', to: EMAIL, displayName: 'Анна', locale: 'ru' }])
+  })
+
+  it('язык из поля locale', async () => {
+    const { deleteAccount, emails } = setup()
+
+    await deleteAccount(TEACHER_ID, deleteAccountSchema.parse({ password: PASSWORD, locale: 'fr' }))
+    await flushBackground()
+
+    expect(emails.sent).toEqual([expect.objectContaining({ kind: 'accountDeleted', locale: 'fr' })])
+  })
+
+  it('неверный пароль — письма нет', async () => {
+    const { deleteAccount, emails } = setup()
+
+    await expect(deleteAccount(TEACHER_ID, input('qa-wrong-password'))).rejects.toMatchObject(WRONG_PASSWORD)
+    await flushBackground()
+
+    expect(emails.sent).toEqual([])
+  })
+
+  it('учитель только с Google (409) — письма нет', async () => {
+    const { deleteAccount, emails } = setup({ teacher: { passwordHash: null, googleId: 'google-sub-anna' } })
+
+    await expect(deleteAccount(TEACHER_ID, input())).rejects.toMatchObject(GOOGLE_ONLY)
+    await flushBackground()
+
+    expect(emails.sent).toEqual([])
+  })
+
+  it('лимит попыток (429) — письма нет', async () => {
+    const { deleteAccount, emails, limiter } = setup()
+    limiter.state.blocked = true
+
+    await expect(deleteAccount(TEACHER_ID, input())).rejects.toBeInstanceOf(RateLimitedError)
+    await flushBackground()
+
+    expect(emails.sent).toEqual([])
+  })
+
+  it('параллельный запрос уже удалил учителя (deleted = false) — письма нет', async () => {
+    vi.spyOn(console, 'info').mockImplementation(() => {})
+    const { accounts } = setup()
+    const emails = makeRecordingEmailSender()
+    const teachers: TeacherRepository = { ...makeFakeTeachers(calls, accounts).teachers, deleteAccount: async () => false }
+    const racing = makeDeleteAccount({
+      teachers,
+      hasher: makeFakeHasher(calls).hasher,
+      failureLimiter: makeFakeLimiter(calls).limiter,
+      emailSender: emails.sender,
+    })
+
+    await expect(racing(TEACHER_ID, input())).rejects.toMatchObject(SESSION_INVALID)
+    await flushBackground()
+
+    expect(emails.sent).toEqual([])
+  })
+
+  it('сбой отправки не откатывает удаление: ответ успешный, учителя нет', async () => {
+    vi.spyOn(console, 'info').mockImplementation(() => {})
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { accounts, hasher, limiter } = setup()
+    const emails = makeRecordingEmailSender({ failWith: new Error('mail provider down') })
+    const failing = makeDeleteAccount({ teachers: makeFakeTeachers(calls, accounts).teachers, hasher: hasher.hasher, failureLimiter: limiter.limiter, emailSender: emails.sender })
+
+    await expect(failing(TEACHER_ID, input())).resolves.toBeUndefined()
+    await flushBackground()
+
+    expect(accounts).toEqual([])
+  })
+
+  it('в логах письма нет ни адреса, ни имени', async () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+    const { deleteAccount } = setup()
+
+    await deleteAccount(TEACHER_ID, input())
+    await flushBackground()
+
+    const logged = JSON.stringify(info.mock.calls)
+    expect(logged).not.toContain(EMAIL)
+    expect(logged).not.toContain('Анна')
   })
 })

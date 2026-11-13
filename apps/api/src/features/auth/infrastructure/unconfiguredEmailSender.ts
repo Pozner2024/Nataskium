@@ -18,5 +18,6 @@ export function makeUnconfiguredEmailSender(): EmailSender {
     sendPasswordResetEmail: fail,
     sendPasswordChangedEmail: fail,
     sendGoogleLinkedEmail: fail,
+    sendAccountDeletedEmail: fail,
   }
 }

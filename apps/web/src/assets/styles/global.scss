@@ -1,4 +1,5 @@
 @use 'mixins' as *;
+@use 'breakpoints.module' as *;
 
 :root {
   --color-blue: #4573f4;
@@ -10,7 +11,6 @@
   --color-orange: #e98d34;
   --color-orange-light: #eeb05e;
   --color-orange-dark: #c67127;
-  --color-graphite: #3b404c;
   --color-text: #1a2140;
   --color-text-muted: #5c6584;
   --color-white: #ffffff;
@@ -21,8 +21,7 @@
   --rgb-orange: 233 141 52;
   --rgb-white: 255 255 255;
 
-  --bg-start: #a6b6c3;
-  --bg-mid: #bedaed;
+  // Только для перехода к ночному небу в PreFooter
   --bg-end: #d2e5f2;
 
   --color-night: #171b3a;
@@ -39,6 +38,13 @@
   --nat-unit: min(0.6px, calc((100vw - 32px) / 710));
 
   --gutter: 20px;
+
+  --header-height: 56px;
+  --tabs-height: 56px;
+
+  @include tablet {
+    --header-height: 68px;
+  }
 
   --z-pre-footer: 1;
   --z-header: calc(var(--z-pre-footer) + 1);
@@ -60,6 +66,11 @@ body {
   min-height: 100%;
 }
 
+// Липкие шапка и вкладки кабинета не закрывают элемент, к которому прокрутил фокус; запас — ширина поля
+.has-sticky-tabs {
+  scroll-padding-top: calc(var(--header-height) + var(--tabs-height) + var(--gutter));
+}
+
 :focus-visible {
   outline: 3px solid var(--focus-color);
   outline-offset: 2px;
@@ -71,11 +82,5 @@ body {
   min-height: 100vh;
   color: var(--color-text);
   font-family: var(--font-body);
-  background-color: var(--bg-mid);
-  background-image:
-    radial-gradient(circle at 30% 35%, rgb(var(--rgb-blue) / 0.22), transparent 45%),
-    radial-gradient(circle at 70% 60%, rgb(var(--rgb-orange) / 0.14), transparent 40%),
-    radial-gradient(circle at 50% 50%, rgb(var(--rgb-green) / 0.1), transparent 60%),
-    linear-gradient(110deg, var(--bg-start), var(--bg-mid) 55%, var(--bg-end));
-  background-attachment: fixed;
+  background: var(--color-white);
 }

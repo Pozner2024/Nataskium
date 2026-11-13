@@ -164,3 +164,38 @@ describe('googleErrorMessage: ?error= после входа через Google', 
     expect(googleErrorMessage(t, code)).toBeUndefined()
   })
 })
+
+describe('authErrorMessages: смена пароля и удаление аккаунта', () => {
+  it.each([
+    ['changePassword', 'Неверный текущий пароль'],
+    ['deleteAccount', 'Неверный пароль'],
+  ] as const)('%s: 400 и 401 — «%s», без текста API', (context, text) => {
+    expect(authErrorMessages(t, context, new ApiError(400)).formError).toBe(text)
+    expect(authErrorMessages(t, context, new ApiError(401)).formError).toBe(text)
+  })
+
+  it.each(['changePassword', 'deleteAccount'] as const)('%s: 429 — время ожидания на языке интерфейса', (context) => {
+    expect(authErrorMessages(t, context, new ApiError(429, [], 60)).formError).toBe('Слишком много попыток. Попробуйте через 1 мин.')
+  })
+
+  it.each(['changePassword', 'deleteAccount'] as const)('%s: 500 — общий текст, английский ответ API не виден', (context) => {
+    const result = authErrorMessages(t, context, new ApiError(500))
+
+    expect(result.formError).toBe(UNKNOWN)
+    expect(result.formError).not.toMatch(/API request failed/)
+  })
+
+  it('changePassword: ошибка нового пароля попадает к полю newPassword', () => {
+    const result = issuesToFormErrors(t, 'changePassword', [{ path: ['newPassword'], message: 'Password must be at least 4 characters' }])
+
+    expect(Object.keys(result.fieldErrors)).toEqual(['newPassword'])
+    expect(result.fieldErrors.newPassword).not.toMatch(/Password must/)
+  })
+
+  it('deleteAccount: ошибка поля password попадает к полю password, а не к общей ошибке', () => {
+    const result = issuesToFormErrors(t, 'deleteAccount', [{ path: ['password'], message: 'Password is required' }])
+
+    expect(result.formError).toBeUndefined()
+    expect(Object.keys(result.fieldErrors)).toEqual(['password'])
+  })
+})

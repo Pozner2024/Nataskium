@@ -1,8 +1,17 @@
 import { DISPLAY_NAME_MAX_LENGTH, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from '@nataskium/shared/schemas'
 import { ApiError, type ApiIssue, NETWORK_ERROR_STATUS } from '@/shared'
 
-export type AuthFormContext = 'login' | 'register' | 'verifyEmail' | 'googleLink' | 'forgotPassword' | 'resetPassword'
-export type AuthFieldName = 'displayName' | 'email' | 'password'
+export type AuthFormContext =
+  | 'login'
+  | 'register'
+  | 'verifyEmail'
+  | 'googleLink'
+  | 'forgotPassword'
+  | 'resetPassword'
+  | 'changePassword'
+  | 'deleteAccount'
+export type AuthFieldName = 'displayName' | 'email' | 'password' | 'currentPassword' | 'newPassword'
+const FIELD_NAMES: readonly AuthFieldName[] = ['displayName', 'email', 'password', 'currentPassword', 'newPassword']
 
 export type AuthFormErrors = {
   formError?: string
@@ -28,6 +37,8 @@ const REJECTED_MESSAGE_KEYS: Record<AuthFormContext, string> = {
   googleLink: 'auth.errors.rejected.googleLink',
   forgotPassword: 'auth.errors.rejected.forgotPassword',
   resetPassword: 'auth.errors.rejected.resetPassword',
+  changePassword: 'auth.errors.rejected.changePassword',
+  deleteAccount: 'auth.errors.rejected.deleteAccount',
 }
 
 const CONFLICT_MESSAGE_KEYS: Partial<Record<AuthFormContext, string>> = {
@@ -58,15 +69,19 @@ const FIELD_FALLBACK_KEYS: Record<AuthFieldName, string> = {
   displayName: 'auth.errors.field.displayName',
   email: 'auth.errors.field.email',
   password: 'auth.errors.field.password',
+  currentPassword: 'auth.errors.field.password',
+  newPassword: 'auth.errors.field.password',
 }
 
 const EMPTY_FIELD_MESSAGE_KEYS: Partial<Record<AuthFieldName, string>> = {
   email: 'auth.errors.empty.email',
   password: 'auth.errors.empty.password',
+  currentPassword: 'auth.errors.empty.password',
+  newPassword: 'auth.errors.empty.password',
 }
 
 function isFieldName(value: string | undefined): value is AuthFieldName {
-  return value === 'displayName' || value === 'email' || value === 'password'
+  return FIELD_NAMES.some((name) => name === value)
 }
 
 function translateIssue(t: Translate, field: AuthFieldName, message: string): string {
@@ -136,4 +151,21 @@ const GOOGLE_ERROR_KEYS = new Map<string, string>(Object.entries({
 export function googleErrorMessage(t: Translate, code: unknown): string | undefined {
   if (typeof code !== 'string') return undefined
   return t(GOOGLE_ERROR_KEYS.get(code) ?? GOOGLE_FALLBACK_KEY)
+}
+
+// Коды ?error= страницы итога удаления аккаунта через Google (редирект API)
+const DELETE_GOOGLE_FALLBACK_KEY = 'auth.errors.deleteGoogle.failed'
+const DELETE_GOOGLE_ERROR_KEYS = new Map<string, string>(Object.entries({
+  delete_cancelled: 'auth.errors.deleteGoogle.cancelled',
+  delete_expired: 'auth.errors.deleteGoogle.expired',
+  delete_wrong_account: 'auth.errors.deleteGoogle.wrongAccount',
+  delete_has_password: 'auth.errors.deleteGoogle.hasPassword',
+  delete_failed: DELETE_GOOGLE_FALLBACK_KEY,
+  delete_unavailable: 'auth.errors.deleteGoogle.unavailable',
+}))
+
+// Незнакомый или пустой код — общий текст «не удалось подтвердить»: адрес мог прийти не от API
+export function deleteGoogleErrorMessage(t: Translate, code: unknown): string {
+  if (typeof code !== 'string') return t(DELETE_GOOGLE_FALLBACK_KEY)
+  return t(DELETE_GOOGLE_ERROR_KEYS.get(code) ?? DELETE_GOOGLE_FALLBACK_KEY)
 }

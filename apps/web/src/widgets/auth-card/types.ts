@@ -1,11 +1,14 @@
 // verifyEmail, linkGoogle и resetPassword — форма из одного пароля, forgotPassword — из одной почты,
-// googleCallback — экран ожидания без формы
+// googleCallback — экран ожидания без формы; accountDeleted и accountNotDeleted — итог удаления аккаунта через Google,
+// тоже без формы (причина отказа — в formError)
 export type AuthCardMode =
   | 'login'
   | 'register'
   | 'verifyEmail'
   | 'linkGoogle'
   | 'googleCallback'
+  | 'accountDeleted'
+  | 'accountNotDeleted'
   | 'forgotPassword'
   | 'resetPassword'
 

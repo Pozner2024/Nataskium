@@ -16,6 +16,7 @@ export type EmailTemplates = {
   passwordReset(args: { hello: Greeting; link: string; hours: number }): Mail
   passwordChanged(args: { hello: Greeting; link: string }): Mail
   googleLinked(args: { hello: Greeting; link: string }): Mail
+  accountDeleted(args: { hello: Greeting }): Mail
 }
 
 // Число со словом в нужной форме: правила языка (ru: 1 час, 2 часа, 5 часов; fr: 0 и 1 — единственное число) —
@@ -138,6 +139,18 @@ const en: EmailTemplates = {
       ].join('\n'),
     }
   },
+
+  accountDeleted({ hello }) {
+    return {
+      subject: `Your account was deleted — ${APP_NAME}`,
+      html: `
+          <p>${hello.html}</p>
+          <p>Your ${APP_NAME} account and all its data were deleted at your request: activities, grading scales and sign-in sessions. Links to your activities no longer work.</p>
+          <p>You can create a new account at any time.</p>
+        `,
+      text: [hello.text, '', `Your ${APP_NAME} account and all its data were deleted at your request: activities, grading scales and sign-in sessions. Links to your activities no longer work.`, `You can create a new account at any time.`].join('\n'),
+    }
+  },
 }
 
 const ru: EmailTemplates = {
@@ -243,6 +256,18 @@ const ru: EmailTemplates = {
         `К вашему аккаунту ${APP_NAME} только что добавлен вход через Google. Теперь можно входить через Google или по паролю.`,
         `Если это были не вы, сразу сбросьте пароль: откройте ${link} и выберите «Забыли пароль?».`,
       ].join('\n'),
+    }
+  },
+
+  accountDeleted({ hello }) {
+    return {
+      subject: `Аккаунт удалён — ${APP_NAME}`,
+      html: `
+          <p>${hello.html}</p>
+          <p>Ваш аккаунт ${APP_NAME} и все его данные удалены по вашему запросу: задания, шкалы оценивания и сеансы входа. Ссылки на ваши задания больше не работают.</p>
+          <p>Вы можете в любой момент создать новый аккаунт.</p>
+        `,
+      text: [hello.text, '', `Ваш аккаунт ${APP_NAME} и все его данные удалены по вашему запросу: задания, шкалы оценивания и сеансы входа. Ссылки на ваши задания больше не работают.`, `Вы можете в любой момент создать новый аккаунт.`].join('\n'),
     }
   },
 }
@@ -352,6 +377,18 @@ const de: EmailTemplates = {
       ].join('\n'),
     }
   },
+
+  accountDeleted({ hello }) {
+    return {
+      subject: `Ihr Konto wurde gelöscht — ${APP_NAME}`,
+      html: `
+          <p>${hello.html}</p>
+          <p>Ihr ${APP_NAME}-Konto und alle zugehörigen Daten wurden auf Ihren Wunsch gelöscht: Aufgaben, Bewertungsskalen und Anmeldesitzungen. Links zu Ihren Aufgaben funktionieren nicht mehr.</p>
+          <p>Sie können jederzeit ein neues Konto erstellen.</p>
+        `,
+      text: [hello.text, '', `Ihr ${APP_NAME}-Konto und alle zugehörigen Daten wurden auf Ihren Wunsch gelöscht: Aufgaben, Bewertungsskalen und Anmeldesitzungen. Links zu Ihren Aufgaben funktionieren nicht mehr.`, `Sie können jederzeit ein neues Konto erstellen.`].join('\n'),
+    }
+  },
 }
 
 // Перед « : ? ! » — неразрывный пробел \u00a0, как во французском интерфейсе
@@ -458,6 +495,18 @@ const fr: EmailTemplates = {
         `La connexion avec Google vient d'être ajoutée à votre compte ${APP_NAME}. Vous pouvez désormais vous connecter avec Google ou avec votre mot de passe.`,
         `Si ce n'était pas vous, réinitialisez immédiatement votre mot de passe\u00a0: ouvrez ${link} et choisissez «\u00a0Mot de passe oublié\u00a0?\u00a0».`,
       ].join('\n'),
+    }
+  },
+
+  accountDeleted({ hello }) {
+    return {
+      subject: `Votre compte a été supprimé — ${APP_NAME}`,
+      html: `
+          <p>${hello.html}</p>
+          <p>Votre compte ${APP_NAME} et toutes ses données ont été supprimés à votre demande\u00a0: activités, barèmes de notation et sessions de connexion. Les liens vers vos activités ne fonctionnent plus.</p>
+          <p>Vous pouvez créer un nouveau compte à tout moment.</p>
+        `,
+      text: [hello.text, '', `Votre compte ${APP_NAME} et toutes ses données ont été supprimés à votre demande\u00a0: activités, barèmes de notation et sessions de connexion. Les liens vers vos activités ne fonctionnent plus.`, `Vous pouvez créer un nouveau compte à tout moment.`].join('\n'),
     }
   },
 }

@@ -103,5 +103,12 @@ export function makeResendEmailSender(options: ResendEmailSenderOptions): EmailS
       const hello = templates.greeting(displayName, escapeHtml)
       await send({ to, ...templates.googleLinked({ hello, link }) })
     },
+
+    // Без ссылок: аккаунта больше нет
+    async sendAccountDeletedEmail(to, displayName, locale) {
+      const templates = EMAIL_TEMPLATES[locale]
+      const hello = templates.greeting(displayName, escapeHtml)
+      await send({ to, ...templates.accountDeleted({ hello }) })
+    },
   }
 }

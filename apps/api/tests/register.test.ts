@@ -268,6 +268,9 @@ describe('register: сбой почты', () => {
         sendGoogleLinkedEmail: () => {
           throw mailError()
         },
+        sendAccountDeletedEmail: () => {
+          throw mailError()
+        },
       },
       registrationEmailQuota: makeFakeQuota(calls).quota,
       now: () => NOW,

@@ -39,6 +39,9 @@ export function makePasswordResetRepository(prisma: PrismaClient): PasswordReset
         })
         if (count !== 1) return { status: 'invalid' }
 
+        // Удаление аккаунта через Google разрешено только без пароля: начатое до сброса подтверждение гасится.
+        // До записи пароля — тот же порядок строк, что у удаления (подтверждение, затем учитель)
+        await tx.pendingGoogleReauth.deleteMany({ where: { teacherId: reset.teacherId } })
         const updated = await tx.teacher.updateMany({ where: { id: reset.teacherId }, data: { passwordHash } })
         if (updated.count !== 1) return { status: 'invalid' }
 

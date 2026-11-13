@@ -1,6 +1,6 @@
 <template>
   <div class="default-layout">
-    <AppHeader :has-glow="route.meta.headerGlow === true" />
+    <AppHeader />
     <div class="default-layout__content">
       <slot />
     </div>
@@ -11,7 +11,6 @@
 
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted } from 'vue'
-import { useRoute } from '#imports'
 import { restoreSession } from '@/features/auth'
 import { initPcbGlow } from '@/shared'
 import { AppFooter } from '@/widgets/app-footer'
@@ -26,9 +25,6 @@ onMounted(() => {
 onBeforeUnmount(() => {
   stopPcbGlow?.()
 })
-
-// Страница может попросить пятно боке в правом углу шапки, если её первый экран его продолжает
-const route = useRoute()
 
 // Призыв «Начните прямо сейчас» не нужен на страницах без учебного контента, например на ошибке
 withDefaults(defineProps<{ withPreFooter?: boolean }>(), { withPreFooter: true })

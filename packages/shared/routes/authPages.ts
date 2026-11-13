@@ -12,4 +12,6 @@ export const AUTH_PAGE_PATHS = {
   forgotPassword: '/auth/forgot',
   // Сюда ведёт письмо сброса пароля; токен — во фрагменте
   resetPassword: '/auth/reset-password',
+  // Итог удаления аккаунта через Google: сюда возвращает API после повторного входа (?status=deleted или ?error=<код>)
+  accountDeleted: '/auth/account-deleted',
 } as const

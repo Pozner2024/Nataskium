@@ -667,3 +667,47 @@ describe('язык письма: немецкий и французский', ()
     expect(lastBody().text).toContain('Le lien est valable 24 heures et ne fonctionne qu\'une seule fois.')
   })
 })
+
+describe('письмо «аккаунт удалён»', () => {
+  const LOCALES = ['ru', 'en', 'de', 'fr'] as const
+  const CYRILLIC = /[А-Яа-яЁё]/
+
+  it.each(LOCALES)('%s: отправляется на адрес учителя, без ссылок и токенов', async (locale) => {
+    await sender().sendAccountDeletedEmail(TO, null, locale)
+
+    const { subject, html, text, to } = lastBody()
+    expect(to).toEqual([TO])
+    expect(subject).toContain('Nataskium')
+    for (const part of [subject, html, text]) expect(part).not.toContain('undefined')
+    expect(linksIn(html)).toEqual([])
+    expect(linksIn(text)).toEqual([])
+    expect(html).not.toMatch(/token/i)
+    expect(text).not.toMatch(/token/i)
+  })
+
+  it.each(LOCALES)('%s: имя экранируется в html и не попадает в ссылки', async (locale) => {
+    await sender().sendAccountDeletedEmail(TO, HOSTILE_NAME, locale)
+
+    const { html, text } = lastBody()
+    expect(html).not.toMatch(/<img/i)
+    expect(html).toContain('&lt;img src=x onerror=&quot;alert(&#39;x&#39;)&quot;&gt; &amp; Co')
+    expect(text).toContain(HOSTILE_NAME)
+    expect(text.replace(HOSTILE_NAME, '')).not.toMatch(HTML_TAG)
+  })
+
+  it('русское письмо — по-русски, английское — без кириллицы', async () => {
+    await sender().sendAccountDeletedEmail(TO, null, 'ru')
+    expect(lastBody().subject).toBe('Аккаунт удалён — Nataskium')
+    expect(lastBody().text).toMatch(CYRILLIC)
+
+    await sender().sendAccountDeletedEmail(TO, null, 'en')
+    expect(`${lastBody().subject}${lastBody().html}${lastBody().text}`).not.toMatch(CYRILLIC)
+  })
+
+  it('без имени — приветствие по умолчанию', async () => {
+    await sender().sendAccountDeletedEmail(TO, null, 'en')
+
+    expect(lastBody().text.startsWith('Hi,')).toBe(true)
+    expect(lastBody().html).toContain('<p>Hi,</p>')
+  })
+})

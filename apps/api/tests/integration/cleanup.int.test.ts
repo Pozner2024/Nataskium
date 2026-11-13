@@ -83,6 +83,11 @@ describe('createAuthCleanup на настоящей базе', () => {
     await passwordReset({ createdAgo: hours(0.1), expiresIn: hours(0.9) })
     await googleLink({ createdAgo: hours(1), expiresIn: -hours(0.5) })
     await googleLink({ createdAgo: hours(0.05), expiresIn: hours(0.1) })
+    // Подтверждение удаления через Google: истёкшее удаляется, действующее — нет
+    await prisma.pendingGoogleReauth.create({ data: { teacherId, stateHash: newTokenHash(), createdAt: fromNow(-hours(1)), expiresAt: fromNow(-hours(0.5)) } })
+    // Одна запись на учителя: действующая — у другого учителя
+    const other = await createTeacher(prisma, 'qa-other@example.test')
+    await prisma.pendingGoogleReauth.create({ data: { teacherId: other.id, stateHash: newTokenHash(), createdAt: fromNow(-hours(0.01)), expiresAt: fromNow(hours(0.08)) } })
 
     await createAuthCleanup(prisma)()
 
@@ -96,8 +101,10 @@ describe('createAuthCleanup на настоящей базе', () => {
       pendingRegistrations: 1,
       passwordResets: 1,
       pendingGoogleLinks: 1,
+      pendingGoogleReauths: 1,
     })
     expect(await prisma.pendingGoogleLink.count()).toBe(1)
+    expect(await prisma.pendingGoogleReauth.count()).toBe(1)
     expect((await prisma.passwordReset.findMany({ select: { expiresAt: true } })).map((row) => row.expiresAt > new Date())).toEqual([true])
   })
 

@@ -5,9 +5,13 @@ import type {
   FailureLimiter,
   FailureReservation,
   GoogleLinkResult,
+  GoogleReauthDeleteResult,
   NewPasswordReset,
   NewPendingGoogleLink,
   PendingGoogleLinkRepository,
+  NewPendingGoogleReauth,
+  PendingGoogleReauth,
+  PendingGoogleReauthRepository,
   NewPendingRegistration,
   NewRefreshToken,
   PasswordHasher,
@@ -390,4 +394,66 @@ export function makeMemoryPendingGoogleLinks(calls: CallLog, accounts: TeacherAc
     },
   }
   return { repository, rows, state }
+}
+
+type StoredReauth = NewPendingGoogleReauth & { id: string }
+
+// Подтверждения удаления через Google в памяти: одна запись на учителя. accounts — учителя из makeFakeTeachers:
+// из них берутся googleId, email и имя для письма. deleteAccount снимает запись и учителя (CAS по id и stateHash)
+export function makeMemoryPendingGoogleReauths(calls: CallLog, accounts: TeacherAccount[]) {
+  const rows: StoredReauth[] = []
+
+  function view(row: StoredReauth): PendingGoogleReauth | null {
+    const teacher = accounts.find((account) => account.id === row.teacherId)
+    if (teacher === undefined) return null
+    return {
+      id: row.id,
+      teacherId: row.teacherId,
+      expiresAt: row.expiresAt,
+      teacherGoogleId: teacher.googleId,
+      teacherEmail: teacher.email,
+      teacherDisplayName: teacher.displayName,
+    }
+  }
+
+  const repository: PendingGoogleReauthRepository = {
+    async replaceForTeacher(reauth) {
+      calls.push('googleReauths.replaceForTeacher')
+      const index = rows.findIndex((row) => row.teacherId === reauth.teacherId)
+      if (index !== -1) rows.splice(index, 1)
+      rows.push({ id: randomUUID(), ...reauth })
+      return true
+    },
+    async findByStateHash(stateHash) {
+      calls.push('googleReauths.findByStateHash')
+      const row = rows.find((candidate) => candidate.stateHash === stateHash)
+      return row === undefined ? null : view(row)
+    },
+    async deleteByStateHash(stateHash) {
+      calls.push('googleReauths.deleteByStateHash')
+      const index = rows.findIndex((row) => row.stateHash === stateHash)
+      if (index !== -1) rows.splice(index, 1)
+    },
+    // Как в репозитории: CAS по id, stateHash и сроку; пароль, появившийся после запуска, гасит подтверждение без удаления
+    async deleteAccount(reauth, stateHash, now): Promise<GoogleReauthDeleteResult> {
+      calls.push('googleReauths.deleteAccount')
+      const index = rows.findIndex((row) => row.id === reauth.id && row.stateHash === stateHash && row.expiresAt > now)
+      if (index === -1) return 'invalid'
+      rows.splice(index, 1)
+      const teacherIndex = accounts.findIndex((account) => account.id === reauth.teacherId)
+      if (teacherIndex === -1) return 'invalid'
+      if (accounts[teacherIndex]!.passwordHash !== null) return 'hasPassword'
+      accounts.splice(teacherIndex, 1)
+      return 'deleted'
+    },
+    async deleteExpired(now) {
+      calls.push('googleReauths.deleteExpired')
+      const before = rows.length
+      for (let index = rows.length - 1; index >= 0; index--) {
+        if (rows[index]!.expiresAt <= now) rows.splice(index, 1)
+      }
+      return before - rows.length
+    },
+  }
+  return { repository, rows }
 }

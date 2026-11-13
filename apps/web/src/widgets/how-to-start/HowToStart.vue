@@ -1,5 +1,6 @@
 <template>
   <section class="how-to-start" aria-labelledby="how-to-start-title" data-pcb>
+    <PcbGlow />
     <div class="how-to-start__fade" aria-hidden="true" />
     <h2 id="how-to-start-title" class="how-to-start__title">{{ t('home.howToStart.title') }}</h2>
 
@@ -23,7 +24,7 @@
 
 <script setup lang="ts">
 import { useI18n } from '#imports'
-import { NatGear } from '@/shared'
+import { NatGear, PcbGlow } from '@/shared'
 
 const { t } = useI18n()
 </script>

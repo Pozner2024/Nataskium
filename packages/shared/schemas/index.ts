@@ -8,6 +8,7 @@ export {
   authTokenSchema,
   changePasswordSchema,
   deleteAccountSchema,
+  googleReauthStartSchema,
   displayNameSchema,
   emailSchema,
   forgotPasswordSchema,
@@ -20,12 +21,13 @@ export {
   resetPasswordSchema,
   verifyEmailSchema,
 } from './auth'
-export type { ChangePasswordInput, DeleteAccountInput, ForgotPasswordInput, GoogleLinkInput, LoginInput, RegisterInput, ResetPasswordInput, VerifyEmailInput } from './auth'
+export type { ChangePasswordInput, DeleteAccountInput, ForgotPasswordInput, GoogleReauthStartInput, GoogleLinkInput, LoginInput, RegisterInput, ResetPasswordInput, VerifyEmailInput } from './auth'
 export {
   apiErrorResponseSchema,
   authSessionResponseSchema,
+  googleReauthStartResponseSchema,
   meResponseSchema,
   messageResponseSchema,
   teacherViewSchema,
 } from './authResponses'
-export type { ApiErrorResponse, AuthSessionResponse, MeResponse, MessageResponse, TeacherView } from './authResponses'
+export type { AuthSessionResponse, TeacherView } from './authResponses'

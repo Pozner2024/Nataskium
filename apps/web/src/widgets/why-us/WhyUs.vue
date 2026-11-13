@@ -1,5 +1,6 @@
 <template>
   <section class="why-us" aria-labelledby="why-us-title" data-pcb>
+    <PcbGlow />
     <h2 id="why-us-title" class="why-us__title">{{ t('home.whyUs.title') }}</h2>
 
     <div class="why-us__nat">
@@ -20,7 +21,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from '#imports'
-import { NatMusic } from '@/shared'
+import { NatMusic, PcbGlow } from '@/shared'
 
 const REASON_KEYS = ['friendly', 'quick', 'grading', 'audio', 'library'] as const
 

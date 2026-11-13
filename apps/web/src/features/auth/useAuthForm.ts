@@ -26,6 +26,10 @@ export function useAuthForm(context: AuthFormContext) {
     showErrors({ formError: message, fieldErrors: {} })
   }
 
+  function clearErrors(): void {
+    showErrors({ fieldErrors: {} })
+  }
+
   // values — что ввёл учитель (для «Введите почту» у пустых полей), payload — что уйдёт в API
   async function submit<T>(
     schema: InputSchema<T>,
@@ -59,5 +63,5 @@ export function useAuthForm(context: AuthFormContext) {
     }
   }
 
-  return { isLoading, formError, fieldErrors, submit, showFormError }
+  return { isLoading, formError, fieldErrors, submit, showFormError, clearErrors }
 }

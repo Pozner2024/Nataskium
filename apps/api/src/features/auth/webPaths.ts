@@ -8,6 +8,7 @@ export const SIGN_IN_PATH = AUTH_PAGE_PATHS.login
 export const RESET_PASSWORD_PATH = AUTH_PAGE_PATHS.resetPassword
 export const GOOGLE_SIGN_IN_DONE_PATH = AUTH_PAGE_PATHS.googleCallback
 export const LINK_GOOGLE_PATH = AUTH_PAGE_PATHS.linkGoogle
+export const ACCOUNT_DELETED_PATH = AUTH_PAGE_PATHS.accountDeleted
 
 // Адрес страницы на языке получателя: /auth/login для языка по умолчанию, /en/auth/login для остальных
 export function webPageUrl(webOrigin: string, locale: Locale, path: string): string {

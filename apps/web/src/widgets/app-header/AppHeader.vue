@@ -1,5 +1,5 @@
 <template>
-  <header class="app-header" :class="{ 'app-header--menu-open': isMenuOpen, 'app-header--glow': hasGlow }">
+  <header class="app-header" :class="{ 'app-header--menu-open': isMenuOpen }">
     <!-- Затемнение и шторка идут в разметке раньше полосы шапки, чтобы рисоваться под ней -->
     <div class="app-header__dim" aria-hidden="true" @click="closeMenu" />
 
@@ -58,21 +58,16 @@
 import { computed, nextTick, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue'
 import { NuxtLink } from '#components'
 import { useI18n, useLocalePath, useRoute } from '#imports'
-import { authApi, useAuthStore, useSessionSync } from '@/features/auth'
+import { logout as signOut, useAuthStore } from '@/features/auth'
 import { LanguageSwitcher } from '@/features/language-switcher'
 import { AppButton, AppLogo, SITE_LINKS, useSiteLink } from '@/shared'
 import type { ResolvedSiteLink, SiteLink } from '@/shared'
-
-defineProps<{
-  // Голубое пятно боке в правом углу — его продолжает фон первого экрана главной
-  hasGlow?: boolean
-}>()
 
 const SITE_GROUPS: SiteLink[][] = [
   [SITE_LINKS.home, SITE_LINKS.library, SITE_LINKS.pricing],
   [SITE_LINKS.faq, SITE_LINKS.help],
 ]
-const TEACHER_GROUP: SiteLink[] = [SITE_LINKS.createActivity, SITE_LINKS.myActivities, SITE_LINKS.subscription]
+const TEACHER_GROUP: SiteLink[] = [SITE_LINKS.createActivity, SITE_LINKS.myActivities, SITE_LINKS.settings]
 
 // summary — кнопка переключателя языка (<details>)
 const FOCUSABLE = 'a[href], button:not([disabled]), summary'
@@ -103,13 +98,8 @@ function closeMenu() {
 }
 
 async function logout() {
-  try {
-    await authApi.logout()
-  } catch {
-    // Сервер не подтвердил выход: сессия остаётся видимой, чтобы учитель не ушёл с общего компьютера, считая, что вышел
-    return
-  }
-  useSessionSync().publishLogout()
+  // Сервер не подтвердил выход — меню остаётся открытым с кнопкой «Выйти»
+  if (!(await signOut())) return
   closeMenu()
 }
 
@@ -181,7 +171,6 @@ onBeforeUnmount(() => {
 
 <style scoped lang="scss">
 @use 'sass:math';
-@use '@/assets/styles/mixins' as *;
 @use '@/assets/styles/breakpoints.module' as *;
 
 $line-height: 4px;
@@ -201,15 +190,11 @@ $menu-easing: cubic-bezier(0.4, 0, 0.2, 1);
 $menu-divider: 1px solid rgb(var(--rgb-blue) / 0.13);
 
 .app-header {
-  --bar-height: 56px;
+  --bar-height: var(--header-height);
 
   position: sticky;
   top: 0;
   z-index: var(--z-header);
-
-  @include tablet {
-    --bar-height: 68px;
-  }
 }
 
 .app-header__bar {
@@ -264,12 +249,6 @@ $menu-divider: 1px solid rgb(var(--rgb-blue) / 0.13);
   transform: translateX(0);
   visibility: visible;
   transition: transform $menu-duration $menu-easing;
-}
-
-.app-header--glow .app-header__menu {
-  background:
-    menu-glow(),
-    var(--color-white);
 }
 
 // Прокручиваются только разделы: «Войти» на низком экране всегда на виду

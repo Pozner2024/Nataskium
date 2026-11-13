@@ -2,6 +2,7 @@ import type {
   Clock,
   PasswordResetRepository,
   PendingGoogleLinkRepository,
+  PendingGoogleReauthRepository,
   PendingRegistrationRepository,
   RefreshTokenRepository,
 } from '../types'
@@ -11,10 +12,12 @@ export type CleanupDeps = {
   pendingRegistrations: PendingRegistrationRepository
   passwordResets: PasswordResetRepository
   pendingGoogleLinks: PendingGoogleLinkRepository
+  pendingGoogleReauths: PendingGoogleReauthRepository
   now: Clock
 }
 
-// Удаляет истёкшие refresh-токены, регистрации, ссылки сброса пароля и привязки Google (минимизация данных). Отозванные токены — только по сроку:
+// Удаляет истёкшие refresh-токены, регистрации, ссылки сброса пароля, привязки Google и подтверждения удаления
+// через Google (минимизация данных). Отозванные токены — только по сроку:
 // до него по ним срабатывает обнаружение повторного использования. Сбой не роняет процесс — следующий запуск повторит
 export function makeCleanupExpiredAuthRecords(deps: CleanupDeps) {
   return async function cleanupExpiredAuthRecords(): Promise<void> {
@@ -25,6 +28,7 @@ export function makeCleanupExpiredAuthRecords(deps: CleanupDeps) {
         pendingRegistrations: await deps.pendingRegistrations.deleteExpired(now),
         passwordResets: await deps.passwordResets.deleteExpired(now),
         pendingGoogleLinks: await deps.pendingGoogleLinks.deleteExpired(now),
+        pendingGoogleReauths: await deps.pendingGoogleReauths.deleteExpired(now),
       }
       if (Object.values(counts).some((count) => count > 0)) {
         console.log('[cleanup] expired auth records removed', counts)

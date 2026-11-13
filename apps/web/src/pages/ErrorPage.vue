@@ -1,5 +1,6 @@
 <template>
-  <main class="error-page">
+  <main class="error-page" data-pcb>
+    <PcbGlow />
     <NatGear compact />
     <p v-if="status" class="error-page__code">{{ status }}</p>
     <h1 class="error-page__title">{{ text.title }}</h1>
@@ -11,7 +12,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n, useLocalePath, useSeoMeta } from '#imports'
-import { AppButton, NatGear } from '@/shared'
+import { AppButton, NatGear, PcbGlow } from '@/shared'
 
 const props = defineProps<{
   status?: number
@@ -43,6 +44,8 @@ useSeoMeta({ title: () => text.value.title, robots: 'noindex, nofollow' })
   align-items: center;
   padding: 32px var(--gutter) 48px;
   text-align: center;
+  @include board-zones(radial-gradient(ellipse 75% 50% at 100% 0%, #000 0%, transparent 100%));
+
   background: var(--color-white);
 }
 

@@ -12,7 +12,7 @@ const SESSION = {
   },
 }
 const EDGE_POINT_PX = 10
-const TEACHER_ITEMS =['Создать задание', 'Мои задания', 'Управление подпиской']
+const TEACHER_ITEMS = ['Создать задание', 'Мои задания', 'Настройки']
 
 async function waitForHydration(page: Page) {
   await page.waitForFunction(() => window.useNuxtApp?.().isHydrating === false)

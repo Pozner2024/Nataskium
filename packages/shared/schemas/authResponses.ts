@@ -27,6 +27,11 @@ export const messageResponseSchema = z.object({
   message: z.string(),
 })
 
+// Адрес входа в Google для подтверждения удаления аккаунта
+export const googleReauthStartResponseSchema = z.object({
+  url: z.url(),
+})
+
 // Тело любой ошибки API (errorHandler): issues — только у 400 валидации, без введённых значений
 export const apiErrorResponseSchema = z.object({
   error: z.string(),
@@ -35,6 +40,3 @@ export const apiErrorResponseSchema = z.object({
 
 export type TeacherView = z.infer<typeof teacherViewSchema>
 export type AuthSessionResponse = z.infer<typeof authSessionResponseSchema>
-export type MeResponse = z.infer<typeof meResponseSchema>
-export type MessageResponse = z.infer<typeof messageResponseSchema>
-export type ApiErrorResponse = z.infer<typeof apiErrorResponseSchema>

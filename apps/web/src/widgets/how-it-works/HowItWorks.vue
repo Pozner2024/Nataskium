@@ -1,5 +1,6 @@
 <template>
   <section class="how-it-works" aria-labelledby="how-it-works-title" data-pcb>
+    <PcbGlow />
     <h2 id="how-it-works-title" class="how-it-works__title">{{ t('home.howItWorks.title') }}</h2>
 
     <article class="how-it-works__role">
@@ -23,7 +24,7 @@
 
 <script setup lang="ts">
 import { useI18n } from '#imports'
-import { NatStudents } from '@/shared'
+import { NatStudents, PcbGlow } from '@/shared'
 
 const { t } = useI18n()
 </script>

@@ -12,10 +12,9 @@
 import { verifyEmailSchema } from '@nataskium/shared/schemas'
 import { onMounted, ref } from 'vue'
 import { navigateTo, useI18n, useLocalePath, useSeoMeta } from '#imports'
-import { authApi, takeTokenFromHash, useAuthForm, useSessionSync } from '@/features/auth'
+import { AFTER_SIGN_IN_PATH, authApi, takeTokenFromHash, useAuthForm, useSessionSync } from '@/features/auth'
 import { AuthCard, type AuthCardSubmitPayload } from '@/widgets/auth-card'
 
-const AFTER_SIGN_IN_PATH = '/'
 
 const { t } = useI18n()
 const localePath = useLocalePath()

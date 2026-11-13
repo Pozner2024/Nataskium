@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { ZodType } from 'zod'
 import * as schemas from './index'
 import {
+  deleteAccountSchema,
   authTokenSchema,
   changePasswordSchema,
   googleLinkSchema,
@@ -636,6 +637,8 @@ describe('схемы auth: публичный API', () => {
       'emailSchema',
       'forgotPasswordSchema',
       'googleLinkSchema',
+      'googleReauthStartResponseSchema',
+      'googleReauthStartSchema',
       'localeSchema',
       'loginPasswordSchema',
       'loginSchema',
@@ -1123,5 +1126,24 @@ describe('поле locale: язык, на котором уйдёт письмо
       expect(result.success, String(locale)).toBe(false)
       expect(result.error?.issues.map((issue) => issue.path.join('.'))).toEqual(['locale'])
     }
+  })
+})
+
+describe('deleteAccountSchema: язык письма', () => {
+  const PASSWORD = 'qa-correct-horse'
+
+  it('без locale — допустимо, язык не задан', () => {
+    expect(deleteAccountSchema.safeParse({ password: PASSWORD }).success).toBe(true)
+  })
+
+  it.each(['ru', 'en', 'de', 'fr'])('%s — принимается', (locale) => {
+    expect(deleteAccountSchema.safeParse({ password: PASSWORD, locale }).success).toBe(true)
+  })
+
+  it.each(['xx', 'EN', '', 1, null])('незнакомый язык %j — ошибка по полю locale', (locale) => {
+    const result = deleteAccountSchema.safeParse({ password: PASSWORD, locale })
+
+    expect(result.success).toBe(false)
+    expect(result.error?.issues.map((issue) => issue.path.join('.'))).toEqual(['locale'])
   })
 })

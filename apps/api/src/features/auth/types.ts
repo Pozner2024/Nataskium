@@ -174,6 +174,37 @@ export type PendingGoogleLinkRepository = {
   deleteExpired(now: Date): Promise<number>
 }
 
+export type PendingGoogleReauth = {
+  id: string
+  teacherId: string
+  expiresAt: Date
+  // Учитель на момент проверки: googleId — для сверки с sub, email и имя — для письма об удалении
+  teacherGoogleId: string | null
+  teacherEmail: string
+  teacherDisplayName: string | null
+}
+
+export type NewPendingGoogleReauth = {
+  teacherId: string
+  stateHash: string
+  expiresAt: Date
+}
+
+export type GoogleReauthDeleteResult = 'deleted' | 'invalid' | 'hasPassword'
+
+export type PendingGoogleReauthRepository = {
+  // Одна запись на учителя: новая заменяет прежнюю. false — учителя удалили между проверкой и записью
+  replaceForTeacher(reauth: NewPendingGoogleReauth): Promise<boolean>
+  findByStateHash(stateHash: string): Promise<PendingGoogleReauth | null>
+  // Отмена или неудача: запись больше не нужна
+  deleteByStateHash(stateHash: string): Promise<void>
+  // Одна транзакция под lockEmail: снять свою запись (CAS по id, stateHash и сроку) и удалить учителя, как
+  // TeacherRepository.deleteAccount. invalid — запись уже снята параллельным callback, истекла или учителя нет;
+  // hasPassword — у учителя появился пароль: запись снята, аккаунт цел
+  deleteAccount(reauth: PendingGoogleReauth, stateHash: string, now: Date): Promise<GoogleReauthDeleteResult>
+  deleteExpired(now: Date): Promise<number>
+}
+
 export type PasswordHasher = {
   // false — очередь хэширования заполнена: вызывающий отвечает 503, не тратя лимит неудачных входов
   hasCapacity(): boolean
@@ -207,6 +238,8 @@ export type EmailSender = {
   sendPasswordChangedEmail(to: string, displayName: string | null | undefined, locale: Locale): Promise<void>
   // К существующему аккаунту привязан вход через Google. Ссылка — без токена
   sendGoogleLinkedEmail(to: string, displayName: string | null | undefined, locale: Locale): Promise<void>
+  // Аккаунт удалён: адрес и имя взяты до удаления. Ссылок нет — входить больше некуда
+  sendAccountDeletedEmail(to: string, displayName: string | null | undefined, locale: Locale): Promise<void>
 }
 
 // Бюджет писем на адрес (часть E: in-memory, по нормализованному email); false — бюджет исчерпан

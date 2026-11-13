@@ -1,20 +1,24 @@
+import { DEFAULT_LOCALE } from '@nataskium/shared/locales'
 import type { DeleteAccountInput } from '@nataskium/shared/schemas'
 import { AppError, RateLimitedError } from '../../../shared/errors'
-import type { FailureLimiter, PasswordHasher, TeacherRepository } from '../types'
+import type { EmailSender, FailureLimiter, PasswordHasher, TeacherRepository } from '../types'
 import { sessionInvalid } from './authErrors'
+import { sendInBackground } from './sendInBackground'
 
 const BAD_REQUEST_STATUS = 400
 const CONFLICT_STATUS = 409
 // 400, а не 401: на 401 фронтенд решил бы, что сессия истекла
 const WRONG_PASSWORD_MESSAGE = 'Wrong password'
-// Пароля нет — подтвердить удаление нечем. Подтверждение по почте для всех учителей — следующий шаг (план, раздел 6)
-const GOOGLE_ONLY_MESSAGE = 'Accounts created with Google can be deleted through support for now'
+// Пароля нет — здесь подтвердить удаление нечем: такой аккаунт удаляется повторным входом в Google
+// (POST /google/reauth/start)
+const GOOGLE_ONLY_MESSAGE = 'Accounts without a password are deleted by signing in with Google'
 
 export type DeleteAccountDeps = {
   teachers: TeacherRepository
   hasher: PasswordHasher
   // Общий с входом лимит неудач по email: удаление не даёт второго канала перебора пароля
   failureLimiter: FailureLimiter
+  emailSender: EmailSender
 }
 
 // Учитель удаляет свой аккаунт сам (GDPR): физически, вместе со всеми сессиями и данными. Подтверждение — текущий
@@ -49,5 +53,8 @@ export function makeDeleteAccount(deps: DeleteAccountDeps) {
 
     // Только teacherId: email удалённого учителя в логах не остаётся
     console.info('Teacher account deleted', { teacherId: teacher.id })
+    // Адрес и имя — из записи, прочитанной до удаления. Сбой отправки удаление не откатывает
+    const { email, displayName } = teacher
+    sendInBackground('account.deleted', () => deps.emailSender.sendAccountDeletedEmail(email, displayName, input.locale ?? DEFAULT_LOCALE))
   }
 }

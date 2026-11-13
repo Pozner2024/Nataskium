@@ -21,9 +21,10 @@ model Teacher {
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
-  refreshTokens      RefreshToken[]
-  passwordResets     PasswordReset[]
-  pendingGoogleLinks PendingGoogleLink[]
+  refreshTokens        RefreshToken[]
+  passwordResets       PasswordReset[]
+  pendingGoogleLinks   PendingGoogleLink[]
+  pendingGoogleReauths PendingGoogleReauth[]
 
   @@map("teachers")
 }
@@ -105,4 +106,22 @@ model PendingGoogleLink {
   // cleanup удаляет по expires_at < now
   @@index([expiresAt])
   @@map("pending_google_links")
+}
+
+// Удаление аккаунта без пароля повторным входом в Google (POST /google/reauth/start → /google/callback).
+// Одноразовая: callback снимает её в одной транзакции с удалением учителя. В базе только HMAC state
+model PendingGoogleReauth {
+  id        String   @id @default(uuid()) @db.Uuid
+  teacherId String   @map("teacher_id") @db.Uuid
+  stateHash String   @unique @map("state_hash")
+  expiresAt DateTime @map("expires_at") @db.Timestamptz
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  teacher Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  // Одна запись на учителя; уникальный индекс служит и индексом по FK
+  @@unique([teacherId])
+  // cleanup удаляет по expires_at < now
+  @@index([expiresAt])
+  @@map("pending_google_reauths")
 }

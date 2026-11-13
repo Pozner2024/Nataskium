@@ -11,9 +11,11 @@ import {
   type PasswordHasher,
   makeAuthLimiters,
   makeAuthRouter,
+  makeCancelGoogleReauth,
   makeCleanupExpiredAuthRecords,
   makeChangePassword,
   makeDeleteAccount,
+  makeDeleteAccountWithGoogle,
   makeGetMe,
   GOOGLE_LINK_TTL_MS,
   makeGoogleLink,
@@ -23,12 +25,14 @@ import {
   makeLogoutAll,
   makePasswordResetRepository,
   makePendingGoogleLinkRepository,
+  makePendingGoogleReauthRepository,
   makePendingRegistrationRepository,
   makeRefreshSession,
   makeRefreshTokenRepository,
   makeRegister,
   makeRequestPasswordReset,
   makeResetPassword,
+  makeStartGoogleReauth,
   makeTeacherRepository,
   makeTokenService,
   makeVerifyEmail,
@@ -68,6 +72,7 @@ export function createAuthCleanup(prisma: PrismaClient): () => Promise<void> {
     pendingRegistrations: makePendingRegistrationRepository(prisma),
     passwordResets: makePasswordResetRepository(prisma),
     pendingGoogleLinks: makePendingGoogleLinkRepository(prisma),
+    pendingGoogleReauths: makePendingGoogleReauthRepository(prisma),
     now: () => new Date(),
   })
 }
@@ -108,6 +113,7 @@ export function createApp({ env, prisma, limits, passwordHasher, emailSender, go
   const pendingRegistrations = makePendingRegistrationRepository(prisma)
   const passwordResets = makePasswordResetRepository(prisma)
   const pendingGoogleLinks = makePendingGoogleLinkRepository(prisma)
+  const pendingGoogleReauths = makePendingGoogleReauthRepository(prisma)
   const tokens = makeTokenService({ jwtSecret: env.JWT_SECRET, hmacSecret: env.HMAC_SECRET })
   const limiters = makeAuthLimiters(limits)
   const now = () => new Date()
@@ -145,7 +151,12 @@ export function createApp({ env, prisma, limits, passwordHasher, emailSender, go
         now,
       }),
       resetPassword: makeResetPassword({ passwordResets, hasher: passwordHasher, tokens, emailSender, now }),
-      deleteAccount: makeDeleteAccount({ teachers, hasher: passwordHasher, failureLimiter: limiters.failureLimiter }),
+      deleteAccount: makeDeleteAccount({
+        teachers,
+        hasher: passwordHasher,
+        failureLimiter: limiters.failureLimiter,
+        emailSender,
+      }),
       changePassword: makeChangePassword({
         ...sessionDeps,
         teachers,
@@ -167,6 +178,9 @@ export function createApp({ env, prisma, limits, passwordHasher, emailSender, go
                 emailSender,
               }),
               linkTtlSeconds: GOOGLE_LINK_TTL_MS / MS_PER_SECOND,
+              startReauth: makeStartGoogleReauth({ teachers, pendingGoogleReauths, google: googleIdentity, tokens, now }),
+              deleteAccount: makeDeleteAccountWithGoogle({ pendingGoogleReauths, google: googleIdentity, tokens, emailSender, now }),
+              cancelReauth: makeCancelGoogleReauth({ pendingGoogleReauths, tokens }),
             },
       requireAuth: makeRequireAuth(tokens.verifyAccessToken),
       clientIp: makeClientIpResolver(env.TRUSTED_PROXY_IPS),

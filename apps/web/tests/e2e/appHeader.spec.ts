@@ -171,14 +171,22 @@ test.describe('AppHeader', () => {
       })
     })
 
-    test('продолжает пятно шапки только там, где оно есть', async ({ page }) => {
-      const background = () => page.locator('.app-header__menu').evaluate(panel => getComputedStyle(panel).backgroundImage)
+    test('фон открытой шторки белый и без узоров — на главной и на английской главной', async ({ page }, testInfo) => {
+      test.skip(testInfo.project.name !== 'phone', 'шторка — только на телефоне')
+      const menuBackground = () => page.locator('.app-header__menu').evaluate((panel) => {
+        const style = getComputedStyle(panel)
+        return { color: style.backgroundColor, image: style.backgroundImage }
+      })
 
-      await page.goto('/')
-      expect(await background()).toContain('radial-gradient')
+      // На странице входа шапки с шторкой нет (своя шапка auth-layout), проверяем разные страницы с шапкой
+      for (const route of ['/', '/en']) {
+        await page.goto(route)
+        await waitForHydration(page)
+        await page.locator('.app-header__burger').click()
+        await waitForPanel(page)
 
-      await page.goto(OTHER_ROUTE)
-      expect(await background()).not.toContain('radial-gradient')
+        expect(await menuBackground()).toEqual({ color: 'rgb(255, 255, 255)', image: 'none' })
+      }
     })
 
     test('линия между списками идёт на всю ширину панели, как над «Войти»', async ({ page }) => {

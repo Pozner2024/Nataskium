@@ -51,6 +51,8 @@ const MANUAL_CHECKS = [
     'pending_registrations_display_name_no_control_chars_check',
     String.raw`CHECK ("display_name" !~ '[\x01-\x1f\x7f-\x9f]')`,
   ],
+  ['pending_google_reauths', 'pending_google_reauths_state_hash_format_check', `CHECK ("state_hash" ~ '^[0-9a-f]{64}$')`],
+  ['pending_google_reauths', 'pending_google_reauths_expires_after_created_check', 'CHECK ("expires_at" > "created_at")'],
 ]
 // Без каскада удаление учителя оставило бы его сессии в базе (GDPR)
 const PASSWORD_RESETS_CASCADE =
@@ -106,6 +108,15 @@ describe('миграции', () => {
 
   it('ссылки сброса пароля удаляются вместе с учителем', () => {
     expect(readAllMigrations()).toContain(PASSWORD_RESETS_CASCADE)
+  })
+
+  // Подтверждение удаления через Google: одна запись на учителя, хранится только HMAC состояния, удаляется с учителем
+  it('подтверждение удаления через Google — одна запись на учителя, каскад и уникальный state_hash', () => {
+    expect(readAllMigrations()).toContain('CREATE UNIQUE INDEX "pending_google_reauths_teacher_id_key" ON "pending_google_reauths"("teacher_id");')
+    expect(readAllMigrations()).toContain('CREATE UNIQUE INDEX "pending_google_reauths_state_hash_key" ON "pending_google_reauths"("state_hash");')
+    expect(readAllMigrations()).toContain(
+      'ALTER TABLE "pending_google_reauths" ADD CONSTRAINT "pending_google_reauths_teacher_id_fkey" FOREIGN KEY ("teacher_id") REFERENCES "teachers"("id") ON DELETE CASCADE ON UPDATE CASCADE',
+    )
   })
 
   it('refresh-токены удаляются вместе с учителем', () => {

@@ -14,6 +14,7 @@ import {
   deleteAccountSchema,
   forgotPasswordSchema,
   googleLinkSchema,
+  googleReauthStartSchema,
   localeSchema,
   loginSchema,
   registerSchema,
@@ -26,9 +27,10 @@ import { AppError, ExternalServiceError, RateLimitedError } from '../../../share
 import type { RateLimiter } from '../../../shared/middleware'
 import { readJsonBody } from '../../../shared/utils'
 import { z } from 'zod'
+import type { DeleteAccountWithGoogleInput, GoogleReauthFailure } from '../application/deleteAccountWithGoogle'
 import type { GoogleSignInInput, GoogleSignInOutcome } from '../application/googleAuth'
 import type { AuthSession, GoogleAuthorizationRequest, TeacherView } from '../types'
-import { GOOGLE_SIGN_IN_DONE_PATH, LINK_GOOGLE_PATH, SIGN_IN_PATH, webPageUrl } from '../webPaths'
+import { ACCOUNT_DELETED_PATH, GOOGLE_SIGN_IN_DONE_PATH, LINK_GOOGLE_PATH, SIGN_IN_PATH, webPageUrl } from '../webPaths'
 
 export const AUTH_ROUTES_BASE_PATH = '/api/auth'
 
@@ -74,6 +76,8 @@ const oauthCookieSchema = z.object({
   codeVerifier: z.string().min(1),
   nonce: z.string().min(1),
   locale: localeSchema.optional(),
+  // reauth — вход для подтверждения удаления аккаунта (POST /google/reauth/start), а не обычный вход
+  purpose: z.literal('reauth').optional(),
 })
 const startQuerySchema = z.object({ locale: localeSchema.optional() })
 const callbackQuerySchema = z.object({
@@ -91,6 +95,17 @@ const GOOGLE_ERROR_CODES = {
   conflict: 'google_account_conflict',
 } as const
 const ERROR_QUERY_PARAM = 'error'
+// Коды для страницы итога удаления через Google: без деталей и персональных данных
+const DELETE_ERROR_CODES = {
+  cancelled: 'delete_cancelled',
+  expired: 'delete_expired',
+  wrongAccount: 'delete_wrong_account',
+  invalidToken: 'delete_failed',
+  hasPassword: 'delete_has_password',
+  unavailable: 'delete_unavailable',
+} as const satisfies Record<GoogleReauthFailure | 'cancelled' | 'unavailable', string>
+const STATUS_QUERY_PARAM = 'status'
+const DELETED_STATUS = 'deleted'
 const TOKEN_FRAGMENT_PARAM = 'token'
 const OAUTH_COOKIE_ENCODING = 'base64url'
 
@@ -125,6 +140,10 @@ export type AuthRouterDeps = {
     link: (input: GoogleLinkInput, linkSecret: string | undefined) => Promise<AuthSession>
     // Срок cookie секрета привязки — как у записи (GOOGLE_LINK_TTL_MS)
     linkTtlSeconds: number
+    // Удаление аккаунта без пароля: адрес входа в Google для учителя из access-токена
+    startReauth: (teacherId: string) => Promise<GoogleAuthorizationRequest>
+    deleteAccount: (input: DeleteAccountWithGoogleInput) => Promise<{ ok: true } | { ok: false; reason: GoogleReauthFailure }>
+    cancelReauth: (state: string) => Promise<void>
   } | null
   requireAuth: MiddlewareHandler
   clientIp: (c: Context) => string
@@ -141,6 +160,7 @@ export type AuthRouterDeps = {
     googleStartPerIp: IpLimiter
     googleCallbackPerIp: IpLimiter
     googleLinkPerIp: IpLimiter
+    googleReauthStartPerIp: IpLimiter
     deleteAccountPerIp: IpLimiter
     changePasswordPerIp: IpLimiter
   }
@@ -278,17 +298,71 @@ export function makeAuthRouter(deps: AuthRouterDeps) {
       return c.redirect(url.toString())
     }
 
+    // state, code_verifier и nonce этого входа — в cookie браузера, который его начал
+    const setOauthCookie = (c: Context, request: GoogleAuthorizationRequest, locale: Locale, purpose?: 'reauth') => {
+      const value = Buffer.from(
+        JSON.stringify({ state: request.state, codeVerifier: request.codeVerifier, nonce: request.nonce, locale, purpose }),
+      ).toString(OAUTH_COOKIE_ENCODING)
+      setCookie(c, OAUTH_COOKIE_NAME, value, { ...OAUTH_COOKIE_OPTIONS, maxAge: OAUTH_COOKIE_MAX_AGE_SECONDS })
+    }
+
+    // Итог удаления через Google: только фиксированная страница сайта и код из закрытого списка
+    const deleteResult = (c: Context, locale: Locale, errorCode?: string) => {
+      const url = new URL(webPageUrl(deps.webOrigin, locale, ACCOUNT_DELETED_PATH))
+      if (errorCode === undefined) url.searchParams.set(STATUS_QUERY_PARAM, DELETED_STATUS)
+      else url.searchParams.set(ERROR_QUERY_PARAM, errorCode)
+      return c.redirect(url.toString())
+    }
+
     router.get('/google/start', deps.limiters.googleStartPerIp.middleware(byIp), (c) => {
       // Незнакомый язык в адресе — не ошибка: ссылка ведёт на Google, а не на страницу, где её показать
       const query = startQuerySchema.safeParse({ locale: c.req.query('locale') })
       const locale = query.success ? (query.data.locale ?? DEFAULT_LOCALE) : DEFAULT_LOCALE
       const request = google.createAuthorizationRequest()
-      const value = Buffer.from(
-        JSON.stringify({ state: request.state, codeVerifier: request.codeVerifier, nonce: request.nonce, locale }),
-      ).toString(OAUTH_COOKIE_ENCODING)
-      setCookie(c, OAUTH_COOKIE_NAME, value, { ...OAUTH_COOKIE_OPTIONS, maxAge: OAUTH_COOKIE_MAX_AGE_SECONDS })
+      setOauthCookie(c, request, locale)
       return c.redirect(request.url)
     })
+
+    // Удаление аккаунта без пароля: POST под Bearer (не ссылка) — запуск привязан к учителю текущей сессии.
+    // Адрес Google — в теле ответа, переход делает страница
+    router.post('/google/reauth/start', deps.limiters.googleReauthStartPerIp.middleware(byIp), deps.requireAuth, async (c) => {
+      const input = await readJsonBody(c, googleReauthStartSchema)
+      const request = await google.startReauth(c.get('teacherId'))
+      setOauthCookie(c, request, input.locale ?? DEFAULT_LOCALE, 'reauth')
+      return c.json({ url: request.url })
+    })
+
+    // Возврат из Google при удалении аккаунта. Любая неудача — аккаунт цел, подтверждение погашено
+    const reauthCallback = async (c: Context, cookie: z.infer<typeof oauthCookieSchema>, locale: Locale) => {
+      try {
+        const query = callbackQuerySchema.safeParse(c.req.query())
+        // Учитель нажал «Отмена» на экране Google, или ответ не от этого запуска
+        if (c.req.query(ERROR_QUERY_PARAM) !== undefined || !query.success || query.data.state !== cookie.state) {
+          await google.cancelReauth(cookie.state)
+          const isCancelled = c.req.query(ERROR_QUERY_PARAM) !== undefined
+          return deleteResult(c, locale, isCancelled ? DELETE_ERROR_CODES.cancelled : DELETE_ERROR_CODES.expired)
+        }
+
+        const result = await google.deleteAccount({
+          state: cookie.state,
+          code: query.data.code,
+          codeVerifier: cookie.codeVerifier,
+          nonce: cookie.nonce,
+          locale,
+        })
+        if (!result.ok) return deleteResult(c, locale, DELETE_ERROR_CODES[result.reason])
+
+        // Сессий учителя больше нет: стираем cookie этого браузера, как при удалении по паролю
+        clearRefreshCookie(c)
+        deleteCookie(c, GOOGLE_LINK_COOKIE_NAME, GOOGLE_LINK_COOKIE_OPTIONS)
+        return deleteResult(c, locale)
+      } catch (error) {
+        // Только тип: в ошибках Google, сети и Prisma бывают параметры запроса
+        const status = error instanceof ExternalServiceError ? error.status : undefined
+        console.error('Google account deletion failed', { errorType: error instanceof Error ? error.name : typeof error, status })
+        return deleteResult(c, locale, DELETE_ERROR_CODES.unavailable)
+      }
+    }
 
     router.get('/google/callback', deps.limiters.googleCallbackPerIp.middleware(byIp), async (c) => {
       const rawCookie = getCookie(c, OAUTH_COOKIE_NAME, REFRESH_COOKIE_PREFIX)
@@ -298,6 +372,8 @@ export function makeAuthRouter(deps: AuthRouterDeps) {
       const cookie = oauthCookieSchema.safeParse(parseOauthCookie(rawCookie))
       // Без cookie язык неизвестен: язык по умолчанию
       const locale = cookie.success ? (cookie.data.locale ?? DEFAULT_LOCALE) : DEFAULT_LOCALE
+
+      if (cookie.success && cookie.data.purpose === 'reauth') return reauthCallback(c, cookie.data, locale)
 
       // Учитель нажал «Отмена» или Google вернул ошибку
       if (c.req.query(ERROR_QUERY_PARAM) !== undefined) return signInError(c, GOOGLE_ERROR_CODES.cancelled, locale)

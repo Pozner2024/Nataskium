@@ -14,8 +14,8 @@ const tokens = makeTokenService({ jwtSecret: TEST_ENV.JWT_SECRET, hmacSecret: TE
 
 let prisma: PrismaClient
 
-function makeClient() {
-  const email = makeRecordingEmailSender()
+function makeClient(options: { failEmail?: boolean } = {}) {
+  const email = makeRecordingEmailSender(options.failEmail ? { failWith: new Error('mail down') } : {})
   const app = createTestApp({ prisma, emailSender: email.sender })
 
   function post(path: string, body: unknown, headers: Record<string, string> = {}, ip?: string) {
@@ -26,8 +26,9 @@ function makeClient() {
     )
   }
 
-  function deleteAccount(accessToken: string, password: string, ip?: string) {
-    return post('/delete-account', { password }, { authorization: `Bearer ${accessToken}` }, ip)
+  function deleteAccount(accessToken: string, password: string, ip?: string, locale?: string) {
+    const body = locale === undefined ? { password } : { password, locale }
+    return post('/delete-account', body, { authorization: `Bearer ${accessToken}` }, ip)
   }
 
   // Регистрация и подтверждение: access-токен и refresh-cookie учителя с паролем
@@ -41,7 +42,7 @@ function makeClient() {
     return { accessToken, teacherId: teacher.id, refreshCookie }
   }
 
-  return { app, post, deleteAccount, signUp }
+  return { app, email, post, deleteAccount, signUp }
 }
 
 function clearedCookie(response: Response, name: string) {
@@ -239,5 +240,67 @@ describe('учителя удалили посреди запроса — 401, �
     expect(await response.json()).toEqual(SESSION_INVALID)
     expect(await prisma.refreshToken.count()).toBe(0)
     expect(errors).not.toHaveBeenCalled()
+  })
+})
+
+describe('POST /api/auth/delete-account: письмо «аккаунт удалён»', () => {
+  it('без locale — письмо на русском, на адрес удалённого учителя', async () => {
+    const client = makeClient()
+    const { accessToken } = await client.signUp()
+    client.email.sent.length = 0
+
+    expect((await client.deleteAccount(accessToken, PASSWORD)).status).toBe(204)
+    await flushBackground()
+
+    expect(client.email.sent).toEqual([{ kind: 'accountDeleted', to: EMAIL, displayName: 'Анна', locale: 'ru' }])
+  })
+
+  it('locale из запроса — письмо на этом языке', async () => {
+    const client = makeClient()
+    const { accessToken } = await client.signUp()
+    client.email.sent.length = 0
+
+    await client.deleteAccount(accessToken, PASSWORD, undefined, 'de')
+    await flushBackground()
+
+    expect(client.email.sent).toEqual([expect.objectContaining({ kind: 'accountDeleted', locale: 'de' })])
+  })
+
+  it('неизвестный язык — 400 по полю locale, аккаунт цел, письма нет', async () => {
+    const client = makeClient()
+    const { accessToken, teacherId } = await client.signUp()
+    client.email.sent.length = 0
+
+    const response = await client.deleteAccount(accessToken, PASSWORD, undefined, 'xx')
+    await flushBackground()
+
+    expect(response.status).toBe(400)
+    expect((await response.json()).issues.map((issue: { path: string[] }) => issue.path.join('.'))).toEqual(['locale'])
+    expect(await prisma.teacher.count({ where: { id: teacherId } })).toBe(1)
+    expect(client.email.sent).toEqual([])
+  })
+
+  it('неверный пароль — письма нет', async () => {
+    const client = makeClient()
+    const { accessToken } = await client.signUp()
+    client.email.sent.length = 0
+
+    expect((await client.deleteAccount(accessToken, 'qa-wrong-password-2030')).status).toBe(400)
+    await flushBackground()
+
+    expect(client.email.sent).toEqual([])
+  })
+
+  it('сбой отправки — 204, учитель удалён, в логах нет адреса', async () => {
+    const info = vi.spyOn(console, 'info')
+    const client = makeClient({ failEmail: true })
+    const { accessToken, teacherId } = await client.signUp()
+
+    const response = await client.deleteAccount(accessToken, PASSWORD)
+    await flushBackground()
+
+    expect(response.status).toBe(204)
+    expect(await prisma.teacher.count({ where: { id: teacherId } })).toBe(0)
+    expect(JSON.stringify(info.mock.calls)).not.toContain(EMAIL)
   })
 })

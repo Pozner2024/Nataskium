@@ -175,6 +175,13 @@ export const googleLinkSchema = z.object({
 // Удаление аккаунта: текущий пароль — как при входе (без минимума и блок-листа: пароль уже есть)
 export const deleteAccountSchema = z.object({
   password: loginPasswordSchema,
+  // Язык письма «Аккаунт удалён»
+  locale: localeSchema.optional(),
+})
+
+// Удаление аккаунта без пароля — повторным входом в Google. locale — язык страницы результата и письма
+export const googleReauthStartSchema = z.object({
+  locale: localeSchema.optional(),
 })
 
 // Смена пароля вошедшим учителем: текущий — как при входе, новый — по правилам регистрации
@@ -191,4 +198,5 @@ export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>
 export type GoogleLinkInput = z.infer<typeof googleLinkSchema>
 export type DeleteAccountInput = z.infer<typeof deleteAccountSchema>
+export type GoogleReauthStartInput = z.infer<typeof googleReauthStartSchema>
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>

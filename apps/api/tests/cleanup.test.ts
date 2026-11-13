@@ -4,10 +4,17 @@ import { makeCleanupExpiredAuthRecords, startCleanupSchedule } from '../src/feat
 import type {
   PasswordResetRepository,
   PendingGoogleLinkRepository,
+  PendingGoogleReauthRepository,
   PendingRegistrationRepository,
   RefreshTokenRepository,
 } from '../src/features/auth/types'
-import { makeFakePendingRegistrations, makeMemoryPasswordResets, makeMemoryPendingGoogleLinks, makeMemoryRefreshTokens } from './fakes/authFakes'
+import {
+  makeFakePendingRegistrations,
+  makeMemoryPasswordResets,
+  makeMemoryPendingGoogleLinks,
+  makeMemoryPendingGoogleReauths,
+  makeMemoryRefreshTokens,
+} from './fakes/authFakes'
 
 const NOW = new Date('2026-11-05T12:00:00Z')
 const SECRET_IN_ERROR = 'qa-anna@example.test'
@@ -17,11 +24,12 @@ type Counts = {
   pendingRegistrations: number | Error
   passwordResets?: number | Error
   pendingGoogleLinks?: number | Error
+  pendingGoogleReauths?: number | Error
 }
 
 // Репозитории, которые запоминают переданное now и возвращают заданное число удалённых строк или бросают
 function setup(counts: Counts) {
-  const seen: { refreshTokens?: Date; pendingRegistrations?: Date; passwordResets?: Date; pendingGoogleLinks?: Date } = {}
+  const seen: { refreshTokens?: Date; pendingRegistrations?: Date; passwordResets?: Date; pendingGoogleLinks?: Date; pendingGoogleReauths?: Date } = {}
   const refreshTokens: RefreshTokenRepository = {
     ...makeMemoryRefreshTokens([]).repository,
     async deleteExpired(now) {
@@ -56,8 +64,24 @@ function setup(counts: Counts) {
       return count
     },
   }
+  const pendingGoogleReauths: PendingGoogleReauthRepository = {
+    ...makeMemoryPendingGoogleReauths([], []).repository,
+    async deleteExpired(now) {
+      seen.pendingGoogleReauths = now
+      const count = counts.pendingGoogleReauths ?? 0
+      if (count instanceof Error) throw count
+      return count
+    },
+  }
   const clock = vi.fn(() => NOW)
-  const cleanup = makeCleanupExpiredAuthRecords({ refreshTokens, pendingRegistrations, passwordResets, pendingGoogleLinks, now: clock })
+  const cleanup = makeCleanupExpiredAuthRecords({
+    refreshTokens,
+    pendingRegistrations,
+    passwordResets,
+    pendingGoogleLinks,
+    pendingGoogleReauths,
+    now: clock,
+  })
   return { cleanup, seen, clock }
 }
 
@@ -82,7 +106,7 @@ afterEach(() => {
 })
 
 describe('cleanupExpiredAuthRecords', () => {
-  it('все четыре deleteExpired получают одно и то же now, часы читаются один раз', async () => {
+  it('все пять deleteExpired получают одно и то же now, часы читаются один раз', async () => {
     captureLogs()
     const { cleanup, seen, clock } = setup({ refreshTokens: 0, pendingRegistrations: 0 })
 
@@ -92,6 +116,7 @@ describe('cleanupExpiredAuthRecords', () => {
     expect(seen.pendingRegistrations).toBe(NOW)
     expect(seen.passwordResets).toBe(NOW)
     expect(seen.pendingGoogleLinks).toBe(NOW)
+    expect(seen.pendingGoogleReauths).toBe(NOW)
     expect(clock).toHaveBeenCalledTimes(1)
   })
 
@@ -104,20 +129,24 @@ describe('cleanupExpiredAuthRecords', () => {
   })
 
   it.each([
-    ['только токены', 3, 0, 0, 0],
-    ['только регистрации', 0, 2, 0, 0],
-    ['только ссылки сброса', 0, 0, 4, 0],
-    ['только привязки Google', 0, 0, 0, 5],
-    ['все', 3, 2, 4, 5],
-  ])('удалено (%s) — одна запись в лог с числами', async (_name, refreshTokens, pendingRegistrations, passwordResets, pendingGoogleLinks) => {
+    ['только токены', 3, 0, 0, 0, 0],
+    ['только регистрации', 0, 2, 0, 0, 0],
+    ['только ссылки сброса', 0, 0, 4, 0, 0],
+    ['только привязки Google', 0, 0, 0, 5, 0],
+    ['только подтверждения удаления', 0, 0, 0, 0, 6],
+    ['все', 3, 2, 4, 5, 6],
+  ])('удалено (%s) — одна запись в лог с числами', async (_name, refreshTokens, pendingRegistrations, passwordResets, pendingGoogleLinks, pendingGoogleReauths) => {
     const logged = captureLogs()
 
-    await setup({ refreshTokens, pendingRegistrations, passwordResets, pendingGoogleLinks }).cleanup()
+    await setup({ refreshTokens, pendingRegistrations, passwordResets, pendingGoogleLinks, pendingGoogleReauths }).cleanup()
 
     expect(logged).toEqual([
       {
         method: 'log',
-        args: ['[cleanup] expired auth records removed', { refreshTokens, pendingRegistrations, passwordResets, pendingGoogleLinks }],
+        args: [
+          '[cleanup] expired auth records removed',
+          { refreshTokens, pendingRegistrations, passwordResets, pendingGoogleLinks, pendingGoogleReauths },
+        ],
       },
     ])
   })
@@ -127,6 +156,7 @@ describe('cleanupExpiredAuthRecords', () => {
     ['регистрации', { refreshTokens: 0, pendingRegistrations: prismaLikeError() }],
     ['ссылки сброса', { refreshTokens: 0, pendingRegistrations: 0, passwordResets: prismaLikeError() }],
     ['привязки Google', { refreshTokens: 0, pendingRegistrations: 0, pendingGoogleLinks: prismaLikeError() }],
+    ['подтверждения удаления', { refreshTokens: 0, pendingRegistrations: 0, pendingGoogleReauths: prismaLikeError() }],
   ])('сбой (%s) не бросается, в логе только тип ошибки', async (_name, counts) => {
     const logged = captureLogs()
 
@@ -144,6 +174,7 @@ describe('cleanupExpiredAuthRecords', () => {
       pendingRegistrations: makeFakePendingRegistrations([]).repository,
       passwordResets: makeMemoryPasswordResets([]).repository,
       pendingGoogleLinks: makeMemoryPendingGoogleLinks([], []).repository,
+      pendingGoogleReauths: makeMemoryPendingGoogleReauths([], []).repository,
       now: () => NOW,
     })
 

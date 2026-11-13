@@ -1,6 +1,11 @@
+import { TEACHER_PAGE_PATHS } from '@nataskium/shared/routes'
+
+// После входа — в кабинет учителя. Модуль без Nuxt: safeNextPath проверяется обычными unit-тестами
+export const AFTER_SIGN_IN_PATH = TEACHER_PAGE_PATHS.activities
+
 // Куда вернуть после входа (?next=): только путь этого сайта. «//evil.example» и «/\evil.example» браузер
 // понял бы как другой сайт — открытый редирект
-const DEFAULT_AFTER_SIGN_IN = '/'
+const DEFAULT_AFTER_SIGN_IN = AFTER_SIGN_IN_PATH
 // Браузер выбрасывает \t, \n, \r из URL: '/\t/evil.example' стал бы '//evil.example'. Управляющие символы
 // в пути не нужны — такой next отклоняем целиком
 const LAST_C0_CONTROL_CODE = 0x1f

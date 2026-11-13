@@ -41,6 +41,7 @@ export function makeAuthLimiters(limits: AuthLimits) {
     googleStartPerIp: limiter(limits.googleStartPerIp),
     googleCallbackPerIp: limiter(limits.googleCallbackPerIp),
     googleLinkPerIp: limiter(limits.googleLinkPerIp),
+    googleReauthStartPerIp: limiter(limits.googleReauthStartPerIp),
     deleteAccountPerIp: limiter(limits.deleteAccountPerIp),
     changePasswordPerIp: limiter(limits.changePasswordPerIp),
   }
@@ -63,5 +64,3 @@ export function makeAuthLimiters(limits: AuthLimits) {
     reset: () => all.forEach((each) => each.reset()),
   }
 }
-
-export type AuthLimiters = ReturnType<typeof makeAuthLimiters>

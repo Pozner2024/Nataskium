@@ -1,13 +1,17 @@
 import type { Locale } from '@nataskium/shared/locales'
 import {
   type AuthSessionResponse,
+  type ChangePasswordInput,
+  type DeleteAccountInput,
   type ForgotPasswordInput,
+  type GoogleReauthStartInput,
   type GoogleLinkInput,
   type LoginInput,
   type RegisterInput,
   type ResetPasswordInput,
   type VerifyEmailInput,
   authSessionResponseSchema,
+  googleReauthStartResponseSchema,
   messageResponseSchema,
 } from '@nataskium/shared/schemas'
 import { apiRequest, apiRequestWithoutBody } from '@/shared'
@@ -40,6 +44,20 @@ export const authApi = {
   // 204: сессия не выдаётся — учитель входит с новым паролем
   resetPassword: (input: ResetPasswordInput): Promise<void> =>
     apiRequestWithoutBody('/auth/reset-password', { body: input }),
+
+  // Остальные сессии учителя сервер удаляет, этот браузер получает новую
+  changePassword: (input: ChangePasswordInput, accessToken: string): Promise<AuthSessionResponse> =>
+    apiRequest('/auth/change-password', authSessionResponseSchema, { body: input, accessToken }),
+
+  // 204: аккаунт и все сессии удалены, refresh-cookie сервер стирает
+  deleteAccount: (input: DeleteAccountInput, accessToken: string): Promise<void> =>
+    apiRequestWithoutBody('/auth/delete-account', { body: input, accessToken }),
+
+  // Аккаунт без пароля: адрес входа в Google; после входа API удаляет аккаунт и ведёт на страницу итога
+  async googleReauthStart(input: GoogleReauthStartInput, accessToken: string): Promise<string> {
+    const { url } = await apiRequest('/auth/google/reauth/start', googleReauthStartResponseSchema, { body: input, accessToken })
+    return url
+  },
 }
 
 // Обычная ссылка, не fetch: полный переход на Google и обратно. Язык — чтобы после возврата учитель остался на нём
