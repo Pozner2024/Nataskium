@@ -1,11 +1,6 @@
 <template>
   <div class="activity-type-picker">
-    <div class="activity-type-picker__intro">
-      <div class="activity-type-picker__nat">
-        <NatCards compact />
-      </div>
-      <p class="activity-type-picker__subtitle">{{ t('teacher.create.subtitle') }}</p>
-    </div>
+    <p class="activity-type-picker__subtitle">{{ t('teacher.create.subtitle') }}</p>
 
     <ul class="activity-type-picker__list">
       <li v-for="type in ACTIVITY_TYPE_ORDER" :key="type">
@@ -25,7 +20,6 @@
 <script setup lang="ts">
 import { useI18n } from '#imports'
 import { ACTIVITY_TYPE_ORDER, ActivityTypeIcon, type ActivityType } from '@/entities/activity'
-import { NatCards } from '@/shared'
 
 const emit = defineEmits<{
   select: [type: ActivityType]
@@ -41,18 +35,6 @@ const { t } = useI18n()
   display: flex;
   flex-direction: column;
   gap: 16px;
-}
-
-.activity-type-picker__intro {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.activity-type-picker__nat {
-  --nat-unit: 0.16px;
-
-  flex: none;
 }
 
 .activity-type-picker__subtitle {

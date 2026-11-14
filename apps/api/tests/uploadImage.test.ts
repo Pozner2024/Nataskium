@@ -14,6 +14,7 @@ const UPLOADS_PER_TEACHER_PER_HOUR = 120
 const UPLOADS_PER_IP_PER_HOUR = 300
 const MAX_CONCURRENT_UPLOADS = 4
 const MAX_CONCURRENT_UPLOADS_PER_TEACHER = 2
+const UPLOAD_BODY_READ_TIMEOUT_MS = 120 * 1000
 const PROCESSED = new Uint8Array([1, 2, 3])
 const tokens = makeTokenService({ jwtSecret: TEST_ENV.JWT_SECRET, hmacSecret: TEST_ENV.HMAC_SECRET })
 
@@ -327,5 +328,58 @@ describe('POST /api/quiz-images (без базы)', () => {
     await Promise.all(running.map((upload) => upload.response))
     const afterwards = await Promise.all(Array.from({ length: MAX_CONCURRENT_UPLOADS }, async () => post(app, await auth(), form(HTML))))
     expect(afterwards.map((response) => response.status)).toEqual(Array(MAX_CONCURRENT_UPLOADS).fill(400))
+  })
+
+  describe('таймаут чтения тела', () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    })
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    // Как occupy, но без vi.waitFor: тот сдвигает фейковые часы, а здесь важно, сколько времени прошло
+    async function occupyWithoutTime(app: ReturnType<typeof createTestApp>, headers: Record<string, string>) {
+      const body = stalledBody()
+      const response = postStream(app, headers, body.stream)
+      while (body.state.pulls === 0) await vi.advanceTimersByTimeAsync(0)
+      return { ...body, response }
+    }
+
+    it('тело не дочитано за 120 с → 408, слоты учителя свободны', async () => {
+      const app = createTestApp({ imageStorage: makeMemoryImageStorage().storage })
+      const headers = await auth()
+      const running = []
+      for (let i = 0; i < MAX_CONCURRENT_UPLOADS_PER_TEACHER; i++) running.push(await occupyWithoutTime(app, headers))
+      const settled = { count: 0 }
+      for (const upload of running) void Promise.resolve(upload.response).then(() => settled.count++)
+
+      await vi.advanceTimersByTimeAsync(UPLOAD_BODY_READ_TIMEOUT_MS - 1)
+      expect(settled.count).toBe(0)
+      await vi.advanceTimersByTimeAsync(1)
+
+      for (const upload of running) {
+        const response = await upload.response
+        expect(response.status).toBe(408)
+        expect(await response.json()).toEqual({ error: 'Image upload timed out' })
+      }
+      // Таймаут — ожидаемый отказ клиента, не ошибка сервера: в логах ничего
+      expect(logSpies.every((spy) => spy.mock.calls.length === 0)).toBe(true)
+      for (let i = 0; i <= MAX_CONCURRENT_UPLOADS_PER_TEACHER; i++) {
+        expect((await post(app, headers, form(HTML))).status).toBe(400)
+      }
+      // Обрыв недочитанного тела после ответа ничего не ломает
+      for (const upload of running) upload.abort()
+    })
+
+    it('тело пришло вовремя — таймер снят, ответ по содержимому', async () => {
+      const app = createTestApp({ imageStorage: makeMemoryImageStorage().storage })
+
+      const response = await post(app, await auth(), form(HTML))
+      await vi.advanceTimersByTimeAsync(UPLOAD_BODY_READ_TIMEOUT_MS)
+
+      expect(response.status).toBe(400)
+      expect(vi.getTimerCount()).toBe(0)
+    })
   })
 })

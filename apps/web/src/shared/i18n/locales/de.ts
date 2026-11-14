@@ -346,7 +346,7 @@ const messages: Messages = {
       imageUnavailable: 'Eines der Bilder ist nicht mehr verfügbar. Ersetzen oder entfernen Sie es und speichern Sie erneut.',
       image: {
         add: 'Bild hinzufügen',
-        hint: 'Wählen Sie eine Datei, ziehen Sie sie hierher oder fügen Sie sie ein (Strg+V)',
+        hint: 'Wählen Sie eine Datei, ziehen Sie sie hierher oder fügen Sie sie ein (Strg+V / Cmd+V)',
         replace: 'Ersetzen',
         remove: 'Bild entfernen',
         removeShort: 'Entfernen',

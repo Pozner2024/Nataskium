@@ -2,7 +2,10 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { type GoogleIdentityProvider, makePasswordHasher, makeTokenService } from '../../src/features/auth'
 import type { PrismaClient } from '../../src/generated/prisma/client'
 import type { GoogleExchangeResult } from '../../src/features/auth/types'
+import { quizImageKey } from '../../src/features/quiz-images'
+import type { ImageStorage } from '../../src/shared/infrastructure'
 import { flushBackground } from '../fakes/authFakes'
+import { makeMemoryImageStorage } from '../fakes/memoryImageStorage'
 import { makeRecordingEmailSender } from '../fakes/recordingEmailSender'
 import { TEST_ENV, TEST_WEB_ORIGIN, createTestApp, fromIp } from '../fakes/testApp'
 import { createTestPrisma, truncateAll } from './testDatabase'
@@ -24,7 +27,7 @@ const PENDING_TTL_MS = 5 * 60 * 1000
 
 let prisma: PrismaClient
 
-function makeClient(options: { exchange?: () => GoogleExchangeResult; failEmail?: boolean; state?: string } = {}) {
+function makeClient(options: { exchange?: () => GoogleExchangeResult; failEmail?: boolean; state?: string; imageStorage?: ImageStorage } = {}) {
   const email = makeRecordingEmailSender(options.failEmail ? { failWith: new Error('mail down') } : {})
   const state = options.state ?? STATE
   const google: GoogleIdentityProvider = {
@@ -33,7 +36,7 @@ function makeClient(options: { exchange?: () => GoogleExchangeResult; failEmail?
       return options.exchange?.() ?? { ok: true, profile: { googleId: GOOGLE_SUB, email: EMAIL, emailVerified: true, name: NAME } }
     },
   }
-  const app = createTestApp({ prisma, emailSender: email.sender, googleIdentity: google })
+  const app = createTestApp({ prisma, emailSender: email.sender, googleIdentity: google, imageStorage: options.imageStorage ?? null })
 
   function startReauth(accessToken: string | null, body: unknown = {}, ip?: string) {
     const headers: Record<string, string> = { 'content-type': 'application/json', origin: TEST_WEB_ORIGIN }
@@ -397,5 +400,28 @@ describe('GET /api/auth/google/callback: удаление через Google', ()
 
     expect(response.headers.get('location')).toBe(`${ACCOUNT_DELETED}?error=delete_expired`)
     expect(await prisma.teacher.count({ where: { id: teacher.id } })).toBe(1)
+  })
+})
+
+describe('GET /api/auth/google/callback: файлы картинок учителя (GDPR)', () => {
+  it('удаление через Google — файлы учителя удалены из хранилища сразу, чужие на месте', async () => {
+    const teacher = await googleTeacher()
+    const other = await googleTeacher('qa-boris@gmail.com', 'Борис', 'google-sub-boris')
+    const memory = makeMemoryImageStorage()
+    const keys: Record<string, string> = {}
+    for (const [name, teacherId] of [['mine', teacher.id], ['foreign', other.id]] as const) {
+      const id = crypto.randomUUID()
+      await memory.storage.put(quizImageKey(id), new Uint8Array([1, 2, 3]), 'image/webp')
+      await prisma.quizImage.create({ data: { id, teacherId } })
+      keys[name] = quizImageKey(id)
+    }
+    const client = makeClient({ imageStorage: memory.storage })
+    const cookie = await client.startedCookie(await accessFor(teacher.id))
+
+    const response = await client.callback(`code=qa-code&state=${STATE}`, cookie)
+
+    expect(response.headers.get('location')).toBe(`${ACCOUNT_DELETED}?status=deleted`)
+    expect(memory.objects.has(keys.mine!)).toBe(false)
+    expect(memory.objects.has(keys.foreign!)).toBe(true)
   })
 })

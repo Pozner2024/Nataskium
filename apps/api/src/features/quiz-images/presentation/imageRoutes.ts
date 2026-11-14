@@ -4,7 +4,7 @@ import { IMAGE_UPLOAD_FIELD, type ImageUploadResponse, MAX_IMAGE_UPLOAD_BYTES } 
 import { type Context, Hono, type MiddlewareHandler } from 'hono'
 import { AppError, ServiceBusyError } from '../../../shared/errors'
 import type { RateLimiter } from '../../../shared/middleware'
-import { imageFileRequired, imageTooLarge } from '../application/imageErrors'
+import { imageFileRequired, imageTooLarge, imageUploadTimedOut } from '../application/imageErrors'
 import type { UploadedImage } from '../types'
 import { type UploadSlotLimits, makeUploadSlots } from './uploadSlots'
 
@@ -19,6 +19,8 @@ export type ImageRouterDeps = {
   clientIp: (c: Context) => string
   limiters: { perIp: RateLimiter; perTeacher: RateLimiter }
   concurrent: UploadSlotLimits
+  // Сколько ждать тело загрузки после занятия слота
+  bodyReadTimeoutMs: number
   // Лимит тела (16 МБ) — параметром из app.ts: тот же формат 413, что и у остальных маршрутов
   bodyLimit: MiddlewareHandler
 }
@@ -36,12 +38,42 @@ async function readSingleFile(c: Context): Promise<File> {
   return file
 }
 
+// Лимит размера и разбор multipart — одним шагом: тело без Content-Length bodyLimit читает сам, до разбора.
+// Обрыв соединения при чтении — ошибка клиента, а не 500 с записью в лог
+async function readLimitedFile(c: Context, bodyLimit: MiddlewareHandler): Promise<File> {
+  const read: { file?: File } = {}
+  try {
+    await bodyLimit(c, async () => {
+      read.file = await readSingleFile(c)
+    })
+  } catch (error) {
+    if (error instanceof AppError) throw error
+    throw imageFileRequired()
+  }
+  if (read.file === undefined) throw imageFileRequired()
+  return read.file
+}
+
+// Недочитанное тело после ответа дочищает @hono/node-server (autoCleanupIncoming): дочитывает недолго и закрывает
+// соединение. Поздний отказ work обрабатывает сам Promise.race — необработанного отклонения нет
+async function withinTimeout<T>(work: Promise<T>, timeoutMs: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => reject(imageUploadTimedOut()), timeoutMs)
+  })
+  try {
+    return await Promise.race([work, timeout])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 export function makeImageRouter(deps: ImageRouterDeps) {
   const router = new Hono()
   const slots = makeUploadSlots(deps.concurrent)
   router.use(deps.requireAuth)
 
-  // Слот занимается до чтения тела и освобождается при любом исходе: 413, обрыв соединения, сбой обработки
+  // Слот занимается до чтения тела и освобождается при любом исходе: 413, 408, обрыв соединения, сбой обработки
   const uploadSlot: MiddlewareHandler = async (c, next) => {
     const release = slots.tryAcquire(c.get('teacherId'))
     if (release === null) throw new ServiceBusyError(UPLOADS_BUSY_RETRY_AFTER_SECONDS)
@@ -52,24 +84,14 @@ export function makeImageRouter(deps: ImageRouterDeps) {
     }
   }
 
-  // Обрыв соединения при чтении тела — ошибка клиента, а не 500 с записью в лог
-  const limitBody: MiddlewareHandler = async (c, next) => {
-    try {
-      return await deps.bodyLimit(c, next)
-    } catch (error) {
-      if (error instanceof AppError) throw error
-      throw imageFileRequired()
-    }
-  }
-
   router.post(
     '/',
     deps.limiters.perTeacher.middleware((c) => c.get('teacherId')),
     deps.limiters.perIp.middleware(deps.clientIp),
     uploadSlot,
-    limitBody,
     async (c) => {
-      const file = await readSingleFile(c)
+      // Таймаут — только на чтение тела: обработка картинки идёт уже без него, но в том же слоте
+      const file = await withinTimeout(readLimitedFile(c, deps.bodyLimit), deps.bodyReadTimeoutMs)
       if (file.size > MAX_IMAGE_UPLOAD_BYTES) throw imageTooLarge()
       const image = await deps.uploadImage(c.get('teacherId'), await file.bytes())
       const response: ImageUploadResponse = { image }

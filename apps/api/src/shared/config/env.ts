@@ -253,10 +253,11 @@ const envFieldsSchema = z.object({
       .optional(),
   ),
   // Сверка хранилища с базой удаляет файлы без строки в quiz_images. Включать только там, где бакет принадлежит
-  // ТОЛЬКО этой базе: dev с прод-бакетом или пустая база иначе удалили бы чужие файлы
+  // ТОЛЬКО этой базе: dev с прод-бакетом или пустая база иначе удалили бы чужие файлы.
+  // undefined — не задано: в production это ошибка, вне production — false (в конце envSchema)
   IMAGE_STORAGE_RECONCILE: z
-    .preprocess(emptyAsUndefined, z.enum(['true', 'false'], { error: "must be 'true' or 'false'" }).default('false'))
-    .transform((value) => value === 'true'),
+    .preprocess(emptyAsUndefined, z.enum(['true', 'false'], { error: "must be 'true' or 'false'" }).optional())
+    .transform((value) => (value === undefined ? undefined : value === 'true')),
 })
 
 // Проверки между полями — только когда сами поля верны (onlyIfValid), иначе к ошибке поля добавилась бы вторая
@@ -343,6 +344,13 @@ const envSchema = envFieldsSchema
     error: `${IMAGE_STORAGE_NAMES} must be set together`,
     ...onlyIfValid,
   })
+  // Решение о сверке в production — только явное: молчаливое false оставляло бы файлы удалённых аккаунтов без страховки
+  .refine((env) => env.NODE_ENV !== 'production' || env.IMAGE_STORAGE_RECONCILE !== undefined, {
+    path: ['IMAGE_STORAGE_RECONCILE'],
+    error: 'is required in production',
+    ...onlyIfValid,
+  })
+  .transform((env) => ({ ...env, IMAGE_STORAGE_RECONCILE: env.IMAGE_STORAGE_RECONCILE ?? false }))
 
 export type Env = z.infer<typeof envSchema>
 

@@ -4,6 +4,7 @@ import { makeTokenService } from '../src/features/auth'
 import type { GoogleExchangeResult, TeacherAccount } from '../src/features/auth/types'
 import { flushBackground, makeMemoryPendingGoogleReauths } from './fakes/authFakes'
 import { makeRecordingEmailSender } from './fakes/recordingEmailSender'
+import { makeMemoryTeacherImages } from './fakes/teacherImageFakes'
 
 const NOW = new Date('2026-11-13T10:00:00Z')
 const FIVE_MINUTES_MS = 5 * 60 * 1000
@@ -232,5 +233,56 @@ describe('deleteAccountWithGoogle: логи', () => {
     const logged = JSON.stringify(info.mock.calls)
     expect(logged).toContain(ANNA.id)
     for (const secret of [ANNA.email, 'Анна Ли', GOOGLE_SUB]) expect(logged).not.toContain(secret)
+  })
+})
+
+describe('deleteAccountWithGoogle: файлы картинок учителя (GDPR)', () => {
+  async function setupWithImages(accounts: TeacherAccount[]) {
+    const reauths = await reauthFor(accounts, ANNA.id, 'state-anna')
+    const images = await makeMemoryTeacherImages([ANNA.id, BORIS.id])
+    const useCase = makeDeleteAccountWithGoogle({
+      pendingGoogleReauths: reauths.repository,
+      google: { exchangeCode: async () => profile() },
+      tokens,
+      emailSender: makeRecordingEmailSender().sender,
+      now: () => NOW,
+      imageFiles: images.files,
+    })
+    return { useCase, images }
+  }
+
+  it('после удаления файлы учителя удалены из хранилища, чужие на месте', async () => {
+    const accounts = [ANNA, BORIS]
+    const { useCase, images } = await setupWithImages(accounts)
+
+    await expect(useCase(input())).resolves.toEqual({ ok: true })
+
+    expect(accounts).toEqual([BORIS])
+    for (const key of images.keysOf(ANNA.id)) expect(images.memory.objects.has(key)).toBe(false)
+    for (const key of images.keysOf(BORIS.id)) expect(images.memory.objects.has(key)).toBe(true)
+  })
+
+  it('сбой хранилища — аккаунт всё равно удалён, результат ok, в логе нет id и ключей', async () => {
+    const accounts = [ANNA]
+    const { useCase, images } = await setupWithImages(accounts)
+    images.failing.remove = true
+    const errors = vi.mocked(console.error)
+
+    await expect(useCase(input())).resolves.toEqual({ ok: true })
+
+    expect(accounts).toEqual([])
+    expect(errors).toHaveBeenCalledOnce()
+    const logged = JSON.stringify(errors.mock.calls)
+    expect(logged).not.toContain(ANNA.id)
+    for (const key of images.keysOf(ANNA.id)) expect(logged).not.toContain(key)
+  })
+
+  it('пароль появился после запуска (hasPassword) — аккаунт цел, файлы на месте', async () => {
+    const accounts: TeacherAccount[] = [{ ...ANNA, passwordHash: 'argon2-hash' }]
+    const { useCase, images } = await setupWithImages(accounts)
+
+    await expect(useCase(input())).resolves.toEqual({ ok: false, reason: 'hasPassword' })
+
+    for (const key of images.keysOf(ANNA.id)) expect(images.memory.objects.has(key)).toBe(true)
   })
 })

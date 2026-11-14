@@ -1,6 +1,12 @@
 import type { Prisma } from '../../../generated/prisma/client'
 import type { QuizImageRepository } from '../types'
 
+// Все картинки учителя, привязанные и нет: их файлы удаляются вместе с аккаунтом
+export async function listTeacherImageIds(prisma: Prisma.TransactionClient, teacherId: string): Promise<string[]> {
+  const rows = await prisma.quizImage.findMany({ where: { teacherId }, select: { id: true } })
+  return rows.map((row) => row.id)
+}
+
 // Принимает и клиент транзакции: привязка картинок сохраняется вместе с викториной
 export function makeQuizImageRepository(prisma: Prisma.TransactionClient): QuizImageRepository {
   return {

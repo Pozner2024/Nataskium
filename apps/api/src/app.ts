@@ -9,6 +9,7 @@ import {
   type EmailSender,
   type GoogleIdentityProvider,
   type PasswordHasher,
+  type TeacherImageFiles,
   makeAuthLimiters,
   makeAuthRouter,
   makeCancelGoogleReauth,
@@ -50,6 +51,7 @@ import {
   QUIZ_IMAGE_ROUTES_BASE_PATH,
   makeCleanupImages,
   makeImageProcessor,
+  listTeacherImageIds,
   makeImageRouter,
   makeQuizImageRepository,
   makeUploadImage,
@@ -182,6 +184,14 @@ export function createApp({ env, prisma, limits, passwordHasher, emailSender, go
   const limiters = makeAuthLimiters(limits)
   const now = () => new Date()
   const sessionDeps = { refreshTokens, tokens, now }
+  // Файлы картинок удаляемого аккаунта: строки уходят каскадом, файлы — после коммита удаления
+  const teacherImageFiles: TeacherImageFiles | null =
+    imageStorage === null
+      ? null
+      : {
+          listIds: (teacherId) => listTeacherImageIds(prisma, teacherId),
+          removeFiles: (imageIds) => imageStorage.remove(imageIds.map(quizImageKey)),
+        }
 
   app.route(
     AUTH_ROUTES_BASE_PATH,
@@ -220,6 +230,7 @@ export function createApp({ env, prisma, limits, passwordHasher, emailSender, go
         hasher: passwordHasher,
         failureLimiter: limiters.failureLimiter,
         emailSender,
+        imageFiles: teacherImageFiles,
       }),
       changePassword: makeChangePassword({
         ...sessionDeps,
@@ -243,7 +254,14 @@ export function createApp({ env, prisma, limits, passwordHasher, emailSender, go
               }),
               linkTtlSeconds: GOOGLE_LINK_TTL_MS / MS_PER_SECOND,
               startReauth: makeStartGoogleReauth({ teachers, pendingGoogleReauths, google: googleIdentity, tokens, now }),
-              deleteAccount: makeDeleteAccountWithGoogle({ pendingGoogleReauths, google: googleIdentity, tokens, emailSender, now }),
+              deleteAccount: makeDeleteAccountWithGoogle({
+                pendingGoogleReauths,
+                google: googleIdentity,
+                tokens,
+                emailSender,
+                now,
+                imageFiles: teacherImageFiles,
+              }),
               cancelReauth: makeCancelGoogleReauth({ pendingGoogleReauths, tokens }),
             },
       requireAuth: makeRequireAuth(tokens.verifyAccessToken),
@@ -300,6 +318,7 @@ export function createApp({ env, prisma, limits, passwordHasher, emailSender, go
         perTeacher: uploadLimiter(IMAGE_UPLOAD_LIMITS.perTeacher),
       },
       concurrent: IMAGE_UPLOAD_LIMITS.concurrent,
+      bodyReadTimeoutMs: IMAGE_UPLOAD_LIMITS.bodyReadTimeoutMs,
       bodyLimit: imageUploadBodyLimit,
     }),
   )

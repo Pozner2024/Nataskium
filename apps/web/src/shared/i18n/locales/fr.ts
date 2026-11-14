@@ -347,7 +347,7 @@ const messages: Messages = {
       imageUnavailable: 'Une des images n’est plus disponible. Remplacez-la ou retirez-la, puis enregistrez à nouveau.',
       image: {
         add: 'Ajouter une image',
-        hint: 'Choisissez un fichier, glissez-le ici ou collez-le (Ctrl+V)',
+        hint: 'Choisissez un fichier, glissez-le ici ou collez-le (Ctrl+V / Cmd+V)',
         replace: 'Remplacer',
         remove: 'Retirer l’image',
         removeShort: 'Retirer',

@@ -44,6 +44,7 @@ const VALID = {
   YANDEX_S3_ACCESS_KEY: TEST_S3_ACCESS_KEY,
   YANDEX_S3_SECRET_KEY: TEST_S3_SECRET_KEY,
   IMAGES_PUBLIC_BASE_URL: TEST_IMAGES_PUBLIC_BASE_URL,
+  IMAGE_STORAGE_RECONCILE: 'false',
 }
 // Для development и test: http-адрес, без списка прокси
 // Вне production почта и Google необязательны: локально их обычно нет
@@ -957,8 +958,21 @@ describe('parseEnv: IMAGE_STORAGE_RECONCILE', () => {
   const RECONCILE_PROBLEM = "  IMAGE_STORAGE_RECONCILE: must be 'true' or 'false'"
 
   it.each([
-    ['не задано', undefined, false],
-    ['пусто', '', false],
+    ['не задано', undefined],
+    ['пусто', ''],
+  ])('production: %s — ошибка', (_name, value) => {
+    expectOnly({ ...VALID, IMAGE_STORAGE_RECONCILE: value }, '  IMAGE_STORAGE_RECONCILE: is required in production')
+  })
+
+  it.each([
+    ['development', undefined],
+    ['development', ''],
+    ['test', undefined],
+  ])('вне production (%s) не задано (%j) → false', (nodeEnv, value) => {
+    expect(parseEnv({ ...VALID_LOCAL, NODE_ENV: nodeEnv, IMAGE_STORAGE_RECONCILE: value }).IMAGE_STORAGE_RECONCILE).toBe(false)
+  })
+
+  it.each([
     ['false', 'false', false],
     ['true', 'true', true],
   ])('%s', (_name, value, expected) => {

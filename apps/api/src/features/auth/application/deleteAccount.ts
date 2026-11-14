@@ -1,9 +1,10 @@
 import { DEFAULT_LOCALE } from '@nataskium/shared/locales'
 import type { DeleteAccountInput } from '@nataskium/shared/schemas'
 import { AppError, RateLimitedError } from '../../../shared/errors'
-import type { EmailSender, FailureLimiter, PasswordHasher, TeacherRepository } from '../types'
+import type { EmailSender, FailureLimiter, PasswordHasher, TeacherImageFiles, TeacherRepository } from '../types'
 import { sessionInvalid } from './authErrors'
 import { sendInBackground } from './sendInBackground'
+import { collectTeacherImageIds, removeTeacherImageFiles } from './teacherImages'
 
 const BAD_REQUEST_STATUS = 400
 const CONFLICT_STATUS = 409
@@ -19,6 +20,8 @@ export type DeleteAccountDeps = {
   // Общий с входом лимит неудач по email: удаление не даёт второго канала перебора пароля
   failureLimiter: FailureLimiter
   emailSender: EmailSender
+  // Не задано или null — хранилище картинок не настроено: файлов нет
+  imageFiles?: TeacherImageFiles | null
 }
 
 // Учитель удаляет свой аккаунт сам (GDPR): физически, вместе со всеми сессиями и данными. Подтверждение — текущий
@@ -47,9 +50,11 @@ export function makeDeleteAccount(deps: DeleteAccountDeps) {
     if (!isPasswordValid) throw new AppError(BAD_REQUEST_STATUS, WRONG_PASSWORD_MESSAGE)
     reservation.release()
 
+    const imageIds = await collectTeacherImageIds(deps.imageFiles, teacher.id)
     const deleted = await deps.teachers.deleteAccount(teacher.id, teacher.email)
-    // Параллельный запрос успел удалить аккаунт раньше
+    // Параллельный запрос успел удалить аккаунт раньше — и сам удалит файлы
     if (!deleted) throw sessionInvalid()
+    await removeTeacherImageFiles(deps.imageFiles, imageIds)
 
     // Только teacherId: email удалённого учителя в логах не остаётся
     console.info('Teacher account deleted', { teacherId: teacher.id })
