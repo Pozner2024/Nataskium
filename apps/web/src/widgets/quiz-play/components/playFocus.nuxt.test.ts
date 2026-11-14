@@ -21,8 +21,8 @@ async function startQuiz() {
       showAnswers: true,
       version: 'v1',
       questions: [
-        { text: 'Q1', options: ['a', 'b'], selectCount: 1 },
-        { text: 'Q2', options: ['c', 'd'], selectCount: 1 },
+        { text: 'Q1', imageUrl: null, options: [{ text: 'a', imageUrl: null }, { text: 'b', imageUrl: null }], selectCount: 1 },
+        { text: 'Q2', imageUrl: null, options: [{ text: 'c', imageUrl: null }, { text: 'd', imageUrl: null }], selectCount: 1 },
       ],
     },
   })

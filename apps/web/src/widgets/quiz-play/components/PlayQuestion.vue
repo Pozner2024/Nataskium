@@ -12,21 +12,38 @@
     />
 
     <h1 ref="heading" class="play-question__text" tabindex="-1">{{ store.question.text }}</h1>
+    <div v-if="store.question.imageUrl" class="play-question__image">
+      <p v-if="isBroken(store.question.imageUrl)" class="play-question__image-fallback">{{ t('play.imageFailed') }}</p>
+      <img
+        v-else
+        class="play-question__image-img"
+        :src="store.question.imageUrl"
+        alt=""
+        @error="markBroken(store.question.imageUrl)"
+      >
+    </div>
     <p class="play-question__hint">{{ t('play.selectHint', store.question.selectCount) }}</p>
 
     <p class="play-question__sr-only" aria-live="polite">{{ feedbackText }}</p>
 
     <ul class="play-question__options">
-      <li v-for="option in store.question.options" :key="option.index" class="play-question__item">
+      <li v-for="(option, position) in store.question.options" :key="option.index" class="play-question__item">
         <button
           class="play-question__option"
           :class="optionClass(option.index)"
           type="button"
           :aria-pressed="store.isSelected(option.index)"
           :disabled="store.isDisabled(option.index)"
+          :aria-label="imageOptionLabel(option, position)"
           @click="store.toggle(option.index)"
         >
-          <span class="play-question__option-text">{{ option.text }}</span>
+          <span v-if="option.imageUrl" class="play-question__option-image">
+            <span v-if="isBroken(option.imageUrl)" class="play-question__option-fallback" aria-hidden="true">
+              {{ t('play.imageFailed') }}
+            </span>
+            <img v-else class="play-question__option-img" :src="option.imageUrl" alt="" @error="markBroken(option.imageUrl)">
+          </span>
+          <span v-if="option.text" class="play-question__option-text">{{ option.text }}</span>
           <template v-if="mark(option.index)">
             <span class="play-question__mark" aria-hidden="true">{{ mark(option.index)!.symbol }}</span>
             <span class="play-question__sr-only">{{ t(mark(option.index)!.label) }}</span>
@@ -51,7 +68,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, useTemplateRef, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, useTemplateRef, watch } from 'vue'
 import { useI18n } from '#imports'
 import { usePlayStore } from '../store'
 
@@ -74,6 +91,26 @@ async function moveFocus(): Promise<void> {
 
 onMounted(moveFocus)
 watch(() => [store.current, store.phase, store.busy], moveFocus)
+
+// Адреса картинок, которые не открылись: вместо них заглушка, вариант остаётся выбираемым
+const brokenImages = ref(new Set<string>())
+
+function isBroken(url: string): boolean {
+  return brokenImages.value.has(url)
+}
+
+function markBroken(url: string): void {
+  brokenImages.value.add(url)
+}
+
+// Описаний картинок нет: вариант без текста называется по месту на экране.
+// aria-label заменяет содержимое кнопки, поэтому отметка после проверки добавляется в него же
+function imageOptionLabel(option: { text: string; index: number }, position: number): string | undefined {
+  if (option.text !== '') return undefined
+  const name = t('play.imageOption', { n: position + 1 })
+  const current = mark(option.index)
+  return current === null ? name : `${name}, ${t(current.label)}`
+}
 
 type Mark = { modifier: 'correct' | 'wrong' | 'missed'; symbol: string; label: string }
 

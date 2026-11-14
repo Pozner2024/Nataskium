@@ -256,6 +256,8 @@ const messages: Messages = {
     optionCorrect: 'correct',
     optionWrong: 'incorrect',
     optionMissed: 'correct option, not selected',
+    imageFailed: 'Image failed to load',
+    imageOption: 'Image {n}',
     finished: 'You finished the quiz “{title}”',
     percent: '{percent}%',
     grade: 'Grade: {grade}',

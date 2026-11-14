@@ -8,8 +8,8 @@ import { shuffle } from './shuffle'
 type PlayPhase = 'question' | 'feedback' | 'result'
 type PlayStatus = 'loading' | 'ready' | 'notFound' | 'changed' | 'failed'
 
-type PlayOption = { text: string; index: number }
-type PlayQuestionView = { text: string; selectCount: number; options: PlayOption[] }
+type PlayOption = { text: string; imageUrl: string | null; index: number }
+type PlayQuestionView = { text: string; imageUrl: string | null; selectCount: number; options: PlayOption[] }
 
 const NOT_FOUND_STATUS = 404
 const CONFLICT_STATUS = 409
@@ -119,8 +119,9 @@ export const usePlayStore = defineStore('play', () => {
       version.value = quiz.version
       questions.value = quiz.questions.map((item) => ({
         text: item.text,
+        imageUrl: item.imageUrl,
         selectCount: item.selectCount,
-        options: shuffle(item.options, random).map(({ item: text, index }) => ({ text, index })),
+        options: shuffle(item.options, random).map(({ item: option, index }) => ({ text: option.text, imageUrl: option.imageUrl, index })),
       }))
       answers.value = quiz.questions.map(() => [])
     }, 'loading')

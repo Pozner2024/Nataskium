@@ -251,6 +251,8 @@ export default {
     optionCorrect: 'верно',
     optionWrong: 'неверно',
     optionMissed: 'правильный вариант, не отмечен',
+    imageFailed: 'Картинка не загрузилась',
+    imageOption: 'Картинка {n}',
     finished: 'Вы прошли викторину «{title}»',
     percent: '{percent}%',
     grade: 'Оценка: {grade}',

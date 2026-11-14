@@ -16,6 +16,10 @@ const RESULT = { percent: 100, grade: '5', correctCount: 2, partialCount: 0, tot
 const TOKEN = 'abcdefghijklmnopqrstuv'
 const NO_SHUFFLE = () => 0.99
 
+function options(...texts: string[]) {
+  return texts.map((text) => ({ text, imageUrl: null }))
+}
+
 function quiz(showAnswers: boolean) {
   return {
     quiz: {
@@ -23,8 +27,8 @@ function quiz(showAnswers: boolean) {
       showAnswers,
       version: 'v1',
       questions: [
-        { text: 'Q1', options: ['a', 'b', 'c'], selectCount: 2 },
-        { text: 'Q2', options: ['d', 'e'], selectCount: 1 },
+        { text: 'Q1', imageUrl: null, options: options('a', 'b', 'c'), selectCount: 2 },
+        { text: 'Q2', imageUrl: null, options: options('d', 'e'), selectCount: 1 },
       ],
     },
   }
@@ -228,5 +232,44 @@ describe('usePlayStore', () => {
     check.mockResolvedValue({ correct: [2] })
     await store.submit()
     expect(store.feedback).toBe('wrong')
+  })
+})
+
+describe('usePlayStore: картинки', () => {
+  const IMAGE_Q = 'https://storage.example/quiz-images/q.webp'
+  const IMAGE_A = 'https://storage.example/quiz-images/a.webp'
+  const IMAGE_C = 'https://storage.example/quiz-images/c.webp'
+
+  it('перемешивание не теряет картинку варианта, вариант-картинка уходит исходным индексом', async () => {
+    get.mockResolvedValue({
+      quiz: {
+        title: 'Картинки',
+        showAnswers: false,
+        version: 'v1',
+        questions: [
+          {
+            text: 'Q1',
+            imageUrl: IMAGE_Q,
+            options: [
+              { text: '', imageUrl: IMAGE_A },
+              { text: 'b', imageUrl: null },
+              { text: 'c', imageUrl: IMAGE_C },
+            ],
+            selectCount: 1,
+          },
+        ],
+      },
+    })
+    finish.mockResolvedValue({ result: RESULT })
+    await store.start(TOKEN, () => 0)
+    expect(store.question!.imageUrl).toBe(IMAGE_Q)
+    expect(store.question!.options).toEqual([
+      { text: 'b', imageUrl: null, index: 1 },
+      { text: 'c', imageUrl: IMAGE_C, index: 2 },
+      { text: '', imageUrl: IMAGE_A, index: 0 },
+    ])
+    store.toggle(store.question!.options[2]!.index)
+    await store.submit()
+    expect(finish).toHaveBeenCalledWith(TOKEN, { version: 'v1', answers: [[0]] })
   })
 })
