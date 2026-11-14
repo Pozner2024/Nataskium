@@ -1,2 +1,6 @@
 export { calculatePercent, gradeByScale } from './grading'
 export type { GradeThreshold } from './grading'
+export { GRADING_SCALES, GRADING_SCALE_TYPES } from './scales'
+export type { GradingScaleType } from './scales'
+export { QUESTION_POINTS, scoreQuestion, summarizeQuiz } from './scoring'
+export type { QuizResult } from './scoring'

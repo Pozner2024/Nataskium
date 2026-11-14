@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 
 const BUTTONS = [
   { place: 'первый экран', name: 'Создать задание бесплатно' },
-  { place: 'PreFooter', name: 'Присоединиться бесплатно' },
+  { place: 'PreFooter', name: 'Начните сейчас — это бесплатно' },
 ]
 
 async function waitForHydration(page: Page) {

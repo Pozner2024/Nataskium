@@ -6,8 +6,8 @@
       <p class="activity-card__meta">
         {{ t(`teacher.activityTypes.${activity.type}.name`) }} · {{ t('teacher.activities.questions', { count: activity.questionCount }) }}
       </p>
-      <p class="activity-card__grade" :class="{ 'activity-card__grade--none': !activity.scaleName }">
-        {{ activity.scaleName ? t('teacher.activities.grade', { scale: activity.scaleName }) : t('teacher.activities.noGrade') }}
+      <p class="activity-card__grade" :class="{ 'activity-card__grade--none': !activity.gradingScale }">
+        {{ activity.gradingScale ? t('teacher.activities.grade', { scale: t(`teacher.gradingScales.${activity.gradingScale}`) }) : t('teacher.activities.noGrade') }}
       </p>
     </div>
     <div v-if="$slots.actions" class="activity-card__actions">

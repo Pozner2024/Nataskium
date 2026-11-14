@@ -63,7 +63,7 @@ test.describe('Фокус с клавиатуры', () => {
   })
 
   test('виден на кнопке в PreFooter', async ({ page }) => {
-    const button = page.getByRole('button', { name: 'Присоединиться бесплатно' })
+    const button = page.getByRole('button', { name: 'Начните сейчас — это бесплатно' })
 
     await tabTo(page, button)
 

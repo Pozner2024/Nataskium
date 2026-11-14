@@ -10,6 +10,15 @@ type Tree = { [key: string]: string | Tree }
 
 const PLACEHOLDER = /\{(\w+)\}/g
 
+const params = (text: string) => [...new Set([...text.matchAll(PLACEHOLDER)].map((match) => match[1]))].sort()
+
+// Плюральная строка — формы через «|»; число форм зависит от языка («один | несколько | много»), поэтому
+// каждая форма перевода должна нести те же имена, что первая форма русской строки: потерянный плейсхолдер ловится
+function expectSameParams(translated: string, source: string, key: string): void {
+  const expected = params(source.split('|')[0] ?? '')
+  for (const form of translated.split('|')) expect(params(form), key).toEqual(expected)
+}
+
 function flatten(tree: Tree, prefix = ''): Record<string, string> {
   return Object.entries(tree).reduce<Record<string, string>>((flat, [key, value]) => {
     const path = prefix === '' ? key : `${prefix}.${key}`
@@ -46,9 +55,8 @@ describe('файлы переводов', () => {
   })
 
   it('параметры вида {name} совпадают в обоих языках', () => {
-    const params = (text: string) => [...text.matchAll(PLACEHOLDER)].map((match) => match[1]).sort()
     for (const [key, text] of Object.entries(russian)) {
-      expect(params(english[key] ?? ''), key).toEqual(params(text))
+      expectSameParams(english[key] ?? '', text, key)
     }
   })
 
@@ -64,9 +72,8 @@ describe('файлы переводов', () => {
   })
 
   it.each([['немецкий', german], ['французский', french]])('в %s параметры вида {name} совпадают с русским', (_name, translation) => {
-    const params = (text: string) => [...text.matchAll(PLACEHOLDER)].map((match) => match[1]).sort()
     for (const [key, text] of Object.entries(russian)) {
-      expect(params(translation[key] ?? ''), key).toEqual(params(text))
+      expectSameParams(translation[key] ?? '', text, key)
     }
   })
 

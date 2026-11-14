@@ -1,3 +1,5 @@
+import type { GradingScaleType } from '@nataskium/shared/grading'
+
 export type ActivityType = 'quiz' | 'gaps' | 'pictures'
 
 export interface Activity {
@@ -5,7 +7,7 @@ export interface Activity {
   title: string
   type: ActivityType
   questionCount: number
-  // Название шкалы оценивания; null — учитель решил не ставить оценку
-  scaleName: string | null
+  // Тип шкалы оценивания; null — учитель решил не ставить оценку
+  gradingScale: GradingScaleType | null
   shareToken: string
 }

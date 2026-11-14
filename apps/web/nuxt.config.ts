@@ -13,8 +13,9 @@ const LOCALE_META: Record<Locale, { language: string; name: string; flag: string
 const LOCALES = SUPPORTED_LOCALES.map((code) => ({ code, ...LOCALE_META[code] }))
 const PREFIXES = ['', ...LOCALES.filter(({ code }) => code !== DEFAULT_LOCALE).map(({ code }) => `/${code}`)]
 // Приватные страницы у каждого языка свои: /auth/**, /en/auth/**. Кабинет учителя — тоже только в браузере:
-// его данные доступны лишь с access-токеном, который живёт в памяти вкладки
-const CLIENT_ONLY_PATHS = ['/auth/**', '/teacher', '/teacher/**']
+// его данные доступны лишь с access-токеном, который живёт в памяти вкладки.
+// Игра ученика — тоже: язык выбирается по navigator.languages, на сервере его нет
+const CLIENT_ONLY_PATHS = ['/auth/**', '/teacher', '/teacher/**', '/play/**']
 
 const DEV_ONLY_PATHS = ['/nat', '/auth-card-preview', '/teacher-preview']
 // Порт API в dev (API_PORT по умолчанию в apps/api)

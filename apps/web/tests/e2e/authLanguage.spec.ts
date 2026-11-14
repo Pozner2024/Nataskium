@@ -109,6 +109,7 @@ test.describe('авторизация на двух языках', () => {
 
   test('вход на английской версии ведёт в кабинет на английском', async ({ page }) => {
     await page.route('**/api/auth/login', (route) => route.fulfill({ json: SESSION }))
+    await page.route('**/api/quizzes', (route) => route.fulfill({ json: { quizzes: [] } }))
     await page.goto('/en/auth/login')
     await waitForHydration(page)
     await page.getByLabel('Email').fill('qa-anna@example.test')

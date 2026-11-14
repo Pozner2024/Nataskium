@@ -37,9 +37,28 @@ import {
   makeTokenService,
   makeVerifyEmail,
 } from './features/auth'
+import {
+  PLAY_LIMITS,
+  PLAY_ROUTES_BASE_PATH,
+  makeCheckAnswer,
+  makeFinishQuiz,
+  makeGetPlayQuiz,
+  makePlayRouter,
+} from './features/play'
+import {
+  QUIZ_ROUTES_BASE_PATH,
+  makeCreateQuiz,
+  makeDeleteQuiz,
+  makeGetQuiz,
+  makeListQuizzes,
+  makeQuizRepository,
+  makeQuizRouter,
+  makeUpdateQuiz,
+} from './features/quizzes'
 import type { Env } from './shared/config'
 import { AppError } from './shared/errors'
 import {
+  createRateLimiter,
   errorHandler,
   makeClientIpResolver,
   makeRequireAuth,
@@ -186,6 +205,38 @@ export function createApp({ env, prisma, limits, passwordHasher, emailSender, go
       clientIp: makeClientIpResolver(env.TRUSTED_PROXY_IPS),
       webOrigin: env.WEB_ORIGIN,
       limiters,
+    }),
+  )
+
+  // Викторины
+  const quizzes = makeQuizRepository(prisma)
+  app.route(
+    QUIZ_ROUTES_BASE_PATH,
+    makeQuizRouter({
+      listQuizzes: makeListQuizzes({ quizzes }),
+      getQuiz: makeGetQuiz({ quizzes }),
+      createQuiz: makeCreateQuiz({ quizzes }),
+      updateQuiz: makeUpdateQuiz({ quizzes }),
+      deleteQuiz: makeDeleteQuiz({ quizzes }),
+      requireAuth: makeRequireAuth(tokens.verifyAccessToken),
+    }),
+  )
+
+  // Игра ученика: публичные маршруты по shareToken, только лимиты по IP
+  const playLimiter = (limit: { max: number; windowMs: number }) =>
+    createRateLimiter({ ...limit, maxTrackedKeys: PLAY_LIMITS.maxTrackedKeys })
+  app.route(
+    PLAY_ROUTES_BASE_PATH,
+    makePlayRouter({
+      getPlayQuiz: makeGetPlayQuiz({ quizzes }),
+      checkAnswer: makeCheckAnswer({ quizzes }),
+      finishQuiz: makeFinishQuiz({ quizzes }),
+      clientIp: makeClientIpResolver(env.TRUSTED_PROXY_IPS),
+      limiters: {
+        get: playLimiter(PLAY_LIMITS.get),
+        check: playLimiter(PLAY_LIMITS.check),
+        finish: playLimiter(PLAY_LIMITS.finish),
+      },
     }),
   )
 

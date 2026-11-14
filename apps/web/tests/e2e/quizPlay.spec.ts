@@ -1,0 +1,215 @@
+import { expect, test, type Page } from '@playwright/test'
+
+const TOKEN = 'AAAAAAAAAAAAAAAAAAAAAA'
+const VERSION = 'v1'
+
+function quizBody(showAnswers: boolean) {
+  return {
+    quiz: {
+      title: 'Capitals',
+      showAnswers,
+      version: VERSION,
+      questions: [
+        { text: 'Capital of France?', options: ['Paris', 'Rome', 'Berlin'], selectCount: 1 },
+        { text: 'Danube cities?', options: ['Vienna', 'Prague', 'Budapest', 'Madrid'], selectCount: 2 },
+      ],
+    },
+  }
+}
+
+// Правильные: вопрос 0 — «Paris» (0); вопрос 1 — «Vienna» (0) и «Budapest» (2)
+const CORRECT = [[0], [0, 2]]
+
+async function mockApi(page: Page, showAnswers: boolean) {
+  const calls = { check: 0, finish: 0 }
+  await page.route('**/api/play/**', async (route) => {
+    const request = route.request()
+    const url = new URL(request.url())
+    if (url.pathname.endsWith('/check')) {
+      calls.check += 1
+      const { questionIndex } = request.postDataJSON() as { questionIndex: number }
+      return route.fulfill({ json: { correct: CORRECT[questionIndex] } })
+    }
+    if (url.pathname.endsWith('/finish')) {
+      calls.finish += 1
+      return route.fulfill({
+        json: { result: { percent: 100, grade: '5', correctCount: 2, partialCount: 0, totalCount: 2 } },
+      })
+    }
+    return route.fulfill({ json: quizBody(showAnswers) })
+  })
+  return calls
+}
+
+async function pick(page: Page, name: string) {
+  await page.getByRole('button', { name, exact: true }).click()
+}
+
+test.describe('игра ученика', () => {
+  test('en-US: английский интерфейс, прохождение с подсветкой, процент и оценка', async ({ browser }) => {
+    const context = await browser.newContext({ locale: 'en-US' })
+    const page = await context.newPage()
+    const calls = await mockApi(page, true)
+
+    await page.goto(`/play/${TOKEN}`)
+    await expect(page).toHaveURL(new RegExp(`/en/play/${TOKEN}$`))
+    await expect(page.getByRole('heading', { name: 'Capital of France?' })).toBeVisible()
+    await expect(page.getByText('Select 1 answer')).toBeVisible()
+
+    const submit = page.getByRole('button', { name: 'Answer' })
+    await expect(submit).toBeDisabled()
+    await pick(page, 'Paris')
+    await expect(page.getByRole('button', { name: 'Rome' })).toBeDisabled()
+    await submit.click()
+    await expect(page.locator('.play-question__option--correct')).toHaveCount(1)
+    await page.getByRole('button', { name: 'Next' }).click()
+
+    await expect(page.getByText('Select 2 answers')).toBeVisible()
+    await pick(page, 'Vienna')
+    await pick(page, 'Prague')
+    await submit.click()
+    await expect(page.locator('.play-question__option--correct')).toHaveCount(1)
+    await expect(page.locator('.play-question__option--wrong')).toHaveCount(1)
+    await expect(page.locator('.play-question__option--missed')).toHaveCount(1)
+    await page.getByRole('button', { name: 'Next' }).click()
+
+    await expect(page.getByText('100%')).toBeVisible()
+    await expect(page.getByText('Grade: 5')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Play again' })).toBeVisible()
+    expect(calls).toEqual({ check: 2, finish: 1 })
+    await context.close()
+  })
+
+  test('ru-RU: русский интерфейс без префикса, плюрализация', async ({ page }) => {
+    await mockApi(page, false)
+    await page.goto(`/play/${TOKEN}`)
+    await expect(page).toHaveURL(new RegExp(`/play/${TOKEN}$`))
+    await expect(page.getByText('Выберите 1 ответ', { exact: true })).toBeVisible()
+  })
+
+  test('ответы скрыты: после «Ответить» нет подсветки, check не вызывается', async ({ browser }) => {
+    const context = await browser.newContext({ locale: 'en-US' })
+    const page = await context.newPage()
+    const calls = await mockApi(page, false)
+
+    await page.goto(`/play/${TOKEN}`)
+    await pick(page, 'Paris')
+    await page.getByRole('button', { name: 'Answer' }).click()
+
+    await expect(page.getByRole('heading', { name: 'Danube cities?' })).toBeVisible()
+    await expect(page.locator('.play-question__mark')).toHaveCount(0)
+    expect(calls.check).toBe(0)
+    await context.close()
+  })
+
+  test('404: сообщение, что задание не найдено', async ({ browser }) => {
+    const context = await browser.newContext({ locale: 'en-US' })
+    const page = await context.newPage()
+    await page.route('**/api/play/**', (route) => route.fulfill({ status: 404, json: { error: 'not_found' } }))
+    await page.goto(`/play/${TOKEN}`)
+    await expect(page.getByText('Activity not found or deleted')).toBeVisible()
+    await context.close()
+  })
+  test('пропущенный правильный: пустая отметка и скрытый текст для скринридера', async ({ browser }) => {
+    const context = await browser.newContext({ locale: 'en-US' })
+    const page = await context.newPage()
+    await mockApi(page, true)
+
+    await page.goto(`/play/${TOKEN}`)
+    await pick(page, 'Paris')
+    await page.getByRole('button', { name: 'Answer' }).click()
+    await page.getByRole('button', { name: 'Next' }).click()
+    await pick(page, 'Vienna')
+    await pick(page, 'Prague')
+    await page.getByRole('button', { name: 'Answer' }).click()
+
+    const missed = page.locator('.play-question__option--missed')
+    await expect(missed).toContainText('correct option, not selected')
+    await expect(missed.locator('.play-question__mark')).toHaveText('')
+    await context.close()
+  })
+
+  test('итог без оценки: «Correct: a of n» и «Partially correct: b»', async ({ browser }) => {
+    const context = await browser.newContext({ locale: 'en-US' })
+    const page = await context.newPage()
+    await page.route('**/api/play/**', (route) => {
+      const { pathname } = new URL(route.request().url())
+      if (pathname.endsWith('/check')) return route.fulfill({ json: { correct: [0] } })
+      if (pathname.endsWith('/finish')) {
+        return route.fulfill({
+          json: { result: { percent: 75, grade: null, correctCount: 1, partialCount: 1, totalCount: 2 } },
+        })
+      }
+      return route.fulfill({ json: quizBody(true) })
+    })
+
+    await page.goto(`/play/${TOKEN}`)
+    for (const names of [['Paris'], ['Vienna', 'Prague']]) {
+      for (const name of names) await pick(page, name)
+      await page.getByRole('button', { name: 'Answer' }).click()
+      await page.getByRole('button', { name: 'Next' }).click()
+    }
+
+    await expect(page.getByText('75%')).toBeVisible()
+    await expect(page.getByText('Correct: 1 of 2')).toBeVisible()
+    await expect(page.getByText('Partially correct: 1')).toBeVisible()
+    await expect(page.getByText(/^Grade:/)).toHaveCount(0)
+    await context.close()
+  })
+
+  test('409 на check: сообщение и «Start over» загружает задание заново', async ({ browser }) => {
+    const context = await browser.newContext({ locale: 'en-US' })
+    const page = await context.newPage()
+    let loads = 0
+    await page.route('**/api/play/**', (route) => {
+      if (new URL(route.request().url()).pathname.endsWith('/check')) {
+        return route.fulfill({ status: 409, json: { error: 'quiz_changed' } })
+      }
+      loads += 1
+      return route.fulfill({ json: quizBody(true) })
+    })
+
+    await page.goto(`/play/${TOKEN}`)
+    await pick(page, 'Paris')
+    await page.getByRole('button', { name: 'Answer' }).click()
+    await expect(page.getByRole('alert')).toHaveText('The activity has changed, please start over')
+
+    await page.getByRole('button', { name: 'Start over' }).click()
+    await expect(page.getByRole('heading', { name: 'Capital of France?' })).toBeVisible()
+    expect(loads).toBe(2)
+    await context.close()
+  })
+
+  test('500 на check: сообщение и «Try again» повторяет запрос', async ({ browser }) => {
+    const context = await browser.newContext({ locale: 'en-US' })
+    const page = await context.newPage()
+    let checks = 0
+    await page.route('**/api/play/**', (route) => {
+      if (new URL(route.request().url()).pathname.endsWith('/check')) {
+        checks += 1
+        if (checks === 1) return route.fulfill({ status: 500, json: { error: 'x' } })
+        return route.fulfill({ json: { correct: [0] } })
+      }
+      return route.fulfill({ json: quizBody(true) })
+    })
+
+    await page.goto(`/play/${TOKEN}`)
+    await pick(page, 'Paris')
+    await page.getByRole('button', { name: 'Answer' }).click()
+    await expect(page.getByRole('alert')).toHaveText('Something went wrong, please try again')
+
+    await page.getByRole('button', { name: 'Try again' }).click()
+    await expect(page.locator('.play-question__option--correct')).toHaveCount(1)
+    expect(checks).toBe(2)
+    await context.close()
+  })
+
+  test('404: сообщение остаётся в role="alert"', async ({ browser }) => {
+    const context = await browser.newContext({ locale: 'en-US' })
+    const page = await context.newPage()
+    await page.route('**/api/play/**', (route) => route.fulfill({ status: 404, json: { error: 'not_found' } }))
+    await page.goto(`/play/${TOKEN}`)
+    await expect(page.getByRole('alert')).toHaveText('Activity not found or deleted')
+    await context.close()
+  })
+})

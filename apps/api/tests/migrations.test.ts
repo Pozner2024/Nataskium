@@ -53,6 +53,9 @@ const MANUAL_CHECKS = [
   ],
   ['pending_google_reauths', 'pending_google_reauths_state_hash_format_check', `CHECK ("state_hash" ~ '^[0-9a-f]{64}$')`],
   ['pending_google_reauths', 'pending_google_reauths_expires_after_created_check', 'CHECK ("expires_at" > "created_at")'],
+  ['quizzes', 'quizzes_grading_scale_check', `CHECK ("grading_scale" IN ('ten', 'five', 'letter'))`],
+  ['quizzes', 'quizzes_title_not_empty_check', `CHECK ("title" <> '')`],
+  ['quizzes', 'quizzes_share_token_not_empty_check', `CHECK ("share_token" <> '')`],
 ]
 // Без каскада удаление учителя оставило бы его сессии в базе (GDPR)
 const PASSWORD_RESETS_CASCADE =

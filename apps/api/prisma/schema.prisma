@@ -25,6 +25,7 @@ model Teacher {
   passwordResets       PasswordReset[]
   pendingGoogleLinks   PendingGoogleLink[]
   pendingGoogleReauths PendingGoogleReauth[]
+  quizzes              Quiz[]
 
   @@map("teachers")
 }
@@ -124,4 +125,25 @@ model PendingGoogleReauth {
   // cleanup удаляет по expires_at < now
   @@index([expiresAt])
   @@map("pending_google_reauths")
+}
+
+// Викторина учителя. Вопросы — jsonb, их форму и длины проверяет Zod (packages/shared/schemas/quiz).
+// CHECK добавлены вручную в миграции create_quizzes: grading_scale только ten/five/letter, title и share_token не пустые.
+// Мягкое удаление через deleted_at; при удалении аккаунта строки удаляются каскадом (GDPR)
+model Quiz {
+  id           String    @id @default(uuid()) @db.Uuid
+  teacherId    String    @map("teacher_id") @db.Uuid
+  title        String
+  shareToken   String    @unique @map("share_token")
+  showAnswers  Boolean   @default(true) @map("show_answers")
+  gradingScale String?   @map("grading_scale")
+  questions    Json
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz
+
+  teacher Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@index([teacherId, deletedAt])
+  @@map("quizzes")
 }

@@ -86,12 +86,12 @@ Nataskium/
 Гибридная стратегия (часть адресов SSR, часть CSR) через `routeRules` в `nuxt.config.ts`:
 
 - **SSR** — публичные страницы (лендинг, тарифы, каталог готовых игр) ради SEO
-- **CSR (`ssr: false`)** — приватные и интерактивные: `/auth/**` (вход, регистрация, ссылки из писем), `/teacher` и `/teacher/**` (кабинет учителя). Игра ученика `/play/**` добавится сюда же, когда появится
+- **CSR (`ssr: false`)** — приватные и интерактивные: `/auth/**` (вход, регистрация, ссылки из писем), `/teacher` и `/teacher/**` (кабинет учителя). Игра ученика `/play/**` — тоже CSR: язык выбирается по `navigator.languages`
 
 Пути перечислены в `CLIENT_ONLY_PATHS` в `nuxt.config.ts`; правило ставится для каждого языкового префикса (`/auth/**`, `/en/auth/**`, `/de/auth/**`, …):
 
 ```ts
-const CLIENT_ONLY_PATHS = ['/auth/**', '/teacher', '/teacher/**']
+const CLIENT_ONLY_PATHS = ['/auth/**', '/teacher', '/teacher/**', '/play/**']
 ```
 
 `**` — всё, что после адреса (`/teacher/create`, `/teacher/library`, `/teacher/settings`). Сам `/teacher` указан отдельно. Доступ к кабинету — middleware `teacher-auth` (без сессии — на вход с `?next=`), со страниц входа и регистрации вошедшего уводит `guest-only`. Это только навигация: данные защищает API.
@@ -196,7 +196,7 @@ ESLint правило `no-restricted-imports` проверяет и запрещ
 **Store обязателен в:**
 
 - `auth/` — сессия учителя
-- `assignment-editor/` — состояние редактора задания (вопросы, настройки, шкала)
+- `quiz-editor/` — состояние редактора викторины (вопросы, настройки, шкала)
 - `play/` — прогресс ученика в игре (текущий вопрос, ответы)
 
 **Store опционален в:**
@@ -243,9 +243,9 @@ assets/styles/
 ```
 features/{featureName}/
 ├── application/                    бизнес-логика (use-cases)
-│   ├── createAssignment.ts
-│   ├── checkAttempt.ts
-│   └── getAssignmentForPlay.ts
+│   ├── createQuiz.ts
+│   ├── checkAnswer.ts
+│   └── getPlayQuiz.ts
 ├── infrastructure/                 работа с БД (репозитории)
 │   └── {featureName}Repository.ts
 ├── presentation/                   HTTP маршруты (Hono)
@@ -258,16 +258,18 @@ features/{featureName}/
 Содержит бизнес-логику в виде use-cases. Один файл = одна операция. Use-case — **фабрика** `make…`, которая принимает зависимости и возвращает функцию операции:
 
 ```typescript
-// features/play/application/checkAttempt.ts
-export function makeCheckAttempt(repo: PlayRepository) {
-  return async function checkAttempt(shareToken: string, answers: Answer[]) {
-    const assignment = await repo.findAssignmentByToken(shareToken);
-    if (!assignment) throw new AppError(404, "Assignment not found");
+// features/play/application/checkAnswer.ts
+export function makeCheckAnswer(deps: { quizzes: PlayQuizSource }) {
+  return async function checkAnswer(shareToken: string, input: PlayCheckInput): Promise<PlayCheckResponse> {
+    const quiz = await loadPlayableQuiz(deps.quizzes, shareToken);
+    // Ответы скрыты учителем: маршрут для ученика не существует
+    if (!quiz.showAnswers) throw playQuizNotFound();
+    if (input.version !== quizVersion(quiz)) throw playVersionConflict();
 
-    const percent = calculatePercent(assignment.questions, answers);
-    const grade = assignment.gradingScale ? gradeByScale(percent, assignment.gradingScale) : null;
-
-    return { percent, grade };
+    const question = quiz.questions[input.questionIndex];
+    if (question === undefined) throw playInvalid("Question index out of range");
+    assertSelectionFits(question, input.selected);
+    return { correct: correctIndexes(question) };
   };
 }
 ```
@@ -284,14 +286,12 @@ export function makeCheckAttempt(repo: PlayRepository) {
 Работает с БД через Prisma. Репозиторий — **фабрика** `make…Repository(prisma)`, возвращающая объект с методами (тип описан в `types.ts`):
 
 ```typescript
-// features/play/infrastructure/playRepository.ts
-export function makePlayRepository(prisma: PrismaClient): PlayRepository {
+// features/quizzes/infrastructure/quizRepository.ts
+export function makeQuizRepository(prisma: PrismaClient): QuizRepository {
   return {
-    async findAssignmentByToken(shareToken) {
-      return prisma.assignment.findFirst({
-        where: { shareToken, deletedAt: null },
-        include: { questions: true, gradingScale: true },
-      });
+    async findByShareToken(token) {
+      const row = await prisma.quiz.findFirst({ where: { shareToken: token, deletedAt: null }, select: QUIZ_SELECT });
+      return row === null ? null : toStoredQuiz(row);
     },
   };
 }
@@ -303,12 +303,11 @@ HTTP маршруты и обработчики Hono:
 
 ```typescript
 // features/play/presentation/playRoutes.ts
-export function makePlayRouter(checkAttempt: CheckAttempt /* ...прочие use-cases */) {
+export function makePlayRouter(deps: PlayRouterDeps) {
   const router = new Hono();
-  router.post("/:shareToken/check", async (c) => {
-    const { answers } = CheckAttemptSchema.parse(await c.req.json());
-    const result = await checkAttempt(c.req.param("shareToken"), answers);
-    return c.json(result);
+  router.post("/:shareToken/check", deps.limiters.check.middleware(deps.clientIp), async (c) => {
+    const input = await readJsonBody(c, playCheckInputSchema);
+    return c.json(await deps.checkAnswer(c.req.param("shareToken"), input));
   });
   return router;
 }
@@ -320,15 +319,15 @@ export function makePlayRouter(checkAttempt: CheckAttempt /* ...прочие use
 
 ```typescript
 // apps/api/src/app.ts
-import { makePlayRepository, makeCheckAttempt, makePlayRouter } from "./features/play";
+import { makeQuizRepository } from "./features/quizzes";
+import { makeCheckAnswer, makePlayRouter, PLAY_ROUTES_BASE_PATH } from "./features/play";
 
 export function createApp() {
   const app = new Hono();
   // ...глобальные middleware и onError...
 
-  const playRepo = makePlayRepository(prisma);
-  const checkAttempt = makeCheckAttempt(playRepo);
-  app.route("/play", makePlayRouter(checkAttempt /* ...прочие use-cases */));
+  const quizzes = makeQuizRepository(prisma);
+  app.route(PLAY_ROUTES_BASE_PATH, makePlayRouter({ checkAnswer: makeCheckAnswer({ quizzes }) /* ...прочие зависимости */ }));
 
   return app;
 }
@@ -405,7 +404,20 @@ packages/shared/
 - Сервер возвращает процент и оценку и **ничего не сохраняет** — в БД нет таблицы попыток и результатов
 - Ученик видит оценку на своём экране в конце игры; учитель в кабинете результатов не видит
 - Повторно пройти задание можно сколько угодно, ограничений нет
+- **Принятый риск (решение пользователя, 2026-11-13).** В режиме «скрывать ответы» правильные ответы можно подобрать многократными прохождениями, сравнивая процент: сервер без состояния, перепрохождения не ограничены. Режим защищает от подсматривания, не от целенаправленного подбора. В режиме «показывать» `check` можно вызвать до ответа — это допустимо, ответы и так показываются
 - Имя ученика не спрашивается
+
+### Викторины и игра
+
+- **Модель `quizzes`:** `title`, `shareToken` (уникальный), `showAnswers`, `gradingScale` (`ten` / `five` / `letter` / `null`), `questions` (jsonb: форму и длины проверяет Zod из `packages/shared/schemas/quiz.ts`), `deletedAt`. CHECK в миграции: `grading_scale` только из трёх значений, `title` и `share_token` не пустые. Индекс `(teacher_id, deleted_at)`. FK на учителя с `ON DELETE CASCADE` — при удалении аккаунта викторины удаляются физически, включая помеченные `deletedAt`. Удаление викторины учителем — soft delete
+- **Лимит:** не больше `MAX_QUIZZES_PER_TEACHER = 100` неудалённых викторин на учителя (`packages/shared/schemas/quiz.ts`). Сверх лимита `POST /api/quizzes` отвечает 409. Проверка не атомарна: две параллельные попытки на последней викторине могут обе пройти
+- **`/api/quizzes`** (кабинет, Bearer на всех маршрутах): `GET /` список, `POST /` создать, `GET|PATCH|DELETE /:id`. Владелец проверяется в каждом запросе; чужая, удалённая и несуществующая викторина (в том числе невалидный `:id`) дают одинаковый 404, не 403
+- **`/api/play/:shareToken`** (публично, лимит по IP):
+  - `GET /` — викторина без правильных ответов: тексты вариантов, `selectCount`, `version`
+  - `POST /check` — правильные индексы вопроса; при `showAnswers: false` отвечает 404, как будто маршрута нет
+  - `POST /finish` — `{ percent, grade }`, ничего не сохраняется
+  - 409 — `version` не совпала с текущей (учитель изменил викторину); 400 — индексы выбранных вариантов вне диапазона или неверное число ответов
+  - `version` — `updatedAt` викторины в ISO
 
 ### Сценарий игры
 
@@ -448,6 +460,7 @@ packages/shared/
 - Ключ по IP — адрес сокета; для IPv6 — его сеть /64. `X-Real-IP` принимается только от адресов из `TRUSTED_PROXY_IPS` (Caddy), `X-Forwarded-For` не используется
 - Лимиты по email считаются по нормализованному адресу: неудачные входы, письма регистрации
 - Числа — в `features/auth/limits.ts` (`PRODUCTION_LIMITS`); `src/index.ts` передаёт их всегда, независимо от `NODE_ENV`
+- Маршруты ученика — `features/play/limits.ts` (`PLAY_LIMITS`), на IP, в минуту: `GET` — 120, `check` — 600, `finish` — 120; не больше 100 000 отслеживаемых ключей. Лимиты мягкие: за школьным NAT играет целый класс
 
 ### Деплой: Caddy, заголовки и CSP
 
@@ -464,6 +477,7 @@ packages/shared/
 - Caddy перезаписывает `X-Real-IP` адресом TCP-пира, иначе клиент подделает заголовок и обойдёт rate limiting. У Caddy в compose — статический IP, он же в `TRUSTED_PROXY_IPS` (в production переменная обязательна)
 - Caddy не срезает префикс `/api`: маршруты API и `Path` refresh-cookie рассчитаны на `/api/*`
 - `Referrer-Policy: no-referrer` на страницах `/auth/**`: токены из писем приходят во фрагменте `#token=`, но и сам адрес страницы не должен уходить на сторонние ресурсы
+- То же `Referrer-Policy: no-referrer` на `/play/**`: `shareToken` лежит в самом адресе страницы
 - Hono ставит `secureHeaders` только на ответы API
 
 **CSP через hash, не nonce:** nonce несовместим с кешем HTML (`swr`). В `script-src` нет `'unsafe-inline'`; в `style-src` он нужен из-за атрибутов `style` и inline-тегов `<style>`. В `img-src` нужен `data:`, иначе пропадут CSS-маски в `WhyUs` и `HowToStart`.

@@ -1,6 +1,13 @@
 <template>
   <div class="my-activities">
-    <template v-if="activities.length > 0">
+    <p v-if="status === 'loading'" class="my-activities__loading" role="status">{{ t('teacher.activities.loading') }}</p>
+
+    <div v-else-if="status === 'error'" class="my-activities__error">
+      <p role="alert">{{ t('teacher.activities.loadError') }}</p>
+      <button class="my-activities__retry" type="button" @click="emit('retry')">{{ t('teacher.activities.retry') }}</button>
+    </div>
+
+    <template v-else-if="activities.length > 0">
       <NuxtLink class="my-activities__create" :to="localePath(TEACHER_PATHS.create)">
         <span class="my-activities__create-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
@@ -26,9 +33,6 @@
     </template>
 
     <AppEmptyState v-else :title="t('teacher.activities.emptyTitle')" :text="t('teacher.activities.emptyText')">
-      <template #nat>
-        <NatCards compact />
-      </template>
       <template #actions>
         <AppButton :to="localePath(TEACHER_PATHS.create)">{{ t('teacher.activities.create') }}</AppButton>
         <NuxtLink class="my-activities__library" :to="localePath(TEACHER_PATHS.library)">
@@ -44,18 +48,21 @@ import { onBeforeUnmount, ref } from 'vue'
 import { NuxtLink } from '#components'
 import { useI18n, useLocalePath } from '#imports'
 import { ActivityCard, type Activity } from '@/entities/activity'
-import { AppButton, AppEmptyState, NatCards, TEACHER_PATHS } from '@/shared'
+import { playUrl } from '@/entities/quiz'
+import { AppButton, AppEmptyState, TEACHER_PATHS } from '@/shared'
 import ActivityMenu from './components/ActivityMenu.vue'
 import ShareLinkButton from './components/ShareLinkButton.vue'
-import type { ShareLinkStatus } from './types'
+import type { ActivitiesStatus, ShareLinkStatus } from './types'
 
-defineProps<{
+withDefaults(defineProps<{
   activities: Activity[]
-}>()
+  status?: ActivitiesStatus
+}>(), { status: 'ready' })
 
 const emit = defineEmits<{
   edit: [activity: Activity]
   delete: [activity: Activity]
+  retry: []
 }>()
 
 // Сколько кнопка показывает «Ссылка скопирована» перед возвратом к обычной подписи
@@ -72,15 +79,10 @@ function statusOf(id: string): ShareLinkStatus {
   return copied.value?.id === id ? copied.value.status : 'idle'
 }
 
-// Адрес игры ученика: страницы /play ещё нет, формат уточнится вместе с ней
-function shareUrl(activity: Activity): string {
-  return `${window.location.origin}/play/${activity.shareToken}`
-}
-
 async function copyLink(activity: Activity) {
   let status: ShareLinkStatus = 'copied'
   try {
-    await navigator.clipboard.writeText(shareUrl(activity))
+    await navigator.clipboard.writeText(playUrl(activity.shareToken))
   } catch {
     status = 'failed'
   }
@@ -97,6 +99,8 @@ onBeforeUnmount(() => clearTimeout(resetTimer))
 </script>
 
 <style scoped lang="scss">
+@use '@/assets/styles/mixins' as *;
+
 .my-activities {
   display: flex;
   flex-direction: column;
@@ -179,6 +183,48 @@ onBeforeUnmount(() => clearTimeout(resetTimer))
   white-space: nowrap;
 }
 
+.my-activities__error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 20px;
+  border-radius: 22px;
+  @include card-surface;
+
+  p {
+    margin: 0;
+    font-weight: 500;
+  }
+}
+
+.my-activities__retry {
+  min-height: 44px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--color-blue-dark);
+  box-shadow: 0 8px 18px rgb(var(--rgb-blue) / 0.3);
+  color: var(--color-white);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+
+  @media (hover: hover) {
+    &:hover {
+      box-shadow: 0 12px 24px rgb(var(--rgb-blue) / 0.4);
+    }
+  }
+
+  &:active {
+    transform: scale(0.97);
+  }
+}
+
 .my-activities__library {
   display: flex;
   align-items: center;
@@ -190,8 +236,13 @@ onBeforeUnmount(() => clearTimeout(resetTimer))
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .my-activities__create {
+  .my-activities__create,
+  .my-activities__retry {
     transition: none;
+  }
+
+  .my-activities__retry:active {
+    transform: none;
   }
 }
 </style>
