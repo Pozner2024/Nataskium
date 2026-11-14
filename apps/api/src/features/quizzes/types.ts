@@ -15,3 +15,30 @@ export type QuizRepository = {
   // Для ученика: без владельца, но удалённая не находится
   findByShareToken(token: string): Promise<StoredQuiz | null>
 }
+
+// Картинки викторины внутри транзакции сохранения. Реализация — репозиторий quiz-images, связывание в app.ts
+export type QuizImageLinks = {
+  // Привязывает только картинки учителя, свободные или уже этой викторины; возвращает число привязанных
+  attach(quizId: string, teacherId: string, ids: readonly string[]): Promise<number>
+  // Отвязывает картинки викторины, которых нет в keepIds; возвращает id отвязанных
+  detachMissing(quizId: string, teacherId: string, keepIds: readonly string[]): Promise<string[]>
+}
+
+export type QuizTransactionRepositories = { quizzes: QuizRepository; images: QuizImageLinks }
+
+// Всё, что сделано в work, фиксируется вместе; исключение из work откатывает всё
+export type QuizTransaction = <T>(work: (repositories: QuizTransactionRepositories) => Promise<T>) => Promise<T>
+
+// Файлы картинок в хранилище; в use-case — null, если хранилище не настроено
+export type QuizImageFiles = {
+  publicUrl(imageId: string): string
+  removeFiles(imageIds: readonly string[]): Promise<void>
+  // Удаляет строки из imageIds, не привязанные ни к одной викторине; возвращает id удалённых
+  deleteDetached(imageIds: readonly string[]): Promise<string[]>
+}
+
+export type QuizWriteDeps = {
+  quizzes: QuizRepository
+  transaction: QuizTransaction
+  imageFiles: QuizImageFiles | null
+}

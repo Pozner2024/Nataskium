@@ -149,6 +149,18 @@ describe('apiRequest: ошибки API', () => {
 
     expect((error as Error).message).not.toContain('Wrong email')
   })
+
+  it('текст ошибки API — в reason: по нему различают причины с одним статусом', async () => {
+    respond = json({ error: 'Unknown image' }, 400)
+
+    expect(await rejectionOf(apiRequest('/quizzes', authSessionResponseSchema))).toMatchObject({ status: 400, reason: 'Unknown image' })
+  })
+
+  it('тело ошибки не по схеме — reason = null', async () => {
+    respond = () => Promise.resolve(new Response('Bad Gateway', { status: 502 }))
+
+    expect(await rejectionOf(apiRequest('/auth/login', authSessionResponseSchema))).toMatchObject({ status: 502, reason: null })
+  })
 })
 
 describe('apiRequestWithoutBody', () => {
@@ -168,5 +180,17 @@ describe('apiRequestWithoutBody', () => {
     respond = json({ error: 'Forbidden' }, 403)
 
     expect(await rejectionOf(apiRequestWithoutBody('/auth/logout'))).toMatchObject({ status: 403 })
+  })
+})
+
+describe('apiRequest: тело FormData', () => {
+  it('FormData уходит как есть — без Content-Type и без JSON.stringify', async () => {
+    const form = new FormData()
+    form.append('file', new File([new Uint8Array([1, 2, 3])], 'qa.png', { type: 'image/png' }))
+
+    await apiRequest('/quiz-images', authSessionResponseSchema, { body: form, accessToken: 'qa-token' })
+
+    expect(calls[0]?.init.headers).toEqual({ Authorization: 'Bearer qa-token' })
+    expect(calls[0]?.init.body).toBe(form)
   })
 })

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import {
   type PlayCheckResponse,
   type PlayFinishResponse,
@@ -11,6 +12,7 @@ import {
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { makeTokenService } from '../../src/features/auth'
 import type { PrismaClient } from '../../src/generated/prisma/client'
+import { MEMORY_IMAGES_BASE_URL, makeMemoryImageStorage } from '../fakes/memoryImageStorage'
 import { TEST_ENV, TEST_WEB_ORIGIN, createTestApp, fromIp } from '../fakes/testApp'
 import { createTeacher } from './authFixtures'
 import { createTestPrisma, truncateAll } from './testDatabase'
@@ -31,17 +33,19 @@ const INPUT: QuizInput = {
   questions: [
     {
       text: 'Столица Франции?',
+      imageId: null,
       options: [
-        { text: 'Рим', isCorrect: false },
-        { text: 'Париж', isCorrect: true },
+        { text: 'Рим', isCorrect: false, imageId: null },
+        { text: 'Париж', isCorrect: true, imageId: null },
       ],
     },
     {
       text: 'Простые числа?',
+      imageId: null,
       options: [
-        { text: '2', isCorrect: true },
-        { text: '4', isCorrect: false },
-        { text: '5', isCorrect: true },
+        { text: '2', isCorrect: true, imageId: null },
+        { text: '4', isCorrect: false, imageId: null },
+        { text: '5', isCorrect: true, imageId: null },
       ],
     },
   ],
@@ -218,5 +222,77 @@ describe('/api/play: ошибки', () => {
       expect((await finish('10.0.0.9')).status).toBe(200)
     }
     expect((await finish('10.0.0.9')).status).toBe(TOO_MANY_REQUESTS)
+  })
+})
+
+describe('/api/play: картинки', () => {
+  const IMAGE_URL_PATTERN = new RegExp(`^${MEMORY_IMAGES_BASE_URL}/quiz-images/[0-9a-f-]{36}\\.webp$`)
+
+  async function seedImage(storage: ReturnType<typeof makeMemoryImageStorage>, teacherId: string) {
+    const id = randomUUID()
+    await prisma.quizImage.create({ data: { id, teacherId } })
+    await storage.storage.put(`quiz-images/${id}.webp`, new Uint8Array([1]), 'image/webp')
+    return id
+  }
+
+  it('вопрос и варианты отдают адреса картинок одного вида у верных и неверных, без id и правильности', async () => {
+    const storage = makeMemoryImageStorage()
+    app = createTestApp({ prisma, imageStorage: storage.storage })
+    const teacher = await createTeacher(prisma)
+    authHeader = { authorization: `Bearer ${await tokens.signAccessToken(teacher.id)}` }
+    const [questionImage, correctImage, wrongImage] = [
+      await seedImage(storage, teacher.id),
+      await seedImage(storage, teacher.id),
+      await seedImage(storage, teacher.id),
+    ]
+    const created = await createQuiz({
+      ...INPUT,
+      questions: [
+        {
+          text: 'Где кошка?',
+          imageId: questionImage!,
+          options: [
+            { text: 'Собака', isCorrect: false, imageId: wrongImage! },
+            { text: '', isCorrect: true, imageId: correctImage! },
+          ],
+        },
+      ],
+    })
+
+    const response = await request('GET', `/api/play/${created.shareToken}`)
+    const text = await response.text()
+    expect(response.status).toBe(200)
+    for (const forbidden of ['imageId', 'isCorrect', 'correct', teacher.id]) expect(text).not.toContain(forbidden)
+
+    const question = playQuizResponseSchema.parse(JSON.parse(text)).quiz.questions[0]!
+    expect(question.imageUrl).toBe(`${MEMORY_IMAGES_BASE_URL}/quiz-images/${questionImage}.webp`)
+    expect(question.options).toEqual([
+      { text: 'Собака', imageUrl: `${MEMORY_IMAGES_BASE_URL}/quiz-images/${wrongImage}.webp` },
+      { text: '', imageUrl: `${MEMORY_IMAGES_BASE_URL}/quiz-images/${correctImage}.webp` },
+    ])
+    for (const option of question.options) expect(option.imageUrl).toMatch(IMAGE_URL_PATTERN)
+  })
+
+  it('викторина шага 1 без полей картинок в БД открывается и проходится', async () => {
+    const teacher = await createTeacher(prisma)
+    const stepOneQuestions = [
+      { text: 'Столица Франции?', options: [{ text: 'Рим', isCorrect: false }, { text: 'Париж', isCorrect: true }] },
+    ]
+    const shareToken = 'S'.repeat(22)
+    await prisma.quiz.create({ data: { teacherId: teacher.id, title: 'Шаг 1', shareToken, gradingScale: 'five', questions: stepOneQuestions } })
+
+    const quiz = await loadPlay(shareToken)
+    expect(quiz.questions[0]).toEqual({
+      text: 'Столица Франции?',
+      imageUrl: null,
+      options: [
+        { text: 'Рим', imageUrl: null },
+        { text: 'Париж', imageUrl: null },
+      ],
+      selectCount: 1,
+    })
+    const finish = await request('POST', `/api/play/${shareToken}/finish`, { version: quiz.version, answers: [[1]] })
+    expect(finish.status).toBe(200)
+    expect(playFinishResponseSchema.parse(await finish.json()).result.percent).toBe(100)
   })
 })

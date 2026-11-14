@@ -9,9 +9,13 @@ const VERSION = UPDATED_AT.toISOString()
 const NOT_FOUND_STATUS = 404
 const CONFLICT_STATUS = 409
 
+const IMAGES_BASE_URL = 'https://images.example.test'
+const imageUrl = (imageId: string) => `${IMAGES_BASE_URL}/quiz-images/${imageId}.webp`
+
 const question = (correct: boolean[]) => ({
   text: 'Вопрос',
-  options: correct.map((isCorrect, index) => ({ text: `Вариант ${index}`, isCorrect })),
+  imageId: null,
+  options: correct.map((isCorrect, index) => ({ text: `Вариант ${index}`, isCorrect, imageId: null })),
 })
 
 function setup(overrides: Partial<PlayableQuiz> = {}) {
@@ -32,7 +36,7 @@ function setup(overrides: Partial<PlayableQuiz> = {}) {
   }
   return {
     quizzes,
-    getPlayQuiz: makeGetPlayQuiz({ quizzes }),
+    getPlayQuiz: makeGetPlayQuiz({ quizzes, imageUrl }),
     checkAnswer: makeCheckAnswer({ quizzes }),
     finishQuiz: makeFinishQuiz({ quizzes }),
   }
@@ -54,7 +58,62 @@ describe('getPlayQuiz', () => {
 
     expect(JSON.stringify(quiz)).not.toContain('isCorrect')
     expect(quiz.version).toBe(VERSION)
-    expect(quiz.questions[1]).toEqual({ text: 'Вопрос', options: ['Вариант 0', 'Вариант 1', 'Вариант 2'], selectCount: 2 })
+    expect(quiz.questions[1]).toEqual({
+      text: 'Вопрос',
+      imageUrl: null,
+      options: [
+        { text: 'Вариант 0', imageUrl: null },
+        { text: 'Вариант 1', imageUrl: null },
+        { text: 'Вариант 2', imageUrl: null },
+      ],
+      selectCount: 2,
+    })
+  })
+
+  it('отдаёт адреса картинок вопроса и вариантов, но не их id; адрес не зависит от правильности', async () => {
+    const questionImage = '0b6f2f8e-1111-4c1a-9a51-000000000001'
+    const correctImage = '0b6f2f8e-1111-4c1a-9a51-000000000002'
+    const wrongImage = '0b6f2f8e-1111-4c1a-9a51-000000000003'
+    const { getPlayQuiz } = setup({
+      questions: [
+        {
+          text: 'Где кошка?',
+          imageId: questionImage,
+          options: [
+            { text: '', isCorrect: true, imageId: correctImage },
+            { text: 'Собака', isCorrect: false, imageId: wrongImage },
+          ],
+        },
+      ],
+    })
+    const { quiz } = await getPlayQuiz(TOKEN)
+
+    expect(quiz.questions[0]).toEqual({
+      text: 'Где кошка?',
+      imageUrl: imageUrl(questionImage),
+      options: [
+        { text: '', imageUrl: imageUrl(correctImage) },
+        { text: 'Собака', imageUrl: imageUrl(wrongImage) },
+      ],
+      selectCount: 1,
+    })
+    expect(JSON.stringify(quiz)).not.toContain('imageId')
+  })
+
+  it('без хранилища адреса картинок — null', async () => {
+    const quizzes: PlayQuizSource = {
+      async findByShareToken() {
+        return {
+          title: 'Тест',
+          showAnswers: true,
+          gradingScale: null,
+          updatedAt: UPDATED_AT,
+          questions: [{ ...question([true, false]), imageId: '0b6f2f8e-1111-4c1a-9a51-000000000001' }],
+        }
+      },
+    }
+    const { quiz } = await makeGetPlayQuiz({ quizzes, imageUrl: () => null })(TOKEN)
+    expect(quiz.questions[0]?.imageUrl).toBeNull()
   })
 
   it('не содержит лишних полей модели', async () => {

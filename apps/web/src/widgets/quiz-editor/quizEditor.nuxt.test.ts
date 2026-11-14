@@ -15,7 +15,12 @@ const ID = '6f1c2a4e-8d3b-4f5a-9c7e-1b2d3e4f5a6b'
 const SHARE_TOKEN = 'abcdefghijklmnopqrstuv'
 
 function saved(input: Parameters<typeof quizApi.create>[0]) {
-  return { quiz: { ...input, id: ID, shareToken: SHARE_TOKEN } }
+  const questions = input.questions.map((question) => ({
+    ...question,
+    imageUrl: null,
+    options: question.options.map((option) => ({ ...option, imageUrl: null })),
+  }))
+  return { quiz: { ...input, id: ID, shareToken: SHARE_TOKEN, questions } }
 }
 
 const mounted: { unmount: () => void }[] = []
@@ -121,7 +126,7 @@ describe('Редактор викторины: загрузка', () => {
   })
 
   it('«Настройки и ссылка» сохраняет и показывает ссылку ученика', async () => {
-    const quiz = saved({ title: 'Дроби', showAnswers: true, gradingScale: null, questions: [{ text: 'Q', options: [{ text: 'a', isCorrect: true }, { text: 'b', isCorrect: false }] }] })
+    const quiz = saved({ title: 'Дроби', showAnswers: true, gradingScale: null, questions: [{ text: 'Q', imageId: null, options: [{ text: 'a', isCorrect: true, imageId: null }, { text: 'b', isCorrect: false, imageId: null }] }] })
     vi.spyOn(quizApi, 'get').mockResolvedValue(quiz)
     const update = vi.spyOn(quizApi, 'update').mockResolvedValue(quiz)
     const wrapper = await mountSuspended(QuizEditorPage, { props: { quizId: ID } })
@@ -142,7 +147,7 @@ const FETCHED = saved({
   title: 'Дроби',
   showAnswers: true,
   gradingScale: null,
-  questions: [{ text: 'Q', options: [{ text: 'a', isCorrect: true }, { text: 'b', isCorrect: false }] }],
+  questions: [{ text: 'Q', imageId: null, options: [{ text: 'a', isCorrect: true, imageId: null }, { text: 'b', isCorrect: false, imageId: null }] }],
 })
 
 describe('Редактор викторины: состояние между заходами', () => {

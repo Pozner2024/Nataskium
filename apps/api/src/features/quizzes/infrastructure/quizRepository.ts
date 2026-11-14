@@ -1,5 +1,5 @@
 import { quizInputSchema } from '@nataskium/shared/schemas'
-import type { Prisma, PrismaClient } from '../../../generated/prisma/client'
+import type { Prisma } from '../../../generated/prisma/client'
 import { isUniqueViolation } from '../../../shared/infrastructure'
 import type { QuizRepository, StoredQuiz } from '../types'
 
@@ -28,7 +28,8 @@ function toStoredQuiz(row: QuizRow): StoredQuiz {
   return { ...parsed.data, id: row.id, shareToken: row.shareToken, updatedAt: row.updatedAt }
 }
 
-export function makeQuizRepository(prisma: PrismaClient): QuizRepository {
+// Принимает и клиент транзакции: в ней викторина сохраняется вместе с привязкой картинок
+export function makeQuizRepository(prisma: Prisma.TransactionClient): QuizRepository {
   return {
     async listByTeacher(teacherId) {
       const rows = await prisma.quiz.findMany({

@@ -21,6 +21,12 @@ const TEST_EMAIL_FROM = 'noreply@nataskium.example'
 const TEST_GOOGLE_CLIENT_ID = 'qa-fake-client.apps.googleusercontent.com'
 const TEST_GOOGLE_CLIENT_SECRET = 'qa-fake-google-secret-0123456789'
 const TEST_GOOGLE_REDIRECT_URI = `${PROD_ORIGIN}/api/auth/google/callback`
+// Выдуманные данные хранилища картинок: настоящие ключи в тестах не используются, запросов в S3 нет
+const TEST_S3_ENDPOINT = 'https://storage.example.test'
+const TEST_S3_BUCKET = 'qa-bucket'
+const TEST_S3_ACCESS_KEY = 'qa-fake-s3-access-key'
+const TEST_S3_SECRET_KEY = 'qa-fake-s3-secret-key-0123456789'
+const TEST_IMAGES_PUBLIC_BASE_URL = 'https://storage.example.test/qa-bucket'
 // Полное окружение production: NODE_ENV по умолчанию — production
 const VALID = {
   DATABASE_URL: TEST_DATABASE_URL,
@@ -33,6 +39,11 @@ const VALID = {
   GOOGLE_CLIENT_ID: TEST_GOOGLE_CLIENT_ID,
   GOOGLE_CLIENT_SECRET: TEST_GOOGLE_CLIENT_SECRET,
   GOOGLE_REDIRECT_URI: TEST_GOOGLE_REDIRECT_URI,
+  YANDEX_S3_ENDPOINT: TEST_S3_ENDPOINT,
+  YANDEX_S3_BUCKET: TEST_S3_BUCKET,
+  YANDEX_S3_ACCESS_KEY: TEST_S3_ACCESS_KEY,
+  YANDEX_S3_SECRET_KEY: TEST_S3_SECRET_KEY,
+  IMAGES_PUBLIC_BASE_URL: TEST_IMAGES_PUBLIC_BASE_URL,
 }
 // Для development и test: http-адрес, без списка прокси
 // Вне production почта и Google необязательны: локально их обычно нет
@@ -45,6 +56,11 @@ const VALID_LOCAL = {
   GOOGLE_CLIENT_ID: undefined,
   GOOGLE_CLIENT_SECRET: undefined,
   GOOGLE_REDIRECT_URI: undefined,
+  YANDEX_S3_ENDPOINT: undefined,
+  YANDEX_S3_BUCKET: undefined,
+  YANDEX_S3_ACCESS_KEY: undefined,
+  YANDEX_S3_SECRET_KEY: undefined,
+  IMAGES_PUBLIC_BASE_URL: undefined,
 }
 const DEFAULT_ENV = {
   NODE_ENV: 'production',
@@ -59,6 +75,12 @@ const DEFAULT_ENV = {
   GOOGLE_CLIENT_ID: TEST_GOOGLE_CLIENT_ID,
   GOOGLE_CLIENT_SECRET: TEST_GOOGLE_CLIENT_SECRET,
   GOOGLE_REDIRECT_URI: TEST_GOOGLE_REDIRECT_URI,
+  YANDEX_S3_ENDPOINT: TEST_S3_ENDPOINT,
+  YANDEX_S3_BUCKET: TEST_S3_BUCKET,
+  YANDEX_S3_ACCESS_KEY: TEST_S3_ACCESS_KEY,
+  YANDEX_S3_SECRET_KEY: TEST_S3_SECRET_KEY,
+  IMAGES_PUBLIC_BASE_URL: TEST_IMAGES_PUBLIC_BASE_URL,
+  IMAGE_STORAGE_RECONCILE: false,
 }
 const DATABASE_URL_REQUIRED = '  DATABASE_URL: is required'
 const DATABASE_URL_PROBLEM = '  DATABASE_URL: must be a postgresql:// or postgres:// URL'
@@ -157,6 +179,7 @@ describe('parseEnv: допустимые значения', () => {
       HMAC_SECRET: TEST_HMAC_SECRET,
       WEB_ORIGIN: DEV_ORIGIN,
       TRUSTED_PROXY_IPS: [],
+      IMAGE_STORAGE_RECONCILE: false,
     })
   })
 
@@ -805,6 +828,148 @@ describe('parseEnv: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI'
   })
 })
 
+describe('parseEnv: хранилище картинок (YANDEX_S3_*, IMAGES_PUBLIC_BASE_URL)', () => {
+  const ALL_REQUIRED =
+    '  YANDEX_S3_ENDPOINT: YANDEX_S3_ENDPOINT, YANDEX_S3_BUCKET, YANDEX_S3_ACCESS_KEY, YANDEX_S3_SECRET_KEY and IMAGES_PUBLIC_BASE_URL are required in production'
+  const TOGETHER =
+    '  YANDEX_S3_ENDPOINT: YANDEX_S3_ENDPOINT, YANDEX_S3_BUCKET, YANDEX_S3_ACCESS_KEY, YANDEX_S3_SECRET_KEY and IMAGES_PUBLIC_BASE_URL must be set together'
+  const ENDPOINT_NOT_ORIGIN = '  YANDEX_S3_ENDPOINT: must be an http:// or https:// origin without path'
+  const ENDPOINT_NEEDS_HTTPS = '  YANDEX_S3_ENDPOINT: must use https:// in production'
+  const BUCKET_PROBLEM = '  YANDEX_S3_BUCKET: must be a valid bucket name'
+  const BASE_URL_PROBLEM = '  IMAGES_PUBLIC_BASE_URL: must be an http:// or https:// URL without trailing slash, query or credentials'
+  const BASE_URL_NEEDS_HTTPS = '  IMAGES_PUBLIC_BASE_URL: must use https:// in production'
+  const STORAGE = {
+    YANDEX_S3_ENDPOINT: TEST_S3_ENDPOINT,
+    YANDEX_S3_BUCKET: TEST_S3_BUCKET,
+    YANDEX_S3_ACCESS_KEY: TEST_S3_ACCESS_KEY,
+    YANDEX_S3_SECRET_KEY: TEST_S3_SECRET_KEY,
+    IMAGES_PUBLIC_BASE_URL: TEST_IMAGES_PUBLIC_BASE_URL,
+  }
+  const DEVELOPMENT = { ...VALID_LOCAL, NODE_ENV: 'development' }
+
+  it('production: все заданы — возвращаются как есть', () => {
+    expect(parseEnv(VALID)).toMatchObject(STORAGE)
+  })
+
+  it.each([
+    ['ни одной', Object.fromEntries(Object.keys(STORAGE).map((name) => [name, undefined]))],
+    ['нет endpoint', { YANDEX_S3_ENDPOINT: undefined }],
+    ['нет бакета', { YANDEX_S3_BUCKET: undefined }],
+    ['пустой ключ доступа', { YANDEX_S3_ACCESS_KEY: '' }],
+    ['нет секрета', { YANDEX_S3_SECRET_KEY: undefined }],
+    ['нет публичного адреса', { IMAGES_PUBLIC_BASE_URL: undefined }],
+  ])('production: %s — все обязательны', (_name, override) => {
+    expectOnly({ ...VALID, ...override }, ALL_REQUIRED)
+  })
+
+  it.each([
+    ['ничего не задано', {}],
+    ['все пустые', Object.fromEntries(Object.keys(STORAGE).map((name) => [name, '']))],
+  ])('вне production необязательны: %s', (_name, override) => {
+    const env = parseEnv({ ...DEVELOPMENT, ...override })
+
+    for (const name of Object.keys(STORAGE)) expect(env[name as keyof typeof env]).toBeUndefined()
+  })
+
+  it('вне production: все заданы — допустимо, https тоже', () => {
+    expect(parseEnv({ ...DEVELOPMENT, ...STORAGE })).toMatchObject(STORAGE)
+  })
+
+  it('вне production: http-адреса допустимы (локальный S3)', () => {
+    const local = { ...STORAGE, YANDEX_S3_ENDPOINT: 'http://127.0.0.1:9000', IMAGES_PUBLIC_BASE_URL: 'http://127.0.0.1:9000/qa-bucket' }
+
+    expect(parseEnv({ ...DEVELOPMENT, ...local })).toMatchObject(local)
+  })
+
+  it.each([
+    ['только endpoint', { YANDEX_S3_ENDPOINT: TEST_S3_ENDPOINT }],
+    ['без секрета', { ...STORAGE, YANDEX_S3_SECRET_KEY: undefined }],
+    ['без публичного адреса', { ...STORAGE, IMAGES_PUBLIC_BASE_URL: '' }],
+  ])('вне production — все или ни одной: %s', (_name, override) => {
+    expectOnly({ ...DEVELOPMENT, ...override }, TOGETHER)
+  })
+
+  it.each(['storage.example.test', 'ftp://storage.example.test', 'https://storage.example.test/qa-bucket', 'https://storage.example.test/'])(
+    'endpoint не origin: %j',
+    (endpoint) => {
+      expectOnly({ ...VALID, YANDEX_S3_ENDPOINT: endpoint }, ENDPOINT_NOT_ORIGIN)
+    },
+  )
+
+  it('production: endpoint по http — ошибка', () => {
+    expectOnly({ ...VALID, YANDEX_S3_ENDPOINT: 'http://storage.example.test' }, ENDPOINT_NEEDS_HTTPS)
+  })
+
+  it.each(['nataskium-dev', 'qa.bucket-1', 'abc'])('имя бакета допустимо: %s', (bucket) => {
+    expect(parseEnv({ ...VALID, YANDEX_S3_BUCKET: bucket }).YANDEX_S3_BUCKET).toBe(bucket)
+  })
+
+  it.each(['ab', 'QA-Bucket', '-qa', 'qa-', 'qa/bucket', ' qa-bucket', 'a'.repeat(64)])('имя бакета неверно: %j', (bucket) => {
+    expectOnly({ ...VALID, YANDEX_S3_BUCKET: bucket }, BUCKET_PROBLEM)
+  })
+
+  it.each([
+    ['ключ доступа', 'YANDEX_S3_ACCESS_KEY', ` ${TEST_S3_ACCESS_KEY}`],
+    ['секрет', 'YANDEX_S3_SECRET_KEY', `${TEST_S3_SECRET_KEY}\n`],
+  ])('%s с пробельным символом по краю — ошибка', (_name, field, value) => {
+    expectOnly({ ...VALID, [field]: value }, `  ${field}: must not start or end with whitespace`)
+  })
+
+  it.each([
+    'not a url',
+    'ftp://storage.example.test/qa-bucket',
+    'https://storage.example.test/qa-bucket/',
+    'https://storage.example.test/',
+    'https://storage.example.test/qa-bucket?x=1',
+    'https://storage.example.test/qa-bucket#x',
+    'https://user:pass@storage.example.test/qa-bucket',
+  ])('публичный адрес неверен: %j', (url) => {
+    expectOnly({ ...VALID, IMAGES_PUBLIC_BASE_URL: url }, BASE_URL_PROBLEM)
+  })
+
+  it.each(['https://storage.yandexcloud.net/nataskium-dev', 'https://qa-bucket.storage.example.test', 'https://cdn.example.test/images'])(
+    'публичный адрес допустим: %s',
+    (url) => {
+      expect(parseEnv({ ...VALID, IMAGES_PUBLIC_BASE_URL: url }).IMAGES_PUBLIC_BASE_URL).toBe(url)
+    },
+  )
+
+  it('production: публичный адрес по http — ошибка', () => {
+    expectOnly({ ...VALID, IMAGES_PUBLIC_BASE_URL: 'http://storage.example.test/qa-bucket' }, BASE_URL_NEEDS_HTTPS)
+  })
+
+  it.each([
+    ['секрет с пробелом', { YANDEX_S3_SECRET_KEY: ` ${LEAK_MARKER}` }],
+    ['ключ доступа с пробелом', { YANDEX_S3_ACCESS_KEY: `${LEAK_MARKER} ` }],
+    ['секрет без остальных вне production', { ...VALID_LOCAL, NODE_ENV: 'development', YANDEX_S3_SECRET_KEY: LEAK_MARKER }],
+    ['секрет в бакете', { YANDEX_S3_BUCKET: LEAK_MARKER.toUpperCase() }],
+    ['секрет в публичном адресе', { IMAGES_PUBLIC_BASE_URL: `https://u:${LEAK_MARKER}@storage.example.test` }],
+    ['секрет в endpoint', { YANDEX_S3_ENDPOINT: `https://storage.example.test/${LEAK_MARKER}` }],
+  ])('значений нет в ошибке: %s', (_name, override) => {
+    const error = parseError({ ...VALID, ...override })
+
+    expect(error.message.toLowerCase()).not.toContain('qa-leak')
+    expect(inspect(error).toLowerCase()).not.toContain('qa-leak')
+  })
+})
+
+describe('parseEnv: IMAGE_STORAGE_RECONCILE', () => {
+  const RECONCILE_PROBLEM = "  IMAGE_STORAGE_RECONCILE: must be 'true' or 'false'"
+
+  it.each([
+    ['не задано', undefined, false],
+    ['пусто', '', false],
+    ['false', 'false', false],
+    ['true', 'true', true],
+  ])('%s', (_name, value, expected) => {
+    expect(parseEnv({ ...VALID, IMAGE_STORAGE_RECONCILE: value }).IMAGE_STORAGE_RECONCILE).toBe(expected)
+  })
+
+  it.each(['1', 'TRUE', 'yes', ' true', 'true '])('%j — ошибка', (value) => {
+    expectOnly({ ...VALID, IMAGE_STORAGE_RECONCILE: value }, RECONCILE_PROBLEM)
+  })
+})
+
 describe('.env.example', () => {
   it('с заполненными секретами и паролем проходит проверку для development', () => {
     const example = readEnvExample()
@@ -822,6 +987,18 @@ describe('.env.example', () => {
 
   it.each(['JWT_SECRET', 'HMAC_SECRET', 'POSTGRES_PASSWORD'])('%s в примере пустой', (name) => {
     expect(readEnvExample()[name]).toBe('')
+  })
+
+  it.each(['YANDEX_S3_ENDPOINT', 'YANDEX_S3_BUCKET', 'YANDEX_S3_ACCESS_KEY', 'YANDEX_S3_SECRET_KEY', 'IMAGES_PUBLIC_BASE_URL'])(
+    '%s есть в примере и пустой',
+    (name) => {
+      expect(readEnvExample()[name]).toBe('')
+    },
+  )
+
+  // Сверка удаляет файлы без строки в базе: по умолчанию выключена, чтобы чужой бакет в .env не опустел
+  it('IMAGE_STORAGE_RECONCILE в примере выключен', () => {
+    expect(readEnvExample().IMAGE_STORAGE_RECONCILE).toBe('false')
   })
 })
 
@@ -850,6 +1027,15 @@ describe('запуск сервера при неверном окружении
     expect(child.stdout).not.toContain('API started')
     expect(child.stdout).not.toContain(secret)
     expect(child.stderr).not.toContain(secret)
+  }, TEST_TIMEOUT_MS)
+
+  it('production без хранилища картинок: выход с кодом 1, ключа нет в выводе', () => {
+    const child = runServer({ ...VALID, NODE_ENV: 'production', API_PORT: CHILD_PORT, YANDEX_S3_ENDPOINT: undefined, YANDEX_S3_SECRET_KEY: LEAK_MARKER })
+
+    expect(child.status).toBe(1)
+    expect(child.stderr).toContain('YANDEX_S3_ENDPOINT')
+    expect(child.stdout).not.toContain('API started')
+    expect(child.stderr).not.toContain('qa-leak')
   }, TEST_TIMEOUT_MS)
 
   it('без DATABASE_URL: выход с кодом 1 и понятная причина', () => {

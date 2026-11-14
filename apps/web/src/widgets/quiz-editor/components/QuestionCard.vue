@@ -44,10 +44,16 @@
         :aria-describedby="errorOf('text') ? `${idPrefix}-text-error` : undefined"
       />
       <p v-if="errorOf('text')" :id="`${idPrefix}-text-error`" class="question-card__error" role="alert">{{ errorOf('text') }}</p>
+      <ImageField
+        variant="question"
+        :image-url="store.questionImageUrl(index)"
+        :label="t('teacher.quizEditor.image.questionLabel', { n: index + 1 })"
+        @change="(image) => store.setQuestionImage(index, image)"
+      />
 
       <p class="question-card__hint">{{ t('teacher.quizEditor.optionsHint') }}</p>
       <ul class="question-card__options">
-        <li v-for="(option, optionIndex) in question.options" :key="optionIndex" class="question-card__option">
+        <li v-for="(option, optionIndex) in question.options" :key="optionKey(option)" class="question-card__option">
           <input
             class="question-card__correct"
             type="checkbox"
@@ -66,6 +72,7 @@
             class="question-card__option-text"
             type="text"
             :maxlength="OPTION_TEXT_MAX_LENGTH"
+            :placeholder="option.imageId === null ? undefined : t('teacher.quizEditor.optionTextOptional')"
             :aria-label="t('teacher.quizEditor.optionLabel', { n: optionIndex + 1 })"
             :aria-invalid="errorOf(`options.${optionIndex}.text`) !== undefined"
           >
@@ -78,6 +85,12 @@
           >
             &times;
           </button>
+          <ImageField
+            variant="option"
+            :image-url="store.optionImageUrl(index, optionIndex)"
+            :label="t('teacher.quizEditor.image.optionLabel', { n: optionIndex + 1 })"
+            @change="(image) => store.setOptionImage(index, optionIndex, image)"
+          />
           <p v-if="errorOf(`options.${optionIndex}.text`)" class="question-card__error" role="alert">
             {{ errorOf(`options.${optionIndex}.text`) }}
           </p>
@@ -99,10 +112,11 @@
 
 <script setup lang="ts">
 import { MAX_OPTIONS, MIN_OPTIONS, OPTION_TEXT_MAX_LENGTH, QUESTION_TEXT_MAX_LENGTH } from '@nataskium/shared/schemas'
-import { computed } from 'vue'
+import { computed, toRaw } from 'vue'
 import { useI18n } from '#imports'
 import { issueText } from '../quizErrors'
 import { useQuizEditorStore } from '../store'
+import ImageField from './ImageField.vue'
 
 const props = defineProps<{
   index: number
@@ -112,7 +126,7 @@ const props = defineProps<{
 const { t } = useI18n()
 const store = useQuizEditorStore()
 
-const question = computed(() => store.quiz.questions[props.index] ?? { text: '', options: [] })
+const question = computed(() => store.quiz.questions[props.index] ?? { text: '', imageId: null, options: [] })
 const correctCount = computed(() => question.value.options.filter((option) => option.isCorrect).length)
 const canRemove = computed(() => store.quiz.questions.length > 1)
 const idPrefix = computed(() => `question-${props.index}`)
@@ -122,6 +136,19 @@ function isLocked(optionIndex: number): boolean {
   const option = question.value.options[optionIndex]
   if (!option) return false
   return option.isCorrect ? correctCount.value === 1 : correctCount.value === question.value.options.length - 1
+}
+
+// Ключ варианта — по объекту, а не по индексу: после удаления варианта его поле картинки (и загрузка в нём)
+// не достаётся соседу
+const optionKeys = new WeakMap<object, number>()
+let nextOptionKey = 0
+
+function optionKey(option: object): number {
+  const raw = toRaw(option)
+  const known = optionKeys.get(raw)
+  if (known !== undefined) return known
+  optionKeys.set(raw, nextOptionKey)
+  return nextOptionKey++
 }
 
 // subPath — путь внутри вопроса: `text`, `options`, `options.2.text`

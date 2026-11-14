@@ -20,3 +20,17 @@ describe('newQuiz', () => {
     expect(quiz.gradingScale).toBeNull()
   })
 })
+
+describe('картинки в новом вопросе', () => {
+  it('у вопроса и у всех вариантов imageId: null', () => {
+    const question = newQuestion()
+    expect(question.imageId).toBeNull()
+    expect(question.options.every((option) => option.imageId === null)).toBe(true)
+  })
+
+  it('вопрос новой викторины тоже без картинок', () => {
+    const [question] = newQuiz().questions
+    expect(question?.imageId).toBeNull()
+    expect(question?.options.every((option) => option.imageId === null)).toBe(true)
+  })
+})

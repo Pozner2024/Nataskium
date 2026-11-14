@@ -1,5 +1,8 @@
 export { quizApi } from './quizApi'
 export { playApi } from './playApi'
+export { imageApi } from './imageApi'
+export { ACCEPTED_IMAGE_TYPES, pickImageFile, validateImageFile } from './pickImageFile'
+export type { ImageFileCheck } from './pickImageFile'
 export { playUrl } from './playUrl'
 export { newQuestion, newQuiz } from './newQuestion'
 export type * from './types'

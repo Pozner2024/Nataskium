@@ -5,4 +5,12 @@ export { makeListQuizzes } from './application/listQuizzes'
 export { makeUpdateQuiz } from './application/updateQuiz'
 export { makeQuizRepository } from './infrastructure/quizRepository'
 export { QUIZ_ROUTES_BASE_PATH, makeQuizRouter } from './presentation/quizRoutes'
-export type { QuizRepository, StoredQuiz } from './types'
+export type {
+  QuizImageFiles,
+  QuizImageLinks,
+  QuizRepository,
+  QuizTransaction,
+  QuizTransactionRepositories,
+  QuizWriteDeps,
+  StoredQuiz,
+} from './types'

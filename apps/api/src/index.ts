@@ -1,5 +1,5 @@
 import { serve } from '@hono/node-server'
-import { createApp, createAuthCleanup } from './app'
+import { createApp, createAuthCleanup, createImageCleanup } from './app'
 import {
   PASSWORD_RESET_TTL_MS,
   PENDING_REGISTRATION_TTL_MS,
@@ -13,7 +13,7 @@ import {
   startCleanupSchedule,
 } from './features/auth'
 import { parseEnv, type Env } from './shared/config'
-import { createPrismaClient } from './shared/infrastructure'
+import { createImageStorage, createPrismaClient } from './shared/infrastructure'
 
 const API_HOST = '127.0.0.1'
 const MS_PER_HOUR = 60 * 60 * 1000
@@ -21,6 +21,8 @@ const VERIFICATION_LINK_TTL_HOURS = PENDING_REGISTRATION_TTL_MS / MS_PER_HOUR
 const PASSWORD_RESET_LINK_TTL_HOURS = PASSWORD_RESET_TTL_MS / MS_PER_HOUR
 // Регистрации живут 24 часа, refresh — 14 дней: раз в час истёкшие данные не задерживаются надолго
 const CLEANUP_INTERVAL_MS = MS_PER_HOUR
+// Неприкреплённые картинки живут сутки: чаще проверять незачем, а сверка листает весь префикс бакета
+const IMAGE_CLEANUP_INTERVAL_MS = 24 * MS_PER_HOUR
 
 function readEnv(): Env {
   try {
@@ -61,11 +63,13 @@ function makeGoogleIdentity(): GoogleIdentityProvider | null {
 }
 
 const googleIdentity = makeGoogleIdentity()
+const imageStorage = createImageStorage(env)
 // Всегда PRODUCTION_LIMITS, независимо от NODE_ENV: ослабленные лимиты передают только тесты через createApp
-const app = createApp({ env, prisma, limits: PRODUCTION_LIMITS, passwordHasher, emailSender, googleIdentity })
+const app = createApp({ env, prisma, limits: PRODUCTION_LIMITS, passwordHasher, emailSender, googleIdentity, imageStorage })
 
 serve({ fetch: app.fetch, port: env.API_PORT, hostname: API_HOST }, ({ address, port }) => {
   console.log(`API started on http://${address}:${port}`)
   // После старта сервера: первый запуск сразу, дальше раз в CLEANUP_INTERVAL_MS
   startCleanupSchedule({ cleanup: createAuthCleanup(prisma), intervalMs: CLEANUP_INTERVAL_MS })
+  startCleanupSchedule({ cleanup: createImageCleanup(prisma, imageStorage, { reconcileStorage: env.IMAGE_STORAGE_RECONCILE }), intervalMs: IMAGE_CLEANUP_INTERVAL_MS })
 })

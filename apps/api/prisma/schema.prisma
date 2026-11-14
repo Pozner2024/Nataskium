@@ -26,6 +26,7 @@ model Teacher {
   pendingGoogleLinks   PendingGoogleLink[]
   pendingGoogleReauths PendingGoogleReauth[]
   quizzes              Quiz[]
+  quizImages           QuizImage[]
 
   @@map("teachers")
 }
@@ -142,8 +143,28 @@ model Quiz {
   updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz
   deletedAt    DateTime? @map("deleted_at") @db.Timestamptz
 
-  teacher Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  teacher Teacher     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  images  QuizImage[]
 
   @@index([teacherId, deletedAt])
   @@map("quizzes")
+}
+
+// Загруженная учителем картинка: файл — `quiz-images/<id>.webp` в хранилище, здесь только владелец и привязка.
+// id задаёт сервер (randomUUID) до записи файла: строка появляется только после успешной записи.
+// quiz_id null — картинка ещё не сохранена в викторине (или отвязана): «осиротевшие» старше суток удаляет очистка
+model QuizImage {
+  id        String   @id @db.Uuid
+  teacherId String   @map("teacher_id") @db.Uuid
+  quizId    String?  @map("quiz_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  teacher Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  quiz    Quiz?   @relation(fields: [quizId], references: [id], onDelete: SetNull)
+
+  @@index([teacherId])
+  @@index([quizId])
+  // Очистка ищет quiz_id IS NULL AND created_at < порог
+  @@index([quizId, createdAt])
+  @@map("quiz_images")
 }

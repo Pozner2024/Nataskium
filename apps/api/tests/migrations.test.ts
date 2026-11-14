@@ -122,6 +122,20 @@ describe('миграции', () => {
     )
   })
 
+  // GDPR: строки картинок удаляются с учителем; при удалении викторины картинка становится «осиротевшей»
+  it('картинки викторин: каскад от учителя, SET NULL от викторины, индексы по FK', () => {
+    const migrations = readAllMigrations()
+    expect(migrations).toContain(
+      'ALTER TABLE "quiz_images" ADD CONSTRAINT "quiz_images_teacher_id_fkey" FOREIGN KEY ("teacher_id") REFERENCES "teachers"("id") ON DELETE CASCADE',
+    )
+    expect(migrations).toContain(
+      'ALTER TABLE "quiz_images" ADD CONSTRAINT "quiz_images_quiz_id_fkey" FOREIGN KEY ("quiz_id") REFERENCES "quizzes"("id") ON DELETE SET NULL',
+    )
+    expect(migrations).toContain('CREATE INDEX "quiz_images_teacher_id_idx" ON "quiz_images"("teacher_id");')
+    expect(migrations).toContain('CREATE INDEX "quiz_images_quiz_id_idx" ON "quiz_images"("quiz_id");')
+    expect(migrations).toContain('CREATE INDEX "quiz_images_quiz_id_created_at_idx" ON "quiz_images"("quiz_id", "created_at");')
+  })
+
   it('refresh-токены удаляются вместе с учителем', () => {
     expect(readAllMigrations()).toContain(REFRESH_TOKENS_CASCADE)
   })

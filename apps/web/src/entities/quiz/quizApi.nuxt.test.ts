@@ -18,7 +18,15 @@ beforeEach(() => {
       title: 'T',
       showAnswers: true,
       gradingScale: null,
-      questions: [{ text: 'Q', options: [{ text: 'a', isCorrect: true }, { text: 'b', isCorrect: false }] }],
+      questions: [{
+        text: 'Q',
+        imageId: null,
+        imageUrl: null,
+        options: [
+          { text: 'a', isCorrect: true, imageId: null, imageUrl: null },
+          { text: 'b', isCorrect: false, imageId: null, imageUrl: null },
+        ],
+      }],
     }
     return Promise.resolve(new Response(JSON.stringify({ quiz }), { status: 200 }))
   })

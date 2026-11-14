@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { QuizRepository, StoredQuiz } from '../../src/features/quizzes'
+import type { QuizImageFiles, QuizImageLinks, QuizRepository, QuizTransaction, StoredQuiz } from '../../src/features/quizzes'
 
 type FakeRecord = { teacherId: string; deletedAt: Date | null; quiz: StoredQuiz }
 
@@ -43,4 +43,49 @@ export function makeFakeQuizRepository(takenTokens: string[] = []) {
     },
   }
   return repository
+}
+
+type FakeImageRow = { teacherId: string; quizId: string | null }
+
+// Картинки в памяти: attach/detachMissing — с теми же условиями, что в репозитории quiz-images.
+// Отката нет: состояние после ошибки внутри транзакции проверяют интеграционные тесты
+export function makeFakeQuizImages() {
+  const rows = new Map<string, FakeImageRow>()
+  const removedFiles: string[] = []
+  const failing = { removeFiles: false }
+
+  const links: QuizImageLinks = {
+    async attach(quizId, teacherId, ids) {
+      const free = ids.filter((id) => {
+        const row = rows.get(id)
+        return row !== undefined && row.teacherId === teacherId && (row.quizId === null || row.quizId === quizId)
+      })
+      for (const id of free) rows.set(id, { teacherId, quizId })
+      return free.length
+    },
+    async detachMissing(quizId, teacherId, keepIds) {
+      const detached = [...rows].filter(([id, row]) => row.quizId === quizId && row.teacherId === teacherId && !keepIds.includes(id))
+      for (const [id, row] of detached) rows.set(id, { ...row, quizId: null })
+      return detached.map(([id]) => id)
+    },
+  }
+
+  const files: QuizImageFiles = {
+    publicUrl: (imageId) => `https://images.example.test/quiz-images/${imageId}.webp`,
+    async removeFiles(imageIds) {
+      if (failing.removeFiles) throw new Error('storage is down')
+      removedFiles.push(...imageIds)
+    },
+    async deleteDetached(imageIds) {
+      const detached = imageIds.filter((id) => rows.get(id)?.quizId === null)
+      for (const id of detached) rows.delete(id)
+      return detached
+    },
+  }
+
+  return { links, files, rows, removedFiles, failing }
+}
+
+export function makeFakeQuizTransaction(quizzes: QuizRepository, images: QuizImageLinks): QuizTransaction {
+  return (work) => work({ quizzes, images })
 }

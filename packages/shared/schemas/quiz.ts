@@ -10,26 +10,49 @@ export const MIN_QUESTIONS = 1
 export const MAX_QUESTIONS = 50
 export const MAX_QUIZZES_PER_TEACHER = 100
 export const PLAY_VERSION_MAX_LENGTH = 64
+export const MAX_IMAGE_UPLOAD_BYTES = 15 * 1024 * 1024
+export const IMAGE_UPLOAD_FIELD = 'file'
+// Тексты ошибок API про картинки: по ним фронтенд различает причины с одним статусом 400 (не для показа)
+export const IMAGE_TOO_LARGE_REASON = 'File is too large'
+export const UNSUPPORTED_IMAGE_REASON = 'Unsupported or corrupted image'
+export const UNKNOWN_IMAGE_REASON = 'Unknown image'
 // Совпадает с длиной, которую генерирует API: 16 байт → 22 символа base64url без '='
 const SHARE_TOKEN_PATTERN = /^[A-Za-z0-9_-]{22}$/
 
 const requiredText = (maxLength: number) =>
   z.string().trim().min(1, 'Text is required').max(maxLength, `Text must be at most ${maxLength} characters`)
 
-const optionSchema = z.object({
-  text: requiredText(OPTION_TEXT_MAX_LENGTH),
+// uuid принимается в любом регистре, но id картинок, ключи файлов и их проверка в API — только в нижнем
+export const imageIdSchema = z.uuid().toLowerCase()
+
+// Данные шага 1 приходят без imageId — считаем, что картинки нет
+const optionalImageIdSchema = imageIdSchema.nullable().default(null)
+
+// Текст варианта может быть пустым, если есть картинка; проверка — в quizQuestionSchema
+export const optionSchema = z.object({
+  text: z.string().trim().max(OPTION_TEXT_MAX_LENGTH, `Text must be at most ${OPTION_TEXT_MAX_LENGTH} characters`),
   isCorrect: z.boolean(),
+  imageId: optionalImageIdSchema,
 })
+
+export const optionsSchema = <T extends z.ZodType>(option: T) =>
+  z
+    .array(option)
+    .min(MIN_OPTIONS, `At least ${MIN_OPTIONS} options are required`)
+    .max(MAX_OPTIONS, `At most ${MAX_OPTIONS} options are allowed`)
 
 export const quizQuestionSchema = z
   .object({
     text: requiredText(QUESTION_TEXT_MAX_LENGTH),
-    options: z
-      .array(optionSchema)
-      .min(MIN_OPTIONS, `At least ${MIN_OPTIONS} options are required`)
-      .max(MAX_OPTIONS, `At most ${MAX_OPTIONS} options are allowed`),
+    imageId: optionalImageIdSchema,
+    options: optionsSchema(optionSchema),
   })
   .superRefine((question, ctx) => {
+    question.options.forEach((option, index) => {
+      if (option.text === '' && option.imageId === null) {
+        ctx.addIssue({ code: 'custom', path: ['options', index, 'text'], message: 'Text or image is required' })
+      }
+    })
     const correctCount = question.options.filter((option) => option.isCorrect).length
     if (correctCount === 0) {
       ctx.addIssue({ code: 'custom', path: ['options'], message: 'At least one option must be correct' })
