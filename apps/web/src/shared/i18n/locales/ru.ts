@@ -344,6 +344,7 @@ export default {
         hint: 'Выберите файл, перетащите или вставьте (Ctrl+V)',
         replace: 'Заменить',
         remove: 'Убрать картинку',
+        removeShort: 'Убрать',
         uploading: 'Загрузка…',
         tooLarge: 'Файл слишком большой, максимум 15 МБ',
         notImage: 'Это не картинка. Подойдут JPEG, PNG, WebP',

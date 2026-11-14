@@ -284,3 +284,45 @@ describe('ImageField: в викторине', () => {
   })
 })
 
+describe('ImageField: подсветка и кнопка «Убрать»', () => {
+  it('dragover включает подсветку, dragleave за пределы поля и drop снимают', async () => {
+    vi.spyOn(imageApi, 'upload').mockResolvedValue(IMAGE)
+    const wrapper = await mountEditor()
+    const field = questionField(wrapper)
+
+    await field.trigger('dragover')
+    expect(field.classes()).toContain('image-field--dragover')
+    await field.trigger('dragleave', { relatedTarget: null })
+    expect(field.classes()).not.toContain('image-field--dragover')
+
+    await field.trigger('dragover')
+    await field.trigger('drop', { dataTransfer: transferOf([imageFile()]) })
+    await flushPromises()
+    expect(questionField(wrapper).classes()).not.toContain('image-field--dragover')
+  })
+
+  it('dragleave на дочерний элемент поля подсветку не снимает', async () => {
+    const wrapper = await mountEditor()
+    const field = questionField(wrapper)
+
+    await field.trigger('dragover')
+    await field.trigger('dragleave', { relatedTarget: field.find('.image-field__pick').element })
+
+    expect(field.classes()).toContain('image-field--dragover')
+  })
+
+  it('у варианта «Убрать», у вопроса «✕», aria-label одинаковый', async () => {
+    vi.spyOn(imageApi, 'upload').mockResolvedValue(IMAGE)
+    const wrapper = await mountEditor()
+    await dropOn(wrapper, [imageFile()])
+    await wrapper.findAll('.image-field--option')[0]!.trigger('drop', { dataTransfer: transferOf([imageFile()]) })
+    await flushPromises()
+
+    const question = questionField(wrapper).get('.image-field__remove')
+    const option = wrapper.findAll('.image-field--option')[0]!.get('.image-field__remove')
+    expect(question.text()).toBe('✕')
+    expect(question.attributes('aria-label')).toBe('Убрать картинку')
+    expect(option.text()).toBe('Убрать')
+    expect(option.attributes('aria-label')).toBe('Убрать картинку')
+  })
+})

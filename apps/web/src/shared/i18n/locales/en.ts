@@ -349,6 +349,7 @@ const messages: Messages = {
         hint: 'Choose a file, drag it here or paste (Ctrl+V)',
         replace: 'Replace',
         remove: 'Remove image',
+        removeShort: 'Remove',
         uploading: 'Uploading…',
         tooLarge: 'The file is too large, 15 MB at most',
         notImage: 'This is not an image. JPEG, PNG and WebP are supported',

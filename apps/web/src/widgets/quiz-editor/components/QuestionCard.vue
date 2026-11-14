@@ -86,6 +86,7 @@
             &times;
           </button>
           <ImageField
+            class="question-card__option-image"
             variant="option"
             :image-url="store.optionImageUrl(index, optionIndex)"
             :label="t('teacher.quizEditor.image.optionLabel', { n: optionIndex + 1 })"
@@ -397,6 +398,10 @@ function errorOf(subPath: string): string | undefined {
   .question-card__error {
     grid-column: 2 / -1;
   }
+}
+
+.question-card__option-image {
+  grid-column: 1 / -1;
 }
 
 // Сама галочка прозрачная и занимает всю клетку 44×44 — цель касания; рисует её соседний __check

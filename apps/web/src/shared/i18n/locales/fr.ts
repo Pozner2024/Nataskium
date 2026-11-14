@@ -350,6 +350,7 @@ const messages: Messages = {
         hint: 'Choisissez un fichier, glissez-le ici ou collez-le (Ctrl+V)',
         replace: 'Remplacer',
         remove: 'Retirer l’image',
+        removeShort: 'Retirer',
         uploading: 'Envoi…',
         tooLarge: 'Le fichier est trop volumineux, 15 Mo au maximum',
         notImage: 'Ce n’est pas une image. Formats acceptés : JPEG, PNG, WebP',

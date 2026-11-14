@@ -30,7 +30,7 @@
       <li v-for="(option, position) in store.question.options" :key="option.index" class="play-question__item">
         <button
           class="play-question__option"
-          :class="optionClass(option.index)"
+          :class="[optionClass(option.index), { 'play-question__option--image': option.imageUrl }]"
           type="button"
           :aria-pressed="store.isSelected(option.index)"
           :disabled="store.isDisabled(option.index)"
@@ -217,6 +217,49 @@ function optionClass(index: number): Record<string, boolean> {
   overflow-wrap: anywhere;
 }
 
+.play-question__image {
+  position: relative;
+  height: min(220px, 34vh);
+  margin: 14px 0 0;
+  border: 1px solid rgb(var(--rgb-blue) / 0.16);
+  border-radius: 18px;
+  overflow: hidden;
+  background: rgb(var(--rgb-blue) / 0.06);
+}
+
+.play-question__image-img,
+.play-question__option-img {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.play-question__image-fallback,
+.play-question__option-fallback {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 10px;
+  border: 2px dashed rgb(var(--rgb-blue) / 0.3);
+  border-radius: inherit;
+  color: var(--color-text-muted);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.play-question__option-fallback {
+  font-size: 13px;
+}
+
 .play-question__hint {
   margin: 6px 0 0;
   color: var(--color-text-muted);
@@ -294,10 +337,37 @@ function optionClass(index: number): Record<string, boolean> {
     }
   }
 }
+
 .play-question__option-text {
   min-width: 0;
   overflow-wrap: anywhere;
 }
+
+.play-question__option--image {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 6px;
+  padding: 6px;
+}
+
+.play-question__option-image {
+  position: relative;
+  display: block;
+  flex: none;
+  width: 100%;
+  max-height: 160px;
+  aspect-ratio: 1;
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgb(var(--rgb-blue) / 0.06);
+}
+
+.play-question__option--image .play-question__option-text {
+  padding: 0 4px 4px;
+}
+
 .play-question__option--selected,
 .play-question__option--selected:disabled {
   border-color: var(--color-blue-dark);
@@ -331,6 +401,10 @@ function optionClass(index: number): Record<string, boolean> {
   color: var(--color-text);
 }
 
+.play-question__option--image.play-question__option--missed {
+  padding: 5px;
+}
+
 .play-question__mark {
   display: grid;
   flex: none;
@@ -354,12 +428,21 @@ function optionClass(index: number): Record<string, boolean> {
   // У пропущенного правильного символа в разметке нет: контурная галочка рисуется здесь
   .play-question__option--missed & {
     border: 2px solid var(--color-green-dark);
+    background: var(--color-white);
     color: var(--color-green-dark);
 
     &::before {
       content: '✓';
       content: '✓' / '';
     }
+  }
+
+  // На плитке с картинкой отметка лежит поверх картинки, белая обводка отделяет её от фото
+  .play-question__option--image & {
+    position: absolute;
+    top: 10px;
+    inset-inline-end: 10px;
+    box-shadow: 0 0 0 2px var(--color-white);
   }
 }
 

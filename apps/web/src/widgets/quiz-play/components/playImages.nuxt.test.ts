@@ -110,3 +110,11 @@ describe('картинки на странице задания', () => {
     expect(store.selected).toEqual([2])
   })
 })
+
+describe('модификатор варианта с картинкой', () => {
+  it('play-question__option--image только у вариантов с imageUrl', async () => {
+    const { wrapper } = await startQuiz()
+    const flags = wrapper.findAll('.play-question__option').map((button) => button.classes().includes('play-question__option--image'))
+    expect(flags).toEqual([false, true, true])
+  })
+})
