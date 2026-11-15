@@ -1,14 +1,21 @@
+import { randomUUID } from 'node:crypto'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { makeTokenService } from '../../src/features/auth'
+import { quizImageKey } from '../../src/features/quiz-images'
 import type { PrismaClient } from '../../src/generated/prisma/client'
+import { ExternalServiceError } from '../../src/shared/errors'
+import type { ImageStorage } from '../../src/shared/infrastructure'
 import { flushBackground } from '../fakes/authFakes'
+import { makeMemoryImageStorage } from '../fakes/memoryImageStorage'
 import { makeRecordingEmailSender } from '../fakes/recordingEmailSender'
 import { TEST_ENV, TEST_WEB_ORIGIN, createTestApp, fromIp } from '../fakes/testApp'
+import { createTeacher } from './authFixtures'
 import { createTestPrisma, truncateAll } from './testDatabase'
 
 const EMAIL = 'qa-anna@example.test'
 const PASSWORD = 'qa-correct-horse-1957'
 const DELETE_ACCOUNT_PER_IP = 10
+const IMAGE_BODY = new Uint8Array([1, 2, 3])
 const SESSION_INVALID = { error: 'Session is invalid or expired, sign in again' }
 const tokens = makeTokenService({ jwtSecret: TEST_ENV.JWT_SECRET, hmacSecret: TEST_ENV.HMAC_SECRET })
 
@@ -302,5 +309,63 @@ describe('POST /api/auth/delete-account: письмо «аккаунт удал�
     expect(response.status).toBe(204)
     expect(await prisma.teacher.count({ where: { id: teacherId } })).toBe(0)
     expect(JSON.stringify(info.mock.calls)).not.toContain(EMAIL)
+  })
+})
+
+describe('POST /api/auth/delete-account: файлы картинок учителя (GDPR)', () => {
+  // Как загрузка: файл в хранилище, затем строка в quiz_images
+  async function storeImage(memory: ReturnType<typeof makeMemoryImageStorage>, teacherId: string): Promise<string> {
+    const id = randomUUID()
+    await memory.storage.put(quizImageKey(id), IMAGE_BODY, 'image/webp')
+    await prisma.quizImage.create({ data: { id, teacherId } })
+    return quizImageKey(id)
+  }
+
+  it('204: файлы учителя удалены из хранилища сразу, без сверки; чужие на месте', async () => {
+    const client = makeClient()
+    const { accessToken, teacherId } = await client.signUp()
+    const other = await createTeacher(prisma)
+    const memory = makeMemoryImageStorage()
+    const mine = [await storeImage(memory, teacherId), await storeImage(memory, teacherId)]
+    const foreign = await storeImage(memory, other.id)
+    const app = createTestApp({ prisma, imageStorage: memory.storage })
+
+    const response = await app.request(
+      '/api/auth/delete-account',
+      { method: 'POST', headers: { 'content-type': 'application/json', origin: TEST_WEB_ORIGIN, authorization: `Bearer ${accessToken}` }, body: JSON.stringify({ password: PASSWORD }) },
+      fromIp(),
+    )
+
+    expect(response.status).toBe(204)
+    expect(await prisma.teacher.count({ where: { id: teacherId } })).toBe(0)
+    for (const key of mine) expect(memory.objects.has(key)).toBe(false)
+    expect(memory.objects.has(foreign)).toBe(true)
+    expect(await prisma.quizImage.count()).toBe(1)
+  })
+
+  it('сбой хранилища — 204, учитель и строки удалены, файлы остаются сверке', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const client = makeClient()
+    const { accessToken, teacherId } = await client.signUp()
+    const memory = makeMemoryImageStorage()
+    const key = await storeImage(memory, teacherId)
+    const failingStorage: ImageStorage = {
+      ...memory.storage,
+      remove: async () => {
+        throw new ExternalServiceError('memory-storage', null)
+      },
+    }
+    const app = createTestApp({ prisma, imageStorage: failingStorage })
+
+    const response = await app.request(
+      '/api/auth/delete-account',
+      { method: 'POST', headers: { 'content-type': 'application/json', origin: TEST_WEB_ORIGIN, authorization: `Bearer ${accessToken}` }, body: JSON.stringify({ password: PASSWORD }) },
+      fromIp(),
+    )
+
+    expect(response.status).toBe(204)
+    expect(await prisma.teacher.count({ where: { id: teacherId } })).toBe(0)
+    expect(await prisma.quizImage.count()).toBe(0)
+    expect(memory.objects.has(key)).toBe(true)
   })
 })

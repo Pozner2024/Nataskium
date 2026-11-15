@@ -8,6 +8,7 @@ import { Prisma, type PrismaClient } from '../src/generated/prisma/client'
 import { AppError, RateLimitedError, ServiceBusyError } from '../src/shared/errors'
 import { type CallLog, flushBackground, makeFakeHasher, makeFakeLimiter, makeFakeTeachers } from './fakes/authFakes'
 import { makeRecordingEmailSender } from './fakes/recordingEmailSender'
+import { makeMemoryTeacherImages } from './fakes/teacherImageFakes'
 
 const NOW = new Date('2026-11-07T12:00:00Z')
 const EMAIL = 'qa-anna@example.test'
@@ -340,5 +341,84 @@ describe('deleteAccount: письмо «аккаунт удалён»', () => {
     const logged = JSON.stringify(info.mock.calls)
     expect(logged).not.toContain(EMAIL)
     expect(logged).not.toContain('Анна')
+  })
+})
+
+describe('deleteAccount: файлы картинок учителя (GDPR)', () => {
+  const OTHER_TEACHER_ID = '0b6a3c1d-2e4f-4a5b-8c9d-0e1f2a3b4c5d'
+
+  // Учитель из setup() и хранилище с файлами его и чужого учителя
+  async function setupWithImages(teachers?: (accounts: TeacherAccount[]) => TeacherRepository) {
+    const { accounts, hasher, limiter, emails } = setup()
+    const images = await makeMemoryTeacherImages([TEACHER_ID, OTHER_TEACHER_ID])
+    const deleteAccount = makeDeleteAccount({
+      teachers: teachers?.(accounts) ?? makeFakeTeachers(calls, accounts).teachers,
+      hasher: hasher.hasher,
+      failureLimiter: limiter.limiter,
+      emailSender: emails.sender,
+      imageFiles: images.files,
+    })
+    return { deleteAccount, accounts, images }
+  }
+
+  beforeEach(() => {
+    vi.spyOn(console, 'info').mockImplementation(() => {})
+  })
+
+  it('после удаления файлы учителя удалены из хранилища, чужие на месте', async () => {
+    const { deleteAccount, images } = await setupWithImages()
+
+    await deleteAccount(TEACHER_ID, input())
+
+    for (const key of images.keysOf(TEACHER_ID)) expect(images.memory.objects.has(key)).toBe(false)
+    for (const key of images.keysOf(OTHER_TEACHER_ID)) expect(images.memory.objects.has(key)).toBe(true)
+  })
+
+  it('сбой хранилища — аккаунт всё равно удалён, ответ без ошибки, в логе нет id и ключей', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { deleteAccount, accounts, images } = await setupWithImages()
+    images.failing.remove = true
+
+    await expect(deleteAccount(TEACHER_ID, input())).resolves.toBeUndefined()
+
+    expect(accounts).toEqual([])
+    expect(errors).toHaveBeenCalledOnce()
+    const logged = JSON.stringify(errors.mock.calls)
+    expect(logged).not.toContain(TEACHER_ID)
+    for (const key of images.keysOf(TEACHER_ID)) expect(logged).not.toContain(key)
+  })
+
+  it('неверный пароль — файлы на месте', async () => {
+    const { deleteAccount, images } = await setupWithImages()
+
+    await expect(deleteAccount(TEACHER_ID, input('qa-wrong-password'))).rejects.toMatchObject(WRONG_PASSWORD)
+
+    for (const key of images.keysOf(TEACHER_ID)) expect(images.memory.objects.has(key)).toBe(true)
+  })
+
+  it('параллельный запрос удалил аккаунт раньше (deleteAccount → false) — этот запрос файлы не трогает', async () => {
+    const { deleteAccount, images } = await setupWithImages((accounts) => ({
+      ...makeFakeTeachers(calls, accounts).teachers,
+      deleteAccount: async () => false,
+    }))
+
+    await expect(deleteAccount(TEACHER_ID, input())).rejects.toMatchObject(SESSION_INVALID)
+
+    for (const key of images.keysOf(TEACHER_ID)) expect(images.memory.objects.has(key)).toBe(true)
+  })
+
+  it('хранилище не настроено (imageFiles: null) — аккаунт удаляется', async () => {
+    const { accounts, hasher, limiter, emails } = setup()
+    const deleteAccount = makeDeleteAccount({
+      teachers: makeFakeTeachers(calls, accounts).teachers,
+      hasher: hasher.hasher,
+      failureLimiter: limiter.limiter,
+      emailSender: emails.sender,
+      imageFiles: null,
+    })
+
+    await deleteAccount(TEACHER_ID, input())
+
+    expect(accounts).toEqual([])
   })
 })

@@ -258,6 +258,12 @@ export type FailureLimiter = {
 
 export type Clock = () => Date
 
+// Файлы картинок учителя в хранилище: строки quiz_images удаляются каскадом вместе с аккаунтом, файлы — отдельно (GDPR)
+export type TeacherImageFiles = {
+  listIds(teacherId: string): Promise<string[]>
+  removeFiles(imageIds: readonly string[]): Promise<void>
+}
+
 // Что учитель видит о себе — из схемы ответа в shared: фронтенд разбирает ответ той же схемой
 export type { TeacherView }
 

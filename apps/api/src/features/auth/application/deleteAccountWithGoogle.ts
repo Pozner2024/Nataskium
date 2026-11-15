@@ -1,6 +1,7 @@
 import type { Locale } from '@nataskium/shared/locales'
-import type { Clock, EmailSender, GoogleIdentityProvider, PendingGoogleReauthRepository, TokenService } from '../types'
+import type { Clock, EmailSender, GoogleIdentityProvider, PendingGoogleReauthRepository, TeacherImageFiles, TokenService } from '../types'
 import { sendInBackground } from './sendInBackground'
+import { collectTeacherImageIds, removeTeacherImageFiles } from './teacherImages'
 
 // expired — подтверждения нет (истекло, отменено, уже использовано или начато в другом браузере);
 // wrongAccount — вернулся не тот Google-аккаунт; invalidToken — Google отклонил код или id_token не прошёл проверку;
@@ -15,6 +16,8 @@ export type DeleteAccountWithGoogleDeps = {
   tokens: Pick<TokenService, 'hashOpaqueToken'>
   emailSender: EmailSender
   now: Clock
+  // Не задано или null — хранилище картинок не настроено: файлов нет
+  imageFiles?: TeacherImageFiles | null
 }
 
 // Удаление аккаунта без пароля, шаг 2 (callback Google). Подтверждение — вход в тот же Google-аккаунт (sub), что
@@ -40,11 +43,13 @@ export function makeDeleteAccountWithGoogle(deps: DeleteAccountWithGoogleDeps) {
 
     // Адрес, имя и язык — до удаления: после него их в базе нет
     const { teacherId, teacherEmail, teacherDisplayName } = reauth
+    const imageIds = await collectTeacherImageIds(deps.imageFiles, teacherId)
     const result = await deps.pendingGoogleReauths.deleteAccount(reauth, stateHash, now)
     // Параллельный callback уже использовал подтверждение, или оно истекло между проверкой и транзакцией
     if (result === 'invalid') return { ok: false, reason: 'expired' }
     // Пароль появился после запуска: подтверждение погашено в той же транзакции, аккаунт цел
     if (result === 'hasPassword') return { ok: false, reason: 'hasPassword' }
+    await removeTeacherImageFiles(deps.imageFiles, imageIds)
 
     // Только teacherId: email удалённого учителя в логах не остаётся
     console.info('Teacher account deleted with Google', { teacherId })

@@ -17,6 +17,9 @@ const RESEND_API_KEY_PREFIX = 're_'
 const MIN_RESEND_API_KEY_LENGTH = 20
 // Callback Google OAuth — маршрут API под тем же origin, что и фронтенд (Caddy не срезает /api)
 const GOOGLE_CALLBACK_PATH = '/api/auth/google/callback'
+// Правила имён бакетов S3: 3–63 символа, строчные буквы, цифры, точки и дефисы, по краям — буква или цифра
+const S3_BUCKET_NAME = /^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/
+const TRAILING_SLASH = '/'
 const CIDR_SEPARATOR = '/'
 const MIN_IPV4_PREFIX = 16
 const MIN_IPV6_PREFIX = 64
@@ -49,11 +52,48 @@ function isGoogleUnset(env: GoogleSettings): boolean {
   return env.GOOGLE_CLIENT_ID === undefined && env.GOOGLE_CLIENT_SECRET === undefined && env.GOOGLE_REDIRECT_URI === undefined
 }
 
+type ImageStorageSettings = {
+  YANDEX_S3_ENDPOINT?: string
+  YANDEX_S3_BUCKET?: string
+  YANDEX_S3_ACCESS_KEY?: string
+  YANDEX_S3_SECRET_KEY?: string
+  IMAGES_PUBLIC_BASE_URL?: string
+}
+
+function imageStorageValues(env: ImageStorageSettings) {
+  return [env.YANDEX_S3_ENDPOINT, env.YANDEX_S3_BUCKET, env.YANDEX_S3_ACCESS_KEY, env.YANDEX_S3_SECRET_KEY, env.IMAGES_PUBLIC_BASE_URL]
+}
+
+function isImageStorageConfigured(env: ImageStorageSettings): boolean {
+  return imageStorageValues(env).every((value) => value !== undefined)
+}
+
+function isImageStorageUnset(env: ImageStorageSettings): boolean {
+  return imageStorageValues(env).every((value) => value === undefined)
+}
+
+const IMAGE_STORAGE_NAMES = 'YANDEX_S3_ENDPOINT, YANDEX_S3_BUCKET, YANDEX_S3_ACCESS_KEY, YANDEX_S3_SECRET_KEY and IMAGES_PUBLIC_BASE_URL'
+
+// Публичный адрес картинки — база + '/' + ключ: без слэша в конце, query, якоря и логина в адресе
+function isPublicBaseUrl(url: string): boolean {
+  const parsed = new URL(url)
+  if (url.endsWith(TRAILING_SLASH)) return false
+  return parsed.search === '' && parsed.hash === '' && parsed.username === '' && parsed.password === ''
+}
+
 function requiredMessage(problem: string) {
   return (issue: { input: unknown }) => (issue.input === undefined ? 'is required' : problem)
 }
 
 // Байты, а не символы: секрет из 16 кириллических букв — это 32 байта
+const trimmedOptionalSchema = z.preprocess(
+  emptyAsUndefined,
+  z
+    .string()
+    .refine((value) => value === value.trim(), { error: 'must not start or end with whitespace' })
+    .optional(),
+)
+
 const secretSchema = z
   .string({ error: 'is required' })
   .refine((secret) => Buffer.byteLength(secret, 'utf8') >= MIN_SECRET_BYTES, {
@@ -186,6 +226,38 @@ const envFieldsSchema = z.object({
     emptyAsUndefined,
     z.url({ protocol: WEB_ORIGIN_PROTOCOL, hostname: /.+/, error: 'must be an http:// or https:// URL' }).optional(),
   ),
+  // Хранилище картинок (Яндекс Object Storage). Вне production необязательно: без него загрузка картинок отвечает 503
+  YANDEX_S3_ENDPOINT: z.preprocess(
+    emptyAsUndefined,
+    z
+      .url({ protocol: WEB_ORIGIN_PROTOCOL, hostname: /.+/, abort: true, error: 'must be an http:// or https:// origin without path' })
+      .refine((url) => new URL(url).origin === url, { error: 'must be an http:// or https:// origin without path' })
+      .optional(),
+  ),
+  YANDEX_S3_BUCKET: z.preprocess(
+    emptyAsUndefined,
+    z.string().regex(S3_BUCKET_NAME, { error: 'must be a valid bucket name' }).optional(),
+  ),
+  YANDEX_S3_ACCESS_KEY: trimmedOptionalSchema,
+  YANDEX_S3_SECRET_KEY: trimmedOptionalSchema,
+  IMAGES_PUBLIC_BASE_URL: z.preprocess(
+    emptyAsUndefined,
+    z
+      .url({
+        protocol: WEB_ORIGIN_PROTOCOL,
+        hostname: /.+/,
+        abort: true,
+        error: 'must be an http:// or https:// URL without trailing slash, query or credentials',
+      })
+      .refine(isPublicBaseUrl, { error: 'must be an http:// or https:// URL without trailing slash, query or credentials' })
+      .optional(),
+  ),
+  // Сверка хранилища с базой удаляет файлы без строки в quiz_images. Включать только там, где бакет принадлежит
+  // ТОЛЬКО этой базе: dev с прод-бакетом или пустая база иначе удалили бы чужие файлы.
+  // undefined — не задано: в production это ошибка, вне production — false (в конце envSchema)
+  IMAGE_STORAGE_RECONCILE: z
+    .preprocess(emptyAsUndefined, z.enum(['true', 'false'], { error: "must be 'true' or 'false'" }).optional())
+    .transform((value) => (value === undefined ? undefined : value === 'true')),
 })
 
 // Проверки между полями — только когда сами поля верны (onlyIfValid), иначе к ошибке поля добавилась бы вторая
@@ -250,6 +322,35 @@ const envSchema = envFieldsSchema
     error: `must be WEB_ORIGIN + ${GOOGLE_CALLBACK_PATH}`,
     ...onlyIfValid,
   })
+
+  // Ключи S3 уходят на endpoint с каждым запросом, картинки показываются на https-странице
+  .refine((env) => env.NODE_ENV !== 'production' || env.YANDEX_S3_ENDPOINT === undefined || env.YANDEX_S3_ENDPOINT.startsWith(HTTPS_PREFIX), {
+    path: ['YANDEX_S3_ENDPOINT'],
+    error: 'must use https:// in production',
+    ...onlyIfValid,
+  })
+  .refine((env) => env.NODE_ENV !== 'production' || env.IMAGES_PUBLIC_BASE_URL === undefined || env.IMAGES_PUBLIC_BASE_URL.startsWith(HTTPS_PREFIX), {
+    path: ['IMAGES_PUBLIC_BASE_URL'],
+    error: 'must use https:// in production',
+    ...onlyIfValid,
+  })
+  .refine((env) => env.NODE_ENV !== 'production' || isImageStorageConfigured(env), {
+    path: ['YANDEX_S3_ENDPOINT'],
+    error: `${IMAGE_STORAGE_NAMES} are required in production`,
+    ...onlyIfValid,
+  })
+  .refine((env) => isImageStorageConfigured(env) || isImageStorageUnset(env), {
+    path: ['YANDEX_S3_ENDPOINT'],
+    error: `${IMAGE_STORAGE_NAMES} must be set together`,
+    ...onlyIfValid,
+  })
+  // Решение о сверке в production — только явное: молчаливое false оставляло бы файлы удалённых аккаунтов без страховки
+  .refine((env) => env.NODE_ENV !== 'production' || env.IMAGE_STORAGE_RECONCILE !== undefined, {
+    path: ['IMAGE_STORAGE_RECONCILE'],
+    error: 'is required in production',
+    ...onlyIfValid,
+  })
+  .transform((env) => ({ ...env, IMAGE_STORAGE_RECONCILE: env.IMAGE_STORAGE_RECONCILE ?? false }))
 
 export type Env = z.infer<typeof envSchema>
 

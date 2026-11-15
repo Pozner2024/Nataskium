@@ -22,17 +22,28 @@ export type QuizRouterDeps = {
   createQuiz: (teacherId: string, input: QuizInput) => Promise<StoredQuiz>
   updateQuiz: (teacherId: string, id: string, input: QuizInput) => Promise<StoredQuiz>
   deleteQuiz: (teacherId: string, id: string) => Promise<void>
+  // null — хранилище не настроено
+  imageUrl: (imageId: string) => string | null
   requireAuth: MiddlewareHandler
 }
 
-function toQuizResponse(quiz: StoredQuiz): QuizResponse {
+type ImageUrl = QuizRouterDeps['imageUrl']
+
+const urlOf = (imageUrl: ImageUrl, imageId: string | null) => (imageId === null ? null : imageUrl(imageId))
+
+// Адрес картинки строит сервер из id: клиент присылает только imageId
+function toQuizResponse(quiz: StoredQuiz, imageUrl: ImageUrl): QuizResponse {
   return {
     quiz: {
       id: quiz.id,
       title: quiz.title,
       showAnswers: quiz.showAnswers,
       gradingScale: quiz.gradingScale,
-      questions: quiz.questions,
+      questions: quiz.questions.map((question) => ({
+        ...question,
+        imageUrl: urlOf(imageUrl, question.imageId),
+        options: question.options.map((option) => ({ ...option, imageUrl: urlOf(imageUrl, option.imageId) })),
+      })),
       shareToken: quiz.shareToken,
     },
   }
@@ -66,19 +77,19 @@ export function makeQuizRouter(deps: QuizRouterDeps) {
   router.post('/', async (c) => {
     const input = await readJsonBody(c, quizInputSchema)
     const quiz = await deps.createQuiz(c.get('teacherId'), input)
-    return c.json(toQuizResponse(quiz), CREATED_STATUS)
+    return c.json(toQuizResponse(quiz, deps.imageUrl), CREATED_STATUS)
   })
 
   router.get('/:id', async (c) => {
     const quiz = await deps.getQuiz(c.get('teacherId'), parseId(c.req.param('id')))
-    return c.json(toQuizResponse(quiz))
+    return c.json(toQuizResponse(quiz, deps.imageUrl))
   })
 
   router.patch('/:id', async (c) => {
     const id = parseId(c.req.param('id'))
     const input = await readJsonBody(c, quizInputSchema)
     const quiz = await deps.updateQuiz(c.get('teacherId'), id, input)
-    return c.json(toQuizResponse(quiz))
+    return c.json(toQuizResponse(quiz, deps.imageUrl))
   })
 
   router.delete('/:id', async (c) => {

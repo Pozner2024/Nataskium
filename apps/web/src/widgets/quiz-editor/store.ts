@@ -1,13 +1,13 @@
-import { MAX_OPTIONS, MAX_QUESTIONS, MIN_OPTIONS, MIN_QUESTIONS, quizInputSchema } from '@nataskium/shared/schemas'
+import { MAX_OPTIONS, MAX_QUESTIONS, MIN_OPTIONS, MIN_QUESTIONS, quizInputSchema, UNKNOWN_IMAGE_REASON } from '@nataskium/shared/schemas'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { newQuestion, newQuiz, quizApi, type QuizInput, type QuizResponse } from '@/entities/quiz'
+import { newQuestion, newQuiz, quizApi, type QuizInput, type QuizResponse, type UploadedImage } from '@/entities/quiz'
 import { authorizedRequest } from '@/features/auth'
 import { ApiError } from '@/shared'
 
 export type EditorView = 'questions' | 'settings'
 export type LoadStatus = 'idle' | 'loading' | 'ready' | 'notFound' | 'error'
-export type SaveStatus = 'idle' | 'saving' | 'saved' | 'invalid' | 'tooLarge' | 'limitReached' | 'failed'
+export type SaveStatus = 'idle' | 'saving' | 'saved' | 'invalid' | 'tooLarge' | 'limitReached' | 'imageUnavailable' | 'failed'
 
 const BAD_REQUEST_STATUS = 400
 const NOT_FOUND_STATUS = 404
@@ -28,6 +28,35 @@ function issuesToFieldErrors(issues: readonly { path: readonly PropertyKey[]; me
   return errors
 }
 
+// Ответ API → данные формы: imageUrl нужен только для превью и в запрос не уходит
+function toQuizInput(quiz: Omit<QuizResponse['quiz'], 'id' | 'shareToken'>): QuizInput {
+  return {
+    title: quiz.title,
+    showAnswers: quiz.showAnswers,
+    gradingScale: quiz.gradingScale,
+    questions: quiz.questions.map((question) => ({
+      text: question.text,
+      imageId: question.imageId,
+      options: question.options.map((option) => ({ text: option.text, isCorrect: option.isCorrect, imageId: option.imageId })),
+    })),
+  }
+}
+
+function collectImageUrls(quiz: QuizResponse['quiz']): Record<string, string> {
+  const urls: Record<string, string> = {}
+  const items = quiz.questions.flatMap((question) => [question, ...question.options])
+  for (const item of items) {
+    if (item.imageId !== null && item.imageUrl !== null) urls[item.imageId] = item.imageUrl
+  }
+  return urls
+}
+
+// Snapshot — в той же форме, что сравнивает isDirty: после схемы (trim, порядок полей)
+function snapshotOf(quiz: QuizInput): string {
+  const parsed = quizInputSchema.safeParse(quiz)
+  return JSON.stringify(parsed.success ? parsed.data : quiz)
+}
+
 function firstInvalidQuestion(errors: Record<string, string>): number | null {
   for (const key of Object.keys(errors)) {
     const [scope, index] = key.split('.')
@@ -46,6 +75,8 @@ export const useQuizEditorStore = defineStore('quiz-editor', () => {
   const loadStatus = ref<LoadStatus>('idle')
   const saveStatus = ref<SaveStatus>('idle')
   const fieldErrors = ref<Record<string, string>>({})
+  // Превью по imageId, а не по индексам: удаление вопроса или варианта не сдвигает картинки
+  const imageUrls = ref<Record<string, string>>({})
   // Создание → переход на /teacher/quiz/<id>: старая страница не должна сбросить состояние при размонтировании
   const handoverId = ref<string | null>(null)
   // Растёт при reset: ответ load, начатого до сброса, уже не нужен
@@ -74,7 +105,7 @@ export const useQuizEditorStore = defineStore('quiz-editor', () => {
   function addOption(questionIndex: number): void {
     const question = quiz.value.questions[questionIndex]
     if (!question || question.options.length >= MAX_OPTIONS) return
-    question.options.push({ text: '', isCorrect: false })
+    question.options.push({ text: '', imageId: null, isCorrect: false })
   }
 
   // Вопрос всегда сохраняет хотя бы один верный и хотя бы один неверный вариант (иначе «отметь все» даст полный балл)
@@ -97,16 +128,49 @@ export const useQuizEditorStore = defineStore('quiz-editor', () => {
     option.isCorrect = !option.isCorrect
   }
 
+  function rememberImage(image: UploadedImage | null): string | null {
+    if (image === null) return null
+    imageUrls.value[image.id] = image.url
+    return image.id
+  }
+
+  function setQuestionImage(questionIndex: number, image: UploadedImage | null): void {
+    const question = quiz.value.questions[questionIndex]
+    if (!question) return
+    question.imageId = rememberImage(image)
+  }
+
+  function setOptionImage(questionIndex: number, optionIndex: number, image: UploadedImage | null): void {
+    const option = quiz.value.questions[questionIndex]?.options[optionIndex]
+    if (!option) return
+    option.imageId = rememberImage(image)
+  }
+
+  function previewOf(imageId: string | null | undefined): string | null {
+    if (imageId === null || imageId === undefined) return null
+    return imageUrls.value[imageId] ?? null
+  }
+
+  function questionImageUrl(questionIndex: number): string | null {
+    return previewOf(quiz.value.questions[questionIndex]?.imageId)
+  }
+
+  function optionImageUrl(questionIndex: number, optionIndex: number): string | null {
+    return previewOf(quiz.value.questions[questionIndex]?.options[optionIndex]?.imageId)
+  }
+
   function toggleExpanded(index: number): void {
     expandedIndex.value = expandedIndex.value === index ? null : index
   }
 
   function apply(response: QuizResponse): void {
-    const { id: quizId, shareToken: token, ...input } = response.quiz
+    const { id: quizId, shareToken: token, ...rest } = response.quiz
+    const input = toQuizInput(rest)
     quiz.value = input
+    imageUrls.value = collectImageUrls(response.quiz)
     id.value = quizId
     shareToken.value = token
-    savedSnapshot.value = JSON.stringify(input)
+    savedSnapshot.value = snapshotOf(input)
     loadStatus.value = 'ready'
   }
 
@@ -166,6 +230,8 @@ export const useQuizEditorStore = defineStore('quiz-editor', () => {
     }
     if (error.status === PAYLOAD_TOO_LARGE_STATUS) saveStatus.value = 'tooLarge'
     else if (error.status === CONFLICT_STATUS) saveStatus.value = 'limitReached'
+    // Картинка удалена очисткой, чужая или уже в другой викторине: исправить может только замена картинки
+    else if (error.status === BAD_REQUEST_STATUS && error.reason === UNKNOWN_IMAGE_REASON) saveStatus.value = 'imageUnavailable'
     else if (error.status === BAD_REQUEST_STATUS && error.issues.length > 0) showFieldErrors(issuesToFieldErrors(error.issues))
     else saveStatus.value = 'failed'
   }
@@ -179,6 +245,7 @@ export const useQuizEditorStore = defineStore('quiz-editor', () => {
     loadStatus.value = 'idle'
     saveStatus.value = 'idle'
     fieldErrors.value = {}
+    imageUrls.value = {}
     handoverId.value = null
     epoch++
     savedSnapshot.value = JSON.stringify(quiz.value)
@@ -201,6 +268,10 @@ export const useQuizEditorStore = defineStore('quiz-editor', () => {
     removeOption,
     toggleCorrect,
     toggleExpanded,
+    setQuestionImage,
+    setOptionImage,
+    questionImageUrl,
+    optionImageUrl,
     load,
     save,
     reset,

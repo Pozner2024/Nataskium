@@ -11,3 +11,6 @@ export type PlayQuizSource = {
   // Удалённые викторины не находятся
   findByShareToken(token: string): Promise<PlayableQuiz | null>
 }
+
+// Адрес картинки по id; null — хранилище не настроено. Связывание с хранилищем — в app.ts
+export type PlayImageUrl = (imageId: string) => string | null

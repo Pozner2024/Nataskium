@@ -2,7 +2,7 @@ import { createApp } from '../../src/app'
 import { type AuthLimits, type EmailSender, type GoogleIdentityProvider, PRODUCTION_LIMITS, makePasswordHasher } from '../../src/features/auth'
 import type { PrismaClient } from '../../src/generated/prisma/client'
 import { type Env, parseEnv } from '../../src/shared/config'
-import { createPrismaClient } from '../../src/shared/infrastructure'
+import { type ImageStorage, createPrismaClient } from '../../src/shared/infrastructure'
 import { makeRecordingEmailSender } from './recordingEmailSender'
 
 export const TEST_WEB_ORIGIN = 'http://localhost:3000'
@@ -32,6 +32,8 @@ export type TestAppOptions = {
   emailSender?: EmailSender
   // null — Google не настроен: маршруты /api/auth/google/* не подключаются
   googleIdentity?: GoogleIdentityProvider | null
+  // null — хранилище картинок не настроено: загрузка отвечает 503
+  imageStorage?: ImageStorage | null
 }
 
 export function createTestApp(options: TestAppOptions = {}) {
@@ -44,6 +46,7 @@ export function createTestApp(options: TestAppOptions = {}) {
     passwordHasher: sharedHasher,
     emailSender: options.emailSender ?? makeRecordingEmailSender().sender,
     googleIdentity: options.googleIdentity ?? null,
+    imageStorage: options.imageStorage ?? null,
   })
 }
 

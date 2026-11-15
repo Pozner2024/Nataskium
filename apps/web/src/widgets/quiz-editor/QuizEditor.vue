@@ -95,6 +95,7 @@ const statusMessage = computed(() => (store.saveStatus === 'saved' ? t('teacher.
 const errorMessage = computed(() => {
   if (store.saveStatus === 'tooLarge') return t('teacher.quizEditor.tooLarge')
   if (store.saveStatus === 'limitReached') return t('teacher.quizEditor.limitReached', { max: MAX_QUIZZES_PER_TEACHER })
+  if (store.saveStatus === 'imageUnavailable') return t('teacher.quizEditor.imageUnavailable')
   if (store.saveStatus === 'failed') return t('teacher.quizEditor.saveFailed')
   if (store.saveStatus === 'invalid') return t('teacher.quizEditor.invalid')
   return ''

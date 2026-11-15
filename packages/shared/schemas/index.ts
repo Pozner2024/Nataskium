@@ -32,6 +32,9 @@ export {
 } from './authResponses'
 export type { AuthSessionResponse, TeacherView } from './authResponses'
 export {
+  IMAGE_TOO_LARGE_REASON,
+  IMAGE_UPLOAD_FIELD,
+  MAX_IMAGE_UPLOAD_BYTES,
   MAX_OPTIONS,
   MAX_QUESTIONS,
   MAX_QUIZZES_PER_TEACHER,
@@ -41,6 +44,9 @@ export {
   PLAY_VERSION_MAX_LENGTH,
   QUESTION_TEXT_MAX_LENGTH,
   QUIZ_TITLE_MAX_LENGTH,
+  UNKNOWN_IMAGE_REASON,
+  UNSUPPORTED_IMAGE_REASON,
+  imageIdSchema,
   playCheckInputSchema,
   playFinishInputSchema,
   quizIdSchema,
@@ -50,6 +56,7 @@ export {
 } from './quiz'
 export type { PlayCheckInput, PlayFinishInput, QuizInput, QuizQuestion } from './quiz'
 export {
+  imageUploadResponseSchema,
   playCheckResponseSchema,
   playFinishResponseSchema,
   playQuizResponseSchema,
@@ -59,6 +66,7 @@ export {
   quizSummarySchema,
 } from './quizResponses'
 export type {
+  ImageUploadResponse,
   PlayCheckResponse,
   PlayFinishResponse,
   PlayQuizResponse,

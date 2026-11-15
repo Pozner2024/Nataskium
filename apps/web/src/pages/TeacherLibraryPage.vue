@@ -1,15 +1,11 @@
 <template>
   <h1 class="teacher-library-page__title">{{ t('teacher.library.title') }}</h1>
-  <AppEmptyState :title="t('teacher.library.soonTitle')" :text="t('teacher.library.soonText')">
-    <template #nat>
-      <NatBulb />
-    </template>
-  </AppEmptyState>
+  <AppEmptyState :title="t('teacher.library.soonTitle')" :text="t('teacher.library.soonText')" />
 </template>
 
 <script setup lang="ts">
 import { useI18n, useSeoMeta } from '#imports'
-import { AppEmptyState, NatBulb } from '@/shared'
+import { AppEmptyState } from '@/shared'
 
 const { t } = useI18n()
 

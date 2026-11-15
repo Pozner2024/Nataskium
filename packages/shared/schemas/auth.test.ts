@@ -639,6 +639,8 @@ describe('схемы auth: публичный API', () => {
       'googleLinkSchema',
       'googleReauthStartResponseSchema',
       'googleReauthStartSchema',
+      'imageIdSchema',
+      'imageUploadResponseSchema',
       'localeSchema',
       'loginPasswordSchema',
       'loginSchema',

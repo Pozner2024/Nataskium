@@ -42,6 +42,7 @@ export type {
   PasswordHasher,
   PendingRegistrationRepository,
   RefreshTokenRepository,
+  TeacherImageFiles,
   TeacherRepository,
   TeacherView,
 } from './types'

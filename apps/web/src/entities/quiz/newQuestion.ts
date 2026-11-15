@@ -6,7 +6,8 @@ const NEW_QUESTION_OPTIONS_COUNT = 4
 export function newQuestion(): QuizQuestion {
   return {
     text: '',
-    options: Array.from({ length: NEW_QUESTION_OPTIONS_COUNT }, (_, index) => ({ text: '', isCorrect: index === 0 })),
+    imageId: null,
+    options: Array.from({ length: NEW_QUESTION_OPTIONS_COUNT }, (_, index) => ({ text: '', imageId: null, isCorrect: index === 0 })),
   }
 }
 

@@ -3,6 +3,10 @@ import { expect, test, type Page } from '@playwright/test'
 const TOKEN = 'AAAAAAAAAAAAAAAAAAAAAA'
 const VERSION = 'v1'
 
+function options(...texts: string[]) {
+  return texts.map((text) => ({ text, imageUrl: null }))
+}
+
 function quizBody(showAnswers: boolean) {
   return {
     quiz: {
@@ -10,8 +14,41 @@ function quizBody(showAnswers: boolean) {
       showAnswers,
       version: VERSION,
       questions: [
-        { text: 'Capital of France?', options: ['Paris', 'Rome', 'Berlin'], selectCount: 1 },
-        { text: 'Danube cities?', options: ['Vienna', 'Prague', 'Budapest', 'Madrid'], selectCount: 2 },
+        { text: 'Capital of France?', imageUrl: null, options: options('Paris', 'Rome', 'Berlin'), selectCount: 1 },
+        { text: 'Danube cities?', imageUrl: null, options: options('Vienna', 'Prague', 'Budapest', 'Madrid'), selectCount: 2 },
+      ],
+    },
+  }
+}
+
+const IMAGE_ORIGIN = 'https://images.example'
+const IMAGE_QUESTION = `${IMAGE_ORIGIN}/quiz-images/question.webp`
+const IMAGE_CAT = `${IMAGE_ORIGIN}/quiz-images/cat.webp`
+const IMAGE_TIGER = `${IMAGE_ORIGIN}/quiz-images/tiger.webp`
+const IMAGE_BROKEN = `${IMAGE_ORIGIN}/quiz-images/broken.webp`
+const PIXEL_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
+  'base64',
+)
+
+// Без текста — «Cat» (0) и битая картинка (2); «Tiger» (1) — картинка и текст
+function imageQuizBody() {
+  return {
+    quiz: {
+      title: 'Animals',
+      showAnswers: false,
+      version: VERSION,
+      questions: [
+        {
+          text: 'Where is the cat?',
+          imageUrl: IMAGE_QUESTION,
+          options: [
+            { text: '', imageUrl: IMAGE_CAT },
+            { text: 'Tiger', imageUrl: IMAGE_TIGER },
+            { text: '', imageUrl: IMAGE_BROKEN },
+          ],
+          selectCount: 1,
+        },
       ],
     },
   }
@@ -210,6 +247,46 @@ test.describe('игра ученика', () => {
     await page.route('**/api/play/**', (route) => route.fulfill({ status: 404, json: { error: 'not_found' } }))
     await page.goto(`/play/${TOKEN}`)
     await expect(page.getByRole('alert')).toHaveText('Activity not found or deleted')
+    await context.close()
+  })
+
+  test('картинки: вопрос и варианты с картинками, битая картинка — заглушка, вариант выбирается', async ({ browser }) => {
+    const context = await browser.newContext({ locale: 'en-US' })
+    const page = await context.newPage()
+    await page.route(`${IMAGE_ORIGIN}/**`, (route) => {
+      if (route.request().url() === IMAGE_BROKEN) return route.fulfill({ status: 404 })
+      return route.fulfill({ contentType: 'image/png', body: PIXEL_PNG })
+    })
+    let answers: unknown = null
+    await page.route('**/api/play/**', (route) => {
+      const request = route.request()
+      if (new URL(request.url()).pathname.endsWith('/finish')) {
+        answers = (request.postDataJSON() as { answers: unknown }).answers
+        return route.fulfill({
+          json: { result: { percent: 100, grade: null, correctCount: 1, partialCount: 0, totalCount: 1 } },
+        })
+      }
+      return route.fulfill({ json: imageQuizBody() })
+    })
+
+    await page.goto(`/play/${TOKEN}`)
+    await expect(page.getByRole('heading', { name: 'Where is the cat?' })).toBeVisible()
+    await expect(page.locator('.play-question__image-img')).toHaveJSProperty('naturalWidth', 1)
+
+    const images = page.getByRole('button', { name: /^Image \d$/ })
+    await expect(images).toHaveCount(2)
+    await expect(page.getByRole('button', { name: 'Tiger' }).locator('img')).toHaveCount(1)
+    await expect(page.locator('.play-question__option-fallback')).toHaveCount(1)
+
+    const broken = page.locator('.play-question__option', { has: page.locator('.play-question__option-fallback') })
+    await expect(broken).toBeEnabled()
+    const cat = page.locator('.play-question__option', { has: page.locator(`img[src="${IMAGE_CAT}"]`) })
+    await cat.click()
+    await expect(cat).toHaveAttribute('aria-pressed', 'true')
+    await page.getByRole('button', { name: 'Answer' }).click()
+
+    await expect(page.getByText('100%')).toBeVisible()
+    expect(answers).toEqual([[0]])
     await context.close()
   })
 })
