@@ -139,7 +139,7 @@ describe('Редактор викторины: загрузка', () => {
     expect(update).toHaveBeenCalled()
     const link = wrapper.find<HTMLInputElement>('.quiz-settings__link-input').element.value
     expect(link).toBe(`${window.location.origin}/play/${SHARE_TOKEN}`)
-    expect(wrapper.find('.quiz-settings__preview').attributes('rel')).toBe('noopener')
+    expect(wrapper.find('.quiz-settings__preview').attributes('href')).toBe(`/play/${SHARE_TOKEN}?preview=1`)
   })
 })
 

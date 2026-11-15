@@ -62,6 +62,7 @@
     </div>
 
     <p v-if="errorMessage" class="quiz-settings__error" role="alert">{{ errorMessage }}</p>
+    <p class="quiz-settings__saved" role="status">{{ savedMessage }}</p>
 
     <div v-if="shareUrl" class="quiz-settings__link">
       <h3 class="quiz-settings__link-title">{{ t('teacher.quizEditor.settings.link') }}</h3>
@@ -73,10 +74,8 @@
         {{ t('teacher.quizEditor.settings.copy') }}
       </button>
       <p class="quiz-settings__copy-status" role="status">{{ copyMessage }}</p>
-      <a class="quiz-settings__preview" :href="shareUrl" target="_blank" rel="noopener">
+      <a class="quiz-settings__preview" :href="previewPath" @click.prevent="openPreview">
         {{ t('teacher.quizEditor.settings.preview') }}
-        <span class="quiz-settings__new-tab">({{ t('teacher.quizEditor.settings.opensInNewTab') }})</span>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" /></svg>
       </a>
     </div>
   </section>
@@ -85,8 +84,8 @@
 <script setup lang="ts">
 import { GRADING_SCALES, GRADING_SCALE_TYPES, type GradingScaleType } from '@nataskium/shared/grading'
 import { computed, onBeforeUnmount, ref } from 'vue'
-import { useI18n } from '#imports'
-import { playUrl } from '@/entities/quiz'
+import { navigateTo, useI18n } from '#imports'
+import { PREVIEW_QUERY, playUrl } from '@/entities/quiz'
 import { useQuizEditorStore } from '../store'
 
 // Сколько показывается «Ссылка скопирована»
@@ -104,10 +103,19 @@ const errorMessage = computed(() => {
   if (['invalid', 'failed'].includes(store.saveStatus)) return t('teacher.quizEditor.saveFailed')
   return ''
 })
+const savedMessage = computed(() => {
+  if (isSaving.value) return t('teacher.quizEditor.saving')
+  return store.saveStatus === 'saved' && !store.isDirty ? t('teacher.quizEditor.settings.autoSaved') : ''
+})
 const copyMessage = ref('')
 let resetTimer: ReturnType<typeof setTimeout> | undefined
 
 const shareUrl = computed(() => (store.shareToken ? playUrl(store.shareToken) : null))
+const previewPath = computed(() => `/play/${encodeURIComponent(store.shareToken ?? '')}?${PREVIEW_QUERY}`)
+
+async function openPreview(): Promise<void> {
+  await navigateTo(previewPath.value)
+}
 
 async function setShowAnswers(event: Event): Promise<void> {
   const previous = store.quiz.showAnswers
@@ -465,6 +473,17 @@ $switch-knob: 26px;
   }
 }
 
+.quiz-settings__saved {
+  margin: 12px 0 0;
+  color: var(--color-green-dark);
+  font-size: 15px;
+  font-weight: 600;
+
+  &:empty {
+    display: none;
+  }
+}
+
 .quiz-settings__preview {
   @extend %pill-button;
 
@@ -482,16 +501,6 @@ $switch-knob: 26px;
   &:active {
     background: rgb(var(--rgb-blue) / 0.24);
   }
-}
-
-// Пояснение только для скринридера: значок рядом говорит то же самое глазами
-.quiz-settings__new-tab {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
 }
 
 @media (prefers-reduced-motion: reduce) {

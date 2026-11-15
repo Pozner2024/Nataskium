@@ -24,21 +24,34 @@
         <label class="question-card__label" :for="`${idPrefix}-text`">
           {{ t('teacher.quizEditor.questionLabel', { n: index + 1 }) }}
         </label>
-        <button
-          class="question-card__remove"
-          type="button"
-          :disabled="!canRemove"
-          :aria-label="t('teacher.quizEditor.removeQuestion', { n: index + 1 })"
-          @click="store.removeQuestion(index)"
-        >
-          {{ t('teacher.quizEditor.remove') }}
-        </button>
+        <div class="question-card__actions">
+          <button
+            class="question-card__collapse"
+            type="button"
+            :aria-expanded="true"
+            :aria-label="t('teacher.quizEditor.collapseQuestion', { n: index + 1 })"
+            @click="store.toggleExpanded(index)"
+          >
+            {{ t('teacher.quizEditor.collapse') }}
+            <svg class="question-card__chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6" /></svg>
+          </button>
+          <button
+            class="question-card__remove"
+            type="button"
+            :disabled="!canRemove"
+            :aria-label="t('teacher.quizEditor.removeQuestion', { n: index + 1 })"
+            @click="isRemoveOpen = true"
+          >
+            {{ t('teacher.quizEditor.remove') }}
+          </button>
+        </div>
       </div>
       <textarea
         :id="`${idPrefix}-text`"
         v-model="question.text"
         class="question-card__text"
         rows="2"
+        :placeholder="t('teacher.quizEditor.questionTextPlaceholder')"
         :maxlength="QUESTION_TEXT_MAX_LENGTH"
         :aria-invalid="errorOf('text') !== undefined"
         :aria-describedby="errorOf('text') ? `${idPrefix}-text-error` : undefined"
@@ -99,6 +112,15 @@
       </ul>
       <p v-if="errorOf('options')" class="question-card__error" role="alert">{{ errorOf('options') }}</p>
 
+      <AppConfirmDialog
+        v-model:open="isRemoveOpen"
+        :title="t('teacher.quizEditor.removeDialog.title', { n: index + 1 })"
+        :text="t('teacher.quizEditor.removeDialog.text')"
+        :confirm-label="t('teacher.quizEditor.removeDialog.confirm')"
+        :cancel-label="t('teacher.quizEditor.removeDialog.cancel')"
+        @confirm="store.removeQuestion(index)"
+      />
+
       <button
         class="question-card__add-option"
         type="button"
@@ -113,8 +135,9 @@
 
 <script setup lang="ts">
 import { MAX_OPTIONS, MIN_OPTIONS, OPTION_TEXT_MAX_LENGTH, QUESTION_TEXT_MAX_LENGTH } from '@nataskium/shared/schemas'
-import { computed, toRaw } from 'vue'
+import { computed, ref, toRaw } from 'vue'
 import { useI18n } from '#imports'
+import { AppConfirmDialog } from '@/shared'
 import { issueText } from '../quizErrors'
 import { useQuizEditorStore } from '../store'
 import ImageField from './ImageField.vue'
@@ -130,6 +153,7 @@ const store = useQuizEditorStore()
 const question = computed(() => store.quiz.questions[props.index] ?? { text: '', imageId: null, options: [] })
 const correctCount = computed(() => question.value.options.filter((option) => option.isCorrect).length)
 const canRemove = computed(() => store.quiz.questions.length > 1)
+const isRemoveOpen = ref(false)
 const idPrefix = computed(() => `question-${props.index}`)
 
 // Последний верный нельзя снять, последний неверный нельзя отметить: вопрос всегда имеет оба вида вариантов
@@ -175,6 +199,10 @@ function errorOf(subPath: string): string | undefined {
   font-size: 16px;
   line-height: 1.35;
   transition: border-color 0.2s ease;
+
+  &::placeholder {
+    color: var(--color-text-muted);
+  }
 
   &:focus {
     border-color: var(--color-blue-dark);
@@ -316,6 +344,36 @@ function errorOf(subPath: string): string | undefined {
   font-size: 17px;
   font-weight: 700;
   line-height: 1.3;
+}
+
+.question-card__actions {
+  display: flex;
+  flex: none;
+  gap: 8px;
+}
+
+.question-card__collapse {
+  @extend %soft-button;
+
+  gap: 4px;
+  padding: 0 10px 0 14px;
+  background: rgb(var(--rgb-blue) / 0.1);
+  color: var(--color-blue-dark);
+
+  @media (hover: hover) {
+    &:hover {
+      background: rgb(var(--rgb-blue) / 0.16);
+    }
+  }
+
+  &:active {
+    background: rgb(var(--rgb-blue) / 0.24);
+  }
+
+  .question-card__chevron {
+    width: 18px;
+    height: 18px;
+  }
 }
 
 .question-card__remove {
@@ -545,6 +603,7 @@ function errorOf(subPath: string): string | undefined {
 
 @media (prefers-reduced-motion: reduce) {
   .question-card__summary,
+  .question-card__collapse,
   .question-card__remove,
   .question-card__text,
   .question-card__check,

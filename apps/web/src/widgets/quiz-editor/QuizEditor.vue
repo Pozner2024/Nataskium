@@ -22,6 +22,22 @@
     </template>
 
     <form v-else class="quiz-editor__form" novalidate @submit.prevent="save()">
+      <div role="status">
+        <div v-if="isSavedNoticeShown" ref="savedNotice" class="quiz-editor__saved">
+          <p class="quiz-editor__saved-title">{{ t('teacher.quizEditor.saved') }}</p>
+          <p class="quiz-editor__saved-hint">{{ t('teacher.quizEditor.savedHint') }}</p>
+          <div class="quiz-editor__saved-actions">
+            <button class="quiz-editor__saved-copy" type="button" @click="copyLink">
+              {{ t('teacher.quizEditor.settings.copy') }}
+            </button>
+            <NuxtLink class="quiz-editor__saved-link" :to="localePath(TEACHER_PATHS.activities)">
+              {{ t('teacher.quizEditor.toActivities') }}
+            </NuxtLink>
+          </div>
+          <p class="quiz-editor__saved-copy-status">{{ copyMessage }}</p>
+        </div>
+      </div>
+
       <label class="quiz-editor__label" for="quiz-title">{{ t('teacher.quizEditor.titleLabel') }}</label>
       <input
         id="quiz-title"
@@ -35,7 +51,13 @@
       >
       <p v-if="titleError" id="quiz-title-error" class="quiz-editor__field-error" role="alert">{{ titleError }}</p>
 
-      <ol class="quiz-editor__questions">
+      <div class="quiz-editor__questions-head">
+        <h2 id="quiz-questions-heading" class="quiz-editor__questions-title">{{ t('teacher.quizEditor.questionsHeading') }}</h2>
+        <p class="quiz-editor__questions-count">
+          {{ t('teacher.quizEditor.questionsCount', { count: store.quiz.questions.length, max: MAX_QUESTIONS }) }}
+        </p>
+      </div>
+      <ol class="quiz-editor__questions" aria-labelledby="quiz-questions-heading">
         <QuestionCard
           v-for="(_, index) in store.quiz.questions"
           :key="index"
@@ -54,27 +76,38 @@
         {{ t('teacher.quizEditor.addQuestion') }}
       </button>
 
-      <p class="quiz-editor__status" role="status">{{ statusMessage }}</p>
       <p v-if="errorMessage" class="quiz-editor__error-text" role="alert">{{ errorMessage }}</p>
+
+      <p v-if="store.isDirty && store.saveStatus !== 'saving'" class="quiz-editor__unsaved">{{ t('teacher.quizEditor.unsaved') }}</p>
 
       <div class="quiz-editor__actions">
         <button class="quiz-editor__save" type="submit" :disabled="store.saveStatus === 'saving'">
-          {{ t('teacher.quizEditor.save') }}
+          {{ store.saveStatus === 'saving' ? t('teacher.quizEditor.saving') : t('teacher.quizEditor.save') }}
         </button>
         <button class="quiz-editor__settings" type="button" :disabled="store.saveStatus === 'saving'" @click="openSettings">
           {{ t('teacher.quizEditor.settingsButton') }}
         </button>
       </div>
     </form>
+
+    <AppConfirmDialog
+      v-model:open="isLeaveOpen"
+      :title="t('teacher.quizEditor.leaveDialog.title')"
+      :text="t('teacher.quizEditor.leaveDialog.text')"
+      :confirm-label="t('teacher.quizEditor.leaveDialog.confirm')"
+      :cancel-label="t('teacher.quizEditor.leaveDialog.cancel')"
+      @confirm="answerLeave(true)"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { MAX_QUESTIONS, MAX_QUIZZES_PER_TEACHER, QUIZ_TITLE_MAX_LENGTH } from '@nataskium/shared/schemas'
-import { computed, onBeforeUnmount, onMounted } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { NuxtLink } from '#components'
 import { navigateTo, onBeforeRouteLeave, useI18n, useLocalePath } from '#imports'
-import { TEACHER_PATHS } from '@/shared'
+import { playUrl } from '@/entities/quiz'
+import { AppConfirmDialog, TEACHER_PATHS } from '@/shared'
 import QuestionCard from './components/QuestionCard.vue'
 import QuizSettings from './components/QuizSettings.vue'
 import { issueText } from './quizErrors'
@@ -91,7 +124,22 @@ const store = useQuizEditorStore()
 
 const titleError = computed(() => fieldError('title'))
 const questionsError = computed(() => fieldError('questions'))
-const statusMessage = computed(() => (store.saveStatus === 'saved' ? t('teacher.quizEditor.saved') : ''))
+// После правки задание снова «не сохранено»: плашка пропадает, пока учитель не нажмёт «Сохранить»
+const isSavedNoticeShown = computed(() => store.saveStatus === 'saved' && !store.isDirty)
+const savedNotice = ref<HTMLElement | null>(null)
+const copyMessage = ref('')
+const isLeaveOpen = ref(false)
+
+watch(
+  isSavedNoticeShown,
+  async (isShown) => {
+    copyMessage.value = ''
+    if (!isShown) return
+    await nextTick()
+    savedNotice.value?.scrollIntoView({ block: 'center' })
+  },
+  { immediate: true },
+)
 const errorMessage = computed(() => {
   if (store.saveStatus === 'tooLarge') return t('teacher.quizEditor.tooLarge')
   if (store.saveStatus === 'limitReached') return t('teacher.quizEditor.limitReached', { max: MAX_QUIZZES_PER_TEACHER })
@@ -148,13 +196,38 @@ async function openSettings(): Promise<void> {
   })
 }
 
+async function copyLink(): Promise<void> {
+  if (store.shareToken === null) return
+  try {
+    await navigator.clipboard.writeText(playUrl(store.shareToken))
+    copyMessage.value = t('teacher.activities.linkCopied')
+  } catch {
+    copyMessage.value = t('teacher.activities.copyFailed')
+  }
+}
+
 function warnBeforeUnload(event: BeforeUnloadEvent): void {
   if (store.isDirty) event.preventDefault()
 }
 
+// Переход ждёт выбора в диалоге: «Уйти» разрешает его, любое закрытие диалога — отменяет
+let resolveLeave: ((canLeave: boolean) => void) | null = null
+
+function answerLeave(canLeave: boolean): void {
+  resolveLeave?.(canLeave)
+  resolveLeave = null
+}
+
+watch(isLeaveOpen, (isOpen) => {
+  if (!isOpen) answerLeave(false)
+})
+
 onBeforeRouteLeave(() => {
   if (!store.isDirty) return true
-  return window.confirm(t('teacher.quizEditor.leaveConfirm'))
+  isLeaveOpen.value = true
+  return new Promise<boolean>((resolve) => {
+    resolveLeave = resolve
+  })
 })
 
 onMounted(() => {
@@ -351,11 +424,36 @@ onBeforeUnmount(() => {
   margin-top: 8px;
 }
 
+// Линия и заголовок отделяют вопросы от названия: список — часть викторины, а не отдельные задания
+.quiz-editor__questions-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 2px solid rgb(var(--rgb-blue) / 0.13);
+}
+
+.quiz-editor__questions-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.quiz-editor__questions-count {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 15px;
+  font-weight: 500;
+}
+
 .quiz-editor__questions {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  margin: 20px 0 0;
+  margin: 12px 0 0;
   padding: 0;
 }
 
@@ -392,15 +490,19 @@ onBeforeUnmount(() => {
   }
 }
 
-// Пустая строка статуса остаётся в разметке (её читает скринридер), но места не занимает
-.quiz-editor__status:not(:empty) {
+.quiz-editor__saved {
+  margin-bottom: 20px;
+  padding: 16px;
+  border-radius: 22px;
+  background: rgb(var(--rgb-green) / 0.14);
+}
+
+.quiz-editor__saved-title {
   @extend %message;
 
-  align-self: flex-start;
-  margin-top: 16px;
-  padding: 6px 12px 6px 8px;
-  border-radius: 999px;
-  background: rgb(var(--rgb-green) / 0.14);
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
 
   &::before {
     content: '✓';
@@ -409,8 +511,42 @@ onBeforeUnmount(() => {
   }
 }
 
-.quiz-editor__status:empty {
-  margin: 0;
+.quiz-editor__saved-hint {
+  margin: 6px 0 0;
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.quiz-editor__saved-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.quiz-editor__saved-copy {
+  @extend %pill-button;
+
+  background: var(--color-white);
+  color: var(--color-blue-dark);
+}
+
+.quiz-editor__saved-link {
+  @extend %pill-button;
+
+  background: var(--color-blue-dark);
+  color: var(--color-white);
+  text-decoration: none;
+}
+
+.quiz-editor__saved-copy-status {
+  margin: 8px 0 0;
+  font-size: 14px;
+  font-weight: 500;
+
+  &:empty {
+    display: none;
+  }
 }
 
 .quiz-editor__error-text {
@@ -420,6 +556,13 @@ onBeforeUnmount(() => {
   padding: 12px 14px;
   border-radius: 16px;
   background: rgb(var(--rgb-orange) / 0.14);
+}
+
+.quiz-editor__unsaved {
+  margin: 16px 0 0;
+  color: var(--color-text-muted);
+  font-size: 15px;
+  font-weight: 500;
 }
 
 .quiz-editor__actions {
@@ -467,6 +610,8 @@ onBeforeUnmount(() => {
   .quiz-editor__title-input,
   .quiz-editor__add,
   .quiz-editor__settings,
+  .quiz-editor__saved-copy,
+  .quiz-editor__saved-link,
   .quiz-editor__save {
     transition: none;
   }

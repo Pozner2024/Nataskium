@@ -22,6 +22,7 @@
         <li v-for="activity in activities" :key="activity.id">
           <ActivityCard :activity="activity">
             <template #actions>
+              <PlayActivityLink :title="activity.title" :share-token="activity.shareToken" />
               <ShareLinkButton :title="activity.title" :status="statusOf(activity.id)" @copy="copyLink(activity)" />
               <ActivityMenu :title="activity.title" @edit="emit('edit', activity)" @delete="emit('delete', activity)" />
             </template>
@@ -51,6 +52,7 @@ import { ActivityCard, type Activity } from '@/entities/activity'
 import { playUrl } from '@/entities/quiz'
 import { AppButton, AppEmptyState, TEACHER_PATHS } from '@/shared'
 import ActivityMenu from './components/ActivityMenu.vue'
+import PlayActivityLink from './components/PlayActivityLink.vue'
 import ShareLinkButton from './components/ShareLinkButton.vue'
 import type { ActivitiesStatus, ShareLinkStatus } from './types'
 

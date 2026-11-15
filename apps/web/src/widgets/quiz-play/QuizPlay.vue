@@ -1,5 +1,10 @@
 <template>
   <section class="quiz-play">
+    <button v-if="isPreview" class="quiz-play__back" type="button" @click="router.back()">
+      {{ t('play.backToPrevious') }}
+    </button>
+    <p v-if="isPreview" class="quiz-play__preview-note">{{ t('play.previewNote') }}</p>
+
     <p v-if="store.status === 'loading'" class="quiz-play__loading" role="status">{{ t('play.loading') }}</p>
 
     <div v-else-if="store.status === 'notFound'" class="quiz-play__status">
@@ -23,7 +28,8 @@
 
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import { navigateTo, useI18n, useSeoMeta, useSwitchLocalePath } from '#imports'
+import { navigateTo, useI18n, useRoute, useRouter, useSeoMeta, useSwitchLocalePath } from '#imports'
+import { PREVIEW_QUERY, PREVIEW_QUERY_KEY } from '@/entities/quiz'
 import { useCurrentLocale } from '@/shared'
 import PlayQuestion from './components/PlayQuestion.vue'
 import PlayResult from './components/PlayResult.vue'
@@ -33,7 +39,10 @@ import { usePlayStore } from './store'
 const props = defineProps<{ token: string }>()
 
 const { t } = useI18n()
+const route = useRoute()
+const router = useRouter()
 const store = usePlayStore()
+const isPreview = route.query[PREVIEW_QUERY_KEY] === '1'
 const currentLocale = useCurrentLocale()
 const switchLocalePath = useSwitchLocalePath()
 
@@ -44,7 +53,7 @@ onMounted(async () => {
   const locale = pickPlayLocale(navigator.languages)
   const target = switchLocalePath(locale)
   if (locale !== currentLocale.value && target !== '') {
-    await navigateTo(target, { replace: true })
+    await navigateTo(isPreview ? `${target}?${PREVIEW_QUERY}` : target, { replace: true })
     return
   }
   await store.start(props.token)
@@ -62,6 +71,29 @@ onMounted(async () => {
   max-width: 560px;
   margin: 0 auto;
   padding: 8px var(--gutter) 24px;
+}
+
+.quiz-play__back {
+  align-self: flex-start;
+  margin: 0 0 12px;
+  padding: 10px 4px;
+  border: 0;
+  background: none;
+  color: var(--color-blue-dark);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.quiz-play__preview-note {
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: rgb(var(--rgb-blue) / 0.1);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.4;
 }
 
 .quiz-play__loading {

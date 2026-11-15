@@ -1,19 +1,22 @@
 <template>
-  <h1 class="quiz-editor-page__title">{{ t('teacher.quizEditor.heading') }}</h1>
+  <h1 class="quiz-editor-page__title">{{ heading }}</h1>
   <QuizEditor :quiz-id="quizId" />
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useI18n, useSeoMeta } from '#imports'
 import { QuizEditor } from '@/widgets/quiz-editor'
 
-defineProps<{
+const props = defineProps<{
   quizId?: string
 }>()
 
 const { t } = useI18n()
 
-useSeoMeta({ title: () => t('teacher.quizEditor.heading'), robots: 'noindex, nofollow' })
+const heading = computed(() => t(props.quizId === undefined ? 'teacher.quizEditor.headingNew' : 'teacher.quizEditor.headingEdit'))
+
+useSeoMeta({ title: () => heading.value, robots: 'noindex, nofollow' })
 </script>
 
 <style scoped lang="scss">

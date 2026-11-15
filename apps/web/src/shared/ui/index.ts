@@ -1,4 +1,5 @@
 export { default as AppButton } from './AppButton.vue'
+export { default as AppConfirmDialog } from './AppConfirmDialog.vue'
 export { default as AppDialog } from './AppDialog.vue'
 export { default as AppEmptyState } from './AppEmptyState.vue'
 export { default as AppLogo } from './AppLogo.vue'
