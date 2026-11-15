@@ -36,9 +36,6 @@
     <AppEmptyState v-else :title="t('teacher.activities.emptyTitle')" :text="t('teacher.activities.emptyText')">
       <template #actions>
         <AppButton :to="localePath(TEACHER_PATHS.create)">{{ t('teacher.activities.create') }}</AppButton>
-        <NuxtLink class="my-activities__library" :to="localePath(TEACHER_PATHS.library)">
-          {{ t('teacher.activities.openLibrary') }}
-        </NuxtLink>
       </template>
     </AppEmptyState>
   </div>
@@ -225,16 +222,6 @@ onBeforeUnmount(() => clearTimeout(resetTimer))
   &:active {
     transform: scale(0.97);
   }
-}
-
-.my-activities__library {
-  display: flex;
-  align-items: center;
-  min-height: 44px;
-  padding: 0 12px;
-  border-radius: 14px;
-  color: var(--color-blue-dark);
-  font-weight: 500;
 }
 
 @media (prefers-reduced-motion: reduce) {

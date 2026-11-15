@@ -15,6 +15,7 @@ const INPUT: QuizInput = {
   title: 'Столицы',
   showAnswers: true,
   gradingScale: null,
+  group: 'other',
   questions: [
     {
       text: 'Столица Франции?',

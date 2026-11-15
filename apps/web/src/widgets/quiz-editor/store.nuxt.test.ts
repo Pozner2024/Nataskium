@@ -189,6 +189,7 @@ describe('useQuizEditorStore: картинки', () => {
         title: 'Животные',
         showAnswers: true,
         gradingScale: null,
+        group: 'other',
         questions: [
           {
             text: 'Где кошка?',

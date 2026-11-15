@@ -65,7 +65,7 @@
 ## Backend (`apps/api/src/features/library/`)
 Один файл на операцию, `make…`-фабрики, Prisma только в infrastructure.
 - `infrastructure/groupRepository.ts` (`makeLibraryGroupRepository`): список групп по `sort_order`, `exists(slug)`.
-- `infrastructure/libraryRepository.ts`: `list({group, q, page})`, `findByNumber`, `findForCopy(number)` (с `questions`), `sitemapPage(cursor)`. Условие публичности — общая константа `PUBLIC_WHERE` (`isPublic`, `deletedAt null`, `moderationHiddenAt null`). Поиск по `title` через `contains` + `mode: insensitive` (Prisma экранирует `%`/`_`); индекс триграмм не добавляем без замера. Сортировка `createdAt desc, id desc`. Пагинация по страницам с потолком (`page ≤ 200`).
+- `infrastructure/libraryRepository.ts`: `list({group, q, page})`, `findByNumber`, `findForCopy(number)` (с `questions`), `sitemapPage(cursor)`. Условие публичности — общая константа `PUBLIC_WHERE` (`isPublic`, `deletedAt null`, `moderationHiddenAt null`). Поиск по `title` через `contains` + `mode: insensitive` (Prisma НЕ экранирует `%`/`_` — экранируем сами); индекс триграмм не добавляем без замера. Сортировка `createdAt desc, id desc`. Пагинация по страницам с потолком (`page ≤ 200`).
 - `application/listLibraryGroups.ts`, `listLibraryQuizzes.ts`, `getLibraryQuiz.ts`, `takeLibraryQuiz.ts`, `listSitemapEntries.ts`.
 - `presentation/libraryRoutes.ts`, `limits.ts` (`LIBRARY_LIMITS`), `index.ts`.
 - Маршруты (`/api/library`):
@@ -126,26 +126,28 @@ Store не нужен нигде: данные страниц — `useAsyncData`
 ## Шаги (каждый проверяется отдельно)
 
 ### 1. Shared: схемы, slug, пути [medium]
-Создать `schemas/library.ts`, `library/slug.ts`, `routes/libraryPages.ts`; добавить `group` с default в `quizInputSchema`; экспорты.
+Создать `schemas/library.ts`, `library/slug.ts`, `routes/libraryPages.ts`; экспорты. **Выполнено 2026-11-15.** Поле `group` в `quizInputSchema` перенесено в шаг 3: без колонки в БД API не может вернуть его, и типы api/web ломаются.
 Критерий: unit-тесты shared (slug, парсинг номера, схемы, старые payload без `group` валидны, `localizedNamesSchema` требует все локали); `tsc` и тесты api/web не сломаны.
 
 ### 2. Миграция Prisma (ВЫСОКИЙ РИСК) [medium]
-Схема + миграция `create_library` с seed десяти групп, CHECK, индексами; бэкап перед применением на любой общей БД; применить на dev и test.
+**Выполнено 2026-11-15 на dev-БД** (миграция `20261115120000_create_library`, sort_order с шагом 10; тестовая БД получит её при первом `test:integration`). Схема + миграция `create_library` с seed десяти групп, CHECK, индексами; бэкап перед применением на любой общей БД; применить на dev и test.
 Критерий: `migrate deploy` на тестовой БД; существующие викторины получили `other`, `is_public=true` и номера; все seed-строки содержат 4 языка, порядок 1–10, `other` последняя; `prisma migrate diff` пуст; `npm run test:integration` проходит.
 
 ### 3. API: группа у викторины и политика публикации [medium]
-Репозиторий/use-cases create/update, `groupUnknown`, `PublicationPolicy`-заглушка, `isPublic: true` при создании, ответы list/get с `group`.
+**Выполнено 2026-11-15** (без новых тестов по просьбе пользователя; `PublicationPolicy` не заведена — нет потребителя, появится вместе с маршрутом скрытия на платном тарифе; неизвестная группа проверяется `groupExists` в create/update → 400 `Unknown group`). Добавить `group: groupSlugSchema.default(DEFAULT_GROUP_SLUG)` в `quizInputSchema` (перенесено из шага 1) и поправить потребителей: web `newQuiz`/`store.ts`, api `quizRoutes`, тестовые фикстуры. Репозиторий/use-cases create/update, `groupUnknown`, `PublicationPolicy`-заглушка, `isPublic: true` при создании, ответы list/get с `group`.
 Критерий: тесты: создание с неизвестной группой → 400, без `group` → `other`, update меняет группу, чужие данные не затронуты; `isPublic` не меняется update-ом.
 
 ### 4. API: чтение библиотеки [large]
 `features/library`: список групп, список (группа/поиск/страница), карточка, лимиты, wiring в `app.ts`.
+**Выполнено 2026-11-15** (без тестов по просьбе пользователя; проверено вручную curl на dev). Найдено: Prisma `contains` НЕ экранирует `%`/`_` — экранирование `escapeLike` в репозитории. Список — `/api/library` без завершающего слеша. Sitemap (шаг 7) и take (шаг 6) не входят.
 Критерий: интеграционные тесты — новое задание публикуется; удалённое (`deletedAt`), `isPublic=false`, `moderation_hidden_at` не видны; одинаковый 404; точный набор ключей ответа без `shareToken`/`id`/`teacherId`/`isCorrect`; поиск экранирует `%` и `_`; фильтр по группе; 429 с `Retry-After`; 400 на мусорные параметры; soft delete учителем убирает из библиотеки.
 
 ### 5. Порт ImageStorage: `copy` [small]
-Метод в порте, S3-реализация (CopyObject в том же бакете, тот же шаблон ключа, таймауты/попытки как у остальных), фейк в памяти.
+**Выполнено 2026-11-15** (без тестов; на реальном S3 не проверялось). Метод в порте, S3-реализация (CopyObject в том же бакете, тот же шаблон ключа, таймауты/попытки как у остальных), фейк в памяти.
 Критерий: unit-тесты порта и фейка; ключи вне шаблона отклоняются; ошибка S3 не содержит ключей.
 
 ### 6. API: «Взять себе» [large]
+**Отложено пользователем 2026-11-15.** Шаг 11 (кнопка «Взять себе» в вебе) зависит от него — тоже отложен; порт `ImageStorage.copy` (шаг 5) уже готов.
 `takeLibraryQuiz.ts`, маршрут, лимиты на учителя/IP.
 Критерий: тесты — копия появляется у учителя с новым `shareToken` и `isPublic=false` (в библиотеке не видна); все `imageId` новые, строки `quiz_images` принадлежат взявшему и привязаны; файлы скопированы; лимит 100 → 409; чужое/скрытое/удалённое → 404; без токена → 401; сбой копирования откатывает и чистит файлы; удаление источника или аккаунта автора не ломает копию (картинки на месте); хранилище не настроено + картинки → 503.
 
@@ -155,10 +157,12 @@ Store не нужен нигде: данные страниц — `useAsyncData`
 
 ### 8. Web: основа (api-клиент для SSR, `entities/library`, i18n) [medium]
 `runtimeConfig`, SSR-режим `apiClient` (пробрасывается только `X-Real-IP`), слайс `entities/library`, строки во все 4 локали.
+**Частично выполнено 2026-11-15:** `entities/library` (только `libraryApi.groups` и `useLibraryGroups`), строка `settings.group` в 4 локалях. SSR-режим `apiClient` и `runtimeConfig` перенесены в шаг 10 (нужны только публичным страницам, шаг 10 отложен).
 Критерий: unit-тесты клиента (браузер — как раньше, сервер — абсолютный адрес и заголовок, без cookie/Authorization); lint без deep imports; паритет локалей.
 
 ### 9. Web: выбор группы в редакторе [small]
 `GroupSelect.vue` в настройках, автосохранение, откат.
+**Выполнено 2026-11-15** (без тестов по просьбе пользователя). Шаги 7, 10, 12 отложены пользователем.
 Критерий: тест редактора (`quizEditor.nuxt.test.ts`): выбор группы уходит в `PATCH` и возвращается; при ошибке откатывается; новое задание — «Разное».
 
 ### 10. Web: публичные страницы библиотеки + SEO [large]
@@ -166,6 +170,7 @@ Store не нужен нигде: данные страниц — `useAsyncData`
 Критерий: HTML ответа сервера содержит заголовок и карточки (curl без JS); canonical и robots корректны; поиск `noindex`; удалённое/скрытое — 404 страница; фильтр по группе работает по URL; Playwright-сценарий.
 
 ### 11. Web: «Взять себе» и вкладка кабинета [medium]
+**Вкладка кабинета частично выполнена 2026-11-15** (по просьбе пользователя, раньше шага 10): `widgets/library-browser` — чипы групп, поиск по кнопке «Найти», список, «Показать ещё»; `TeacherLibraryPage` вместо заглушки. Карточки задания и «Взять себе» нет (решение пользователя: карточку — вместе с «Взять себе»). Свои задания учителя показываются вместе со всеми.
 Фича `take-library-quiz`, `TeacherLibraryPage` с `library-browser` в режиме cabinet.
 Критерий: гость → вход с `?next=` и возврат на карточку; вошедший → копия в «Мои задания»; 409 и 503 показывают понятные тексты; двойной клик не создаёт две копии.
 

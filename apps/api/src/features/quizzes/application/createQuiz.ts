@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import { MAX_QUIZZES_PER_TEACHER, type QuizInput } from '@nataskium/shared/schemas'
 import { collectImageIds, syncQuizImages } from './quizImages'
-import { quizLimitReached } from './quizErrors'
+import { quizLimitReached, unknownGroup } from './quizErrors'
 import type { QuizWriteDeps, StoredQuiz } from '../types'
 
 // 16 байт → 22 символа base64url без '=': формат shareTokenSchema
@@ -39,6 +39,7 @@ export function makeCreateQuiz(deps: CreateQuizDeps) {
 
   return async function createQuiz(teacherId: string, input: QuizInput): Promise<StoredQuiz> {
     const imageIds = collectImageIds(input, deps.imageFiles)
+    if (!(await deps.quizzes.groupExists(input.group))) throw unknownGroup()
     // Гонку двух параллельных созданий на последней викторине не закрываем: лимит мягкий
     if ((await deps.quizzes.countByTeacher(teacherId)) >= MAX_QUIZZES_PER_TEACHER) throw quizLimitReached()
     for (let attempt = 1; attempt <= CREATE_ATTEMPTS; attempt++) {

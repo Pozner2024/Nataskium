@@ -12,6 +12,7 @@ export type QuizRepository = {
   create(teacherId: string, input: QuizInput, shareToken: string): Promise<StoredQuiz | null>
   updateOwned(id: string, teacherId: string, input: QuizInput): Promise<boolean>
   softDeleteOwned(id: string, teacherId: string): Promise<boolean>
+  groupExists(slug: string): Promise<boolean>
   // Для ученика: без владельца, но удалённая не находится
   findByShareToken(token: string): Promise<StoredQuiz | null>
 }

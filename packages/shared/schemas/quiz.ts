@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { GRADING_SCALE_TYPES } from '../grading'
+import { DEFAULT_GROUP_SLUG, groupSlugSchema } from './library'
 
 export const QUIZ_TITLE_MAX_LENGTH = 100
 export const QUESTION_TEXT_MAX_LENGTH = 200
@@ -67,6 +68,8 @@ export const quizInputSchema = z
     title: requiredText(QUIZ_TITLE_MAX_LENGTH),
     showAnswers: z.boolean(),
     gradingScale: z.enum(GRADING_SCALE_TYPES).nullable(),
+    // Раздел библиотеки; старые клиенты без группы попадают в «Разное»
+    group: groupSlugSchema.default(DEFAULT_GROUP_SLUG),
     questions: z
       .array(quizQuestionSchema)
       .min(MIN_QUESTIONS, `At least ${MIN_QUESTIONS} question is required`)

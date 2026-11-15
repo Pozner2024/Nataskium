@@ -2,6 +2,8 @@
   <section class="quiz-settings">
     <h2 class="quiz-settings__title">{{ t('teacher.quizEditor.settings.title') }}</h2>
 
+    <GroupSelect :model-value="store.quiz.group" :disabled="isSaving" @change="chooseGroup" />
+
     <div class="quiz-settings__row">
       <label class="quiz-settings__switch-label" for="quiz-show-answers">
         {{ t('teacher.quizEditor.settings.showAnswers') }}
@@ -87,6 +89,7 @@ import { computed, onBeforeUnmount, ref } from 'vue'
 import { navigateTo, useI18n } from '#imports'
 import { PREVIEW_QUERY, playUrl } from '@/entities/quiz'
 import { useQuizEditorStore } from '../store'
+import GroupSelect from './GroupSelect.vue'
 
 // Сколько показывается «Ссылка скопирована»
 const COPY_STATUS_MS = 2500
@@ -131,6 +134,12 @@ async function toggleGrading(event: Event): Promise<void> {
   if (await store.save()) return
   store.quiz.gradingScale = previousScale
   isGradingOpen.value = previousScale !== null
+}
+
+async function chooseGroup(slug: string): Promise<void> {
+  const previous = store.quiz.group
+  store.quiz.group = slug
+  if (!(await store.save())) store.quiz.group = previous
 }
 
 async function chooseScale(scale: GradingScaleType): Promise<void> {

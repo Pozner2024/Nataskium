@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto'
 import type { QuizImageFiles, QuizImageLinks, QuizRepository, QuizTransaction, StoredQuiz } from '../../src/features/quizzes'
 
+// Группы, которые «есть в БД» у фейка
+const KNOWN_GROUPS = ['other', 'exact']
+
 type FakeRecord = { teacherId: string; deletedAt: Date | null; quiz: StoredQuiz }
 
 export function makeFakeQuizRepository(takenTokens: string[] = []) {
@@ -31,6 +34,9 @@ export function makeFakeQuizRepository(takenTokens: string[] = []) {
       if (record === undefined) return false
       record.quiz = { ...record.quiz, ...input, updatedAt: new Date() }
       return true
+    },
+    async groupExists(slug) {
+      return KNOWN_GROUPS.includes(slug)
     },
     async softDeleteOwned(id, teacherId) {
       const record = alive(id, teacherId)

@@ -1,4 +1,5 @@
-import { getCurrentInstance, onMounted, onUnmounted } from 'vue'
+import { getCurrentInstance, inject, onMounted, onUnmounted, watch } from 'vue'
+import { NAT_STILL } from './natStill'
 
 // Не чаще ~60 кадров в секунду: на экранах 120 Гц рисуем каждый второй такт, на 144 Гц — каждый второй (72),
 // на 60 Гц — каждый. Запас в 4 мс, чтобы на 60 Гц из-за дрожания тактов не пропускать кадры
@@ -9,7 +10,8 @@ interface FrameLoopOptions {
 }
 
 // При prefers-reduced-motion сцена рисуется одним кадром; requestFrame() дорисовывает кадр после действия пользователя.
-// Пока корневой элемент компонента за пределами экрана, цикл стоит на паузе
+// Пока корневой элемент компонента за пределами экрана, цикл стоит на паузе.
+// В режиме NAT_STILL цикл идёт, только пока Нат «разбужен»; в остальное время сцена стоит на последнем кадре
 export function useFrameLoop(onFrame: (dt: number) => void, options: FrameLoopOptions = {}) {
   const instance = getCurrentInstance()
   let frameId = 0
@@ -17,9 +19,11 @@ export function useFrameLoop(onFrame: (dt: number) => void, options: FrameLoopOp
   let isReducedMotion = false
   let isVisible = true
   let observer: IntersectionObserver | undefined
+  const still = inject(NAT_STILL, null)
 
   function isLooping() {
-    return options.isAlwaysOn || !isReducedMotion
+    const wantsLoop = options.isAlwaysOn || !isReducedMotion
+    return still === null ? wantsLoop : wantsLoop && still.isAwake.value
   }
 
   function tick(now: number) {
@@ -62,6 +66,12 @@ export function useFrameLoop(onFrame: (dt: number) => void, options: FrameLoopOp
     }
     if (isLooping()) start()
     else requestFrame()
+  }
+
+  if (still !== null) {
+    watch(still.isAwake, (isAwake) => {
+      if (isAwake && isVisible) start()
+    })
   }
 
   onMounted(() => {

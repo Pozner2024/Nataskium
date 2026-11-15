@@ -10,9 +10,9 @@ export type StoredImage = { body: Uint8Array; contentType: ImageContentType }
 export function makeMemoryImageStorage(publicBaseUrl: string = MEMORY_IMAGES_BASE_URL) {
   const objects = new Map<string, StoredImage>()
   const modifiedAt = new Map<string, Date>()
-  // failing.put = true — put бросает ExternalServiceError, как S3-реализация при сбое; calls.put — счётчик вызовов put
-  const failing = { put: false }
-  const calls = { put: 0 }
+  // failing.put / failing.copy = true — метод бросает ExternalServiceError, как S3-реализация при сбое; calls.put — счётчик вызовов put
+  const failing = { put: false, copy: false }
+  const calls = { put: 0, copy: 0 }
 
   const storage: ImageStorage = {
     async put(key, body, contentType) {
@@ -21,6 +21,16 @@ export function makeMemoryImageStorage(publicBaseUrl: string = MEMORY_IMAGES_BAS
       if (failing.put) throw new ExternalServiceError('memory-storage', null)
       objects.set(key, { body, contentType })
       modifiedAt.set(key, new Date())
+    },
+    async copy(fromKey, toKey) {
+      calls.copy++
+      assertImageKey(fromKey)
+      assertImageKey(toKey)
+      const source = objects.get(fromKey)
+      // S3 на отсутствующий источник отвечает 404 — та же ExternalServiceError
+      if (failing.copy || source === undefined) throw new ExternalServiceError('memory-storage', null)
+      objects.set(toKey, source)
+      modifiedAt.set(toKey, new Date())
     },
     async remove(keys) {
       keys.forEach(assertImageKey)
