@@ -51,6 +51,15 @@
       >
       <p v-if="titleError" id="quiz-title-error" class="quiz-editor__field-error" role="alert">{{ titleError }}</p>
 
+      <GroupSelect
+        class="quiz-editor__group"
+        :model-value="store.quiz.group"
+        :disabled="store.saveStatus === 'saving'"
+        :invalid="groupError !== undefined"
+        @change="store.quiz.group = $event"
+      />
+      <p v-if="groupError" id="quiz-group-error" class="quiz-editor__field-error" role="alert">{{ groupError }}</p>
+
       <div class="quiz-editor__questions-head">
         <h2 id="quiz-questions-heading" class="quiz-editor__questions-title">{{ t('teacher.quizEditor.questionsHeading') }}</h2>
         <p class="quiz-editor__questions-count">
@@ -109,6 +118,7 @@ import { navigateTo, onBeforeRouteLeave, useI18n, useLocalePath } from '#imports
 import { playUrl } from '@/entities/quiz'
 import { AppConfirmDialog, TEACHER_PATHS } from '@/shared'
 import QuestionCard from './components/QuestionCard.vue'
+import GroupSelect from './components/GroupSelect.vue'
 import QuizSettings from './components/QuizSettings.vue'
 import { issueText } from './quizErrors'
 import { useQuizEditorStore } from './store'
@@ -123,6 +133,7 @@ const localePath = useLocalePath()
 const store = useQuizEditorStore()
 
 const titleError = computed(() => fieldError('title'))
+const groupError = computed(() => fieldError('group'))
 const questionsError = computed(() => fieldError('questions'))
 // После правки задание снова «не сохранено»: плашка пропадает, пока учитель не нажмёт «Сохранить»
 const isSavedNoticeShown = computed(() => store.saveStatus === 'saved' && !store.isDirty)
@@ -416,6 +427,10 @@ onBeforeUnmount(() => {
   &[aria-invalid='true'] {
     border-color: var(--color-orange-dark);
   }
+}
+
+.quiz-editor__group {
+  margin-top: 16px;
 }
 
 .quiz-editor__field-error {

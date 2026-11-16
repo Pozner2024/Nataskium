@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import { SUPPORTED_LOCALES } from '../locales'
 
+// Колонка quizzes.public_number — INT4
+export const MAX_LIBRARY_NUMBER = 2_147_483_647
 export const DEFAULT_GROUP_SLUG = 'other'
 export const LIBRARY_PAGE_SIZE = 24
 export const LIBRARY_MAX_PAGE = 200
@@ -17,7 +19,7 @@ export const groupSlugSchema = z
   .regex(/^[a-z][a-z0-9-]{1,39}$/, 'Invalid group')
   .refine((slug) => !RESERVED_GROUP_SLUGS.includes(slug), 'Invalid group')
 
-export const libraryNumberSchema = z.coerce.number().int().positive()
+export const libraryNumberSchema = z.coerce.number().int().positive().max(MAX_LIBRARY_NUMBER)
 
 // Названия групп лежат в БД на всех языках сайта: z.record с enum-ключами требует каждый язык
 export const localizedNamesSchema = z.record(z.enum(SUPPORTED_LOCALES), z.string().trim().min(1))
@@ -72,10 +74,6 @@ export const libraryTakeResponseSchema = z.object({
   quizId: z.uuid(),
 })
 
-export const librarySitemapResponseSchema = z.object({
-  quizzes: z.array(libraryQuizSummarySchema.pick({ number: true, title: true, createdAt: true })),
-})
-
 export type LibraryGroup = z.infer<typeof libraryGroupSchema>
 export type LibraryGroupsResponse = z.infer<typeof libraryGroupsResponseSchema>
 export type LibraryListQuery = z.infer<typeof libraryListQuerySchema>
@@ -83,4 +81,3 @@ export type LibraryQuizSummary = z.infer<typeof libraryQuizSummarySchema>
 export type LibraryListResponse = z.infer<typeof libraryListResponseSchema>
 export type LibraryQuizResponse = z.infer<typeof libraryQuizResponseSchema>
 export type LibraryTakeResponse = z.infer<typeof libraryTakeResponseSchema>
-export type LibrarySitemapResponse = z.infer<typeof librarySitemapResponseSchema>

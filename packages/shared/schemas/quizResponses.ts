@@ -1,7 +1,15 @@
 import { z } from 'zod'
 import { GRADING_SCALE_TYPES } from '../grading'
 import type { QuizResult } from '../grading'
-import { imageIdSchema, optionSchema, optionsSchema, quizIdSchema, quizInputSchema, shareTokenSchema } from './quiz'
+import {
+  imageIdSchema,
+  optionSchema,
+  optionsSchema,
+  quizIdSchema,
+  quizInputSchema,
+  quizTimerSchema,
+  shareTokenSchema,
+} from './quiz'
 
 // Формы ответов /api/quizzes/* и /api/play/*: API выводит из них типы, фронтенд разбирает ими ответ
 
@@ -30,6 +38,8 @@ export const quizResponseSchema = z.object({
   quiz: quizInputSchema.extend({
     id: quizIdSchema,
     shareToken: shareTokenSchema,
+    // Сервер всегда присылает таймер, поэтому здесь он обязателен (без default из quizInputSchema)
+    timer: quizTimerSchema,
     questions: z.array(quizResponseQuestionSchema),
   }),
 })
@@ -40,6 +50,7 @@ export const playQuizResponseSchema = z.object({
     title: z.string(),
     showAnswers: z.boolean(),
     version: z.string().min(1),
+    timer: quizTimerSchema,
     questions: z.array(
       z.object({
         text: z.string(),

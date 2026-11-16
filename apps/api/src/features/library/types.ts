@@ -2,15 +2,20 @@ import type { QuizInput } from '@nataskium/shared/schemas'
 
 export type LibraryGroupRow = { slug: string; names: unknown }
 
-// Строка публичного задания: только то, что можно показать любому. Вопросы — сырой jsonb, проверяет use-case
-export type LibraryQuizRow = {
+// Публичные поля задания: только то, что можно показать любому
+export type LibraryQuizMeta = {
   number: number
   title: string
   groupSlug: string
   graded: boolean
-  questions: unknown
   createdAt: Date
 }
+
+// Строка карточки задания. Вопросы — сырой jsonb, проверяет use-case
+export type LibraryQuizRow = LibraryQuizMeta & { questions: unknown }
+
+// Строка списка: вопросы не загружаются, их количество считает база
+export type LibraryQuizListRow = LibraryQuizMeta & { questionCount: number }
 
 // Публичное задание целиком, с правильными ответами: только для «Взять себе», в публичные ответы не попадает
 export type LibraryQuizCopyRow = {
@@ -18,6 +23,8 @@ export type LibraryQuizCopyRow = {
   showAnswers: boolean
   gradingScale: unknown
   groupSlug: string
+  timerMode: string
+  timeLimitSeconds: number | null
   questions: unknown
 }
 
@@ -28,7 +35,7 @@ export type LibraryRepository = {
   listGroups(): Promise<LibraryGroupRow[]>
   groupExists(slug: string): Promise<boolean>
   // Только публичные: is_public, не удалённые, не скрытые модерацией
-  list(filter: LibraryListFilter): Promise<LibraryQuizRow[]>
+  list(filter: LibraryListFilter): Promise<LibraryQuizListRow[]>
   findByNumber(number: number): Promise<LibraryQuizRow | null>
   // То же условие публичности, но со всем содержимым для копирования
   findForCopy(number: number): Promise<LibraryQuizCopyRow | null>
@@ -41,7 +48,8 @@ export type LibraryImageUrl = (imageId: string) => string | null
 // Связывание с хранилищем и репозиторием картинок — в app.ts
 export type LibraryImageCopier = {
   copyFile(fromImageId: string, toImageId: string): Promise<void>
-  createRow(imageId: string, teacherId: string): Promise<void>
+  // false — учителя уже нет (аккаунт удалён при ещё действующем access-токене)
+  createRow(imageId: string, teacherId: string): Promise<boolean>
   deleteRows(imageIds: readonly string[]): Promise<void>
   removeFiles(imageIds: readonly string[]): Promise<void>
 }

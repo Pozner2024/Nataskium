@@ -1,4 +1,5 @@
 import type { Prisma } from '../../../generated/prisma/client'
+import { isForeignKeyViolation } from '../../../shared/infrastructure'
 import type { QuizImageRepository } from '../types'
 
 // Все картинки учителя, привязанные и нет: их файлы удаляются вместе с аккаунтом
@@ -10,8 +11,14 @@ export async function listTeacherImageIds(prisma: Prisma.TransactionClient, teac
 // Принимает и клиент транзакции: привязка картинок сохраняется вместе с викториной
 export function makeQuizImageRepository(prisma: Prisma.TransactionClient): QuizImageRepository {
   return {
+    // Внешний ключ у новой строки один — teacher_id: quiz_id при создании пуст
     async create(id, teacherId) {
-      return prisma.quizImage.create({ data: { id, teacherId }, select: { id: true } })
+      try {
+        return await prisma.quizImage.create({ data: { id, teacherId }, select: { id: true } })
+      } catch (error) {
+        if (isForeignKeyViolation(error)) return null
+        throw error
+      }
     },
 
     async findOwned(ids, teacherId) {

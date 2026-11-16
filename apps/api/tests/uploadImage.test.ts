@@ -126,6 +126,20 @@ describe('uploadImage (use-case)', () => {
     await expect(upload('t', new Uint8Array([1]))).rejects.toThrow('db down')
     expect(objects.size).toBe(0)
   })
+
+  it('учителя уже нет (строка не записана из-за внешнего ключа) → 401 как у requireAuth, файл удалён, в логе пусто', async () => {
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { storage, objects } = makeMemoryImageStorage()
+    const images: QuizImageRepository = { ...makeFakeImages().repository, create: async () => null }
+    const upload = makeUploadImage({ images, storage, processImage: async () => PROCESSED })
+
+    const error = await upload('teacher-gone', new Uint8Array([1])).then(() => null, (e: unknown) => e)
+
+    expect(error).toBeInstanceOf(AppError)
+    expect(error).toMatchObject({ status: 401, message: 'Unauthorized', headers: { 'WWW-Authenticate': 'Bearer' } })
+    expect(objects.size).toBe(0)
+    expect(errorLog).not.toHaveBeenCalled()
+  })
 })
 
 // Сценарии до обращения к базе: unit-база в createTestApp не подключена

@@ -36,6 +36,7 @@ export function makeAuthLimiters(limits: AuthLimits) {
     registerPerIp: limiter(limits.registerPerIp),
     verifyEmailPerIp: limiter(limits.verifyEmailPerIp),
     sessionPerIp: limiter(limits.sessionPerIp),
+    mePerIp: limiter(limits.mePerIp),
     forgotPasswordPerIp: limiter(limits.forgotPasswordPerIp),
     resetPasswordPerIp: limiter(limits.resetPasswordPerIp),
     googleStartPerIp: limiter(limits.googleStartPerIp),

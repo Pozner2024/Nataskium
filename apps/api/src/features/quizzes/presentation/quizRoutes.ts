@@ -1,12 +1,14 @@
-// Кабинет учителя: все маршруты под requireAuth, владелец проверяется в каждом use-case
+// Кабинет учителя: все маршруты под requireAuth и лимитами на учителя, владелец проверяется в каждом use-case
 import {
   type QuizInput,
   type QuizListResponse,
   type QuizResponse,
+  type QuizSummary,
   quizIdSchema,
   quizInputSchema,
 } from '@nataskium/shared/schemas'
-import { Hono, type MiddlewareHandler } from 'hono'
+import { type Context, Hono, type MiddlewareHandler } from 'hono'
+import type { RateLimiter } from '../../../shared/middleware'
 import { readJsonBody } from '../../../shared/utils'
 import { quizNotFound } from '../application/quizErrors'
 import type { StoredQuiz } from '../types'
@@ -17,7 +19,7 @@ const CREATED_STATUS = 201
 const NO_CONTENT_STATUS = 204
 
 export type QuizRouterDeps = {
-  listQuizzes: (teacherId: string) => Promise<StoredQuiz[]>
+  listQuizzes: (teacherId: string) => Promise<QuizSummary[]>
   getQuiz: (teacherId: string, id: string) => Promise<StoredQuiz>
   createQuiz: (teacherId: string, input: QuizInput) => Promise<StoredQuiz>
   updateQuiz: (teacherId: string, id: string, input: QuizInput) => Promise<StoredQuiz>
@@ -25,6 +27,8 @@ export type QuizRouterDeps = {
   // null — хранилище не настроено
   imageUrl: (imageId: string) => string | null
   requireAuth: MiddlewareHandler
+  // write — общий на POST, PATCH и DELETE; create — дополнительно на POST
+  limiters: { read: RateLimiter; write: RateLimiter; create: RateLimiter }
 }
 
 type ImageUrl = QuizRouterDeps['imageUrl']
@@ -40,6 +44,7 @@ function toQuizResponse(quiz: StoredQuiz, imageUrl: ImageUrl): QuizResponse {
       showAnswers: quiz.showAnswers,
       gradingScale: quiz.gradingScale,
       group: quiz.group,
+      timer: quiz.timer,
       questions: quiz.questions.map((question) => ({
         ...question,
         imageUrl: urlOf(imageUrl, question.imageId),
@@ -47,18 +52,6 @@ function toQuizResponse(quiz: StoredQuiz, imageUrl: ImageUrl): QuizResponse {
       })),
       shareToken: quiz.shareToken,
     },
-  }
-}
-
-function toListResponse(quizzes: StoredQuiz[]): QuizListResponse {
-  return {
-    quizzes: quizzes.map((quiz) => ({
-      id: quiz.id,
-      title: quiz.title,
-      questionCount: quiz.questions.length,
-      gradingScale: quiz.gradingScale,
-      shareToken: quiz.shareToken,
-    })),
   }
 }
 
@@ -71,29 +64,37 @@ function parseId(raw: string): string {
 
 export function makeQuizRouter(deps: QuizRouterDeps) {
   const router = new Hono()
+  // После requireAuth: ключ — teacherId из проверенного токена
+  const byTeacher = (c: Context) => c.get('teacherId')
+  const readLimit = deps.limiters.read.middleware(byTeacher)
+  const writeLimit = deps.limiters.write.middleware(byTeacher)
+  const createLimit = deps.limiters.create.middleware(byTeacher)
   router.use(deps.requireAuth)
 
-  router.get('/', async (c) => c.json(toListResponse(await deps.listQuizzes(c.get('teacherId')))))
+  router.get('/', readLimit, async (c) => {
+    const response: QuizListResponse = { quizzes: await deps.listQuizzes(c.get('teacherId')) }
+    return c.json(response)
+  })
 
-  router.post('/', async (c) => {
+  router.post('/', writeLimit, createLimit, async (c) => {
     const input = await readJsonBody(c, quizInputSchema)
     const quiz = await deps.createQuiz(c.get('teacherId'), input)
     return c.json(toQuizResponse(quiz, deps.imageUrl), CREATED_STATUS)
   })
 
-  router.get('/:id', async (c) => {
+  router.get('/:id', readLimit, async (c) => {
     const quiz = await deps.getQuiz(c.get('teacherId'), parseId(c.req.param('id')))
     return c.json(toQuizResponse(quiz, deps.imageUrl))
   })
 
-  router.patch('/:id', async (c) => {
+  router.patch('/:id', writeLimit, async (c) => {
     const id = parseId(c.req.param('id'))
     const input = await readJsonBody(c, quizInputSchema)
     const quiz = await deps.updateQuiz(c.get('teacherId'), id, input)
     return c.json(toQuizResponse(quiz, deps.imageUrl))
   })
 
-  router.delete('/:id', async (c) => {
+  router.delete('/:id', writeLimit, async (c) => {
     await deps.deleteQuiz(c.get('teacherId'), parseId(c.req.param('id')))
     return c.body(null, NO_CONTENT_STATUS)
   })

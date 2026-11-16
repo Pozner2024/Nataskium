@@ -155,6 +155,7 @@ export type AuthRouterDeps = {
     registerPerIp: IpLimiter
     verifyEmailPerIp: IpLimiter
     sessionPerIp: IpLimiter
+    mePerIp: IpLimiter
     forgotPasswordPerIp: IpLimiter
     resetPasswordPerIp: IpLimiter
     googleStartPerIp: IpLimiter
@@ -431,7 +432,7 @@ export function makeAuthRouter(deps: AuthRouterDeps) {
     })
   }
 
-  router.get('/me', deps.requireAuth, async (c) => {
+  router.get('/me', deps.limiters.mePerIp.middleware(byIp), deps.requireAuth, async (c) => {
     const teacher = await deps.getMe(c.get('teacherId'))
     return c.json({ teacher })
   })

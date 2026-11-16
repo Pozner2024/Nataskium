@@ -5,6 +5,8 @@
     </button>
     <p v-if="isPreview" class="quiz-play__preview-note">{{ t('play.previewNote') }}</p>
 
+    <p class="quiz-play__sr-only" role="status">{{ timer.announcement.value }}</p>
+
     <p v-if="store.status === 'loading'" class="quiz-play__loading" role="status">{{ t('play.loading') }}</p>
 
     <div v-else-if="store.status === 'notFound'" class="quiz-play__status">
@@ -27,7 +29,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, provide } from 'vue'
 import { navigateTo, useI18n, useRoute, useRouter, useSeoMeta, useSwitchLocalePath } from '#imports'
 import { PREVIEW_QUERY, PREVIEW_QUERY_KEY } from '@/entities/quiz'
 import { useCurrentLocale } from '@/shared'
@@ -35,6 +37,7 @@ import PlayQuestion from './components/PlayQuestion.vue'
 import PlayResult from './components/PlayResult.vue'
 import { pickPlayLocale } from './pickPlayLocale'
 import { usePlayStore } from './store'
+import { QUIZ_TIMER_KEY, useQuizTimer } from './useQuizTimer'
 
 const props = defineProps<{ token: string }>()
 
@@ -45,6 +48,9 @@ const store = usePlayStore()
 const isPreview = route.query[PREVIEW_QUERY_KEY] === '1'
 const currentLocale = useCurrentLocale()
 const switchLocalePath = useSwitchLocalePath()
+
+const timer = useQuizTimer()
+provide(QUIZ_TIMER_KEY, timer)
 
 useSeoMeta({ title: () => store.title, robots: 'noindex, nofollow' })
 
@@ -71,6 +77,15 @@ onMounted(async () => {
   max-width: 560px;
   margin: 0 auto;
   padding: 8px var(--gutter) 24px;
+}
+
+.quiz-play__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .quiz-play__back {

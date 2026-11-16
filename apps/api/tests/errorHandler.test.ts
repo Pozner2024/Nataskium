@@ -2,7 +2,7 @@ import { inspect } from 'node:util'
 import { HTTPException } from 'hono/http-exception'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createTestApp as createApp } from './fakes/testApp'
+import { createTestApp } from './fakes/testApp'
 import { AppError } from '../src/shared/errors'
 
 const EMAIL = 'student@example.com'
@@ -59,6 +59,13 @@ const NON_ERRORS: [string, unknown][] = [
   ['null', null],
   ['undefined', undefined],
 ]
+
+// Признак «писать стек» теперь берётся из env при создании приложения; тесты по-прежнему задают его через stubEnv до createApp.
+// Значения вне enum (' development', 'Development') parseEnv не пропустил бы — для приложения они равны «не development»
+function createApp() {
+  const NODE_ENV = process.env.NODE_ENV === 'development' ? 'development' : 'test'
+  return createTestApp({ env: { NODE_ENV } })
+}
 
 function appThrowing(thrown: unknown) {
   const app = createApp()
@@ -352,18 +359,21 @@ describe('NODE_ENV=development', () => {
   })
 })
 
-describe('NODE_ENV читается при вызове', () => {
-  it('одно приложение меняет лог вслед за окружением', async () => {
-    const app = appThrowing(new TypeError('boom'))
+describe('NODE_ENV задаётся при создании приложения', () => {
+  it('режим логирования стека определяется env, с которым создано приложение', async () => {
+    const throwing = () => {
+      throw new TypeError('boom')
+    }
+    const production = createTestApp({ env: { NODE_ENV: 'test' } })
+    const development = createTestApp({ env: { NODE_ENV: 'development' } })
+    production.get('/boom', throwing)
+    development.get('/boom', throwing)
 
-    await app.request('/boom')
-    vi.stubEnv('NODE_ENV', 'development')
-    await app.request('/boom')
-    vi.stubEnv('NODE_ENV', 'production')
-    await app.request('/boom')
+    await production.request('/boom')
+    await development.request('/boom')
 
     const calls = vi.mocked(console.error).mock.calls
-    expect(calls.map((call) => call.length)).toEqual([3, 4, 3])
+    expect(calls.map((call) => call.length)).toEqual([3, 4])
   })
 })
 

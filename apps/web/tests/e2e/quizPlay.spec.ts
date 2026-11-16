@@ -12,6 +12,7 @@ function quizBody(showAnswers: boolean) {
     quiz: {
       title: 'Capitals',
       showAnswers,
+      timer: { mode: 'none' },
       version: VERSION,
       questions: [
         { text: 'Capital of France?', imageUrl: null, options: options('Paris', 'Rome', 'Berlin'), selectCount: 1 },
@@ -37,6 +38,7 @@ function imageQuizBody() {
     quiz: {
       title: 'Animals',
       showAnswers: false,
+      timer: { mode: 'none' },
       version: VERSION,
       questions: [
         {
@@ -287,6 +289,43 @@ test.describe('игра ученика', () => {
 
     await expect(page.getByText('100%')).toBeVisible()
     expect(answers).toEqual([[0]])
+    await context.close()
+  })
+})
+
+test.describe('игра ученика: таймер', () => {
+  test('лимит 60 с: по истечении уходит finish, неотвеченное и невыбранное — пустые массивы, на итоге примечание', async ({ browser }) => {
+    const context = await browser.newContext({ locale: 'en-US' })
+    const page = await context.newPage()
+    await page.clock.install()
+    let answers: unknown = null
+    await page.route('**/api/play/**', (route) => {
+      const request = route.request()
+      if (new URL(request.url()).pathname.endsWith('/finish')) {
+        answers = (request.postDataJSON() as { answers: unknown }).answers
+        return route.fulfill({
+          json: { result: { percent: 0, grade: null, correctCount: 0, partialCount: 1, totalCount: 2 } },
+        })
+      }
+      return route.fulfill({ json: { quiz: { ...quizBody(false).quiz, timer: { mode: 'limit', seconds: 60 } } } })
+    })
+
+    await page.goto(`/play/${TOKEN}`)
+    await expect(page.getByRole('heading', { name: 'Capital of France?' })).toBeVisible()
+    await expect(page.getByRole('timer')).toContainText('1:00')
+
+    await pick(page, 'Paris')
+    await page.getByRole('button', { name: 'Answer' }).click()
+    await expect(page.getByRole('heading', { name: 'Danube cities?' })).toBeVisible()
+    await pick(page, 'Vienna')
+
+    await page.clock.runFor(46_000)
+    await expect(page.getByText('Time is running out', { exact: true })).toBeVisible()
+    expect(answers).toBeNull()
+
+    await page.clock.runFor(14_000)
+    await expect(page.getByText('Time is up: unanswered questions count as wrong')).toBeVisible()
+    expect(answers).toEqual([[0], []])
     await context.close()
   })
 })

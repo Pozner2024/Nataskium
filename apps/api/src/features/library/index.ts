@@ -10,6 +10,8 @@ export type {
   LibraryImageCopier,
   LibraryImageUrl,
   LibraryQuizCopyRow,
+  LibraryQuizListRow,
+  LibraryQuizMeta,
   LibraryQuizRow,
   LibraryRepository,
 } from './types'

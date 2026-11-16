@@ -1,6 +1,12 @@
 import { randomUUID } from 'node:crypto'
-import { MAX_QUIZZES_PER_TEACHER, type LibraryTakeResponse, type QuizInput, quizInputSchema } from '@nataskium/shared/schemas'
-import { ExternalServiceError } from '../../../shared/errors'
+import {
+  MAX_QUIZZES_PER_TEACHER,
+  type LibraryTakeResponse,
+  type QuizInput,
+  quizInputSchema,
+  timerFromColumns,
+} from '@nataskium/shared/schemas'
+import { ExternalServiceError, UnauthorizedError } from '../../../shared/errors'
 import type { LibraryCreateCopy, LibraryImageCopier, LibraryQuizCopyRow, LibraryRepository } from '../types'
 import { imageStorageUnavailable, libraryNotFound, quizLimitReached } from './libraryErrors'
 
@@ -25,6 +31,7 @@ function parseCopySource(number: number, row: LibraryQuizCopyRow): QuizInput {
     showAnswers: row.showAnswers,
     gradingScale: row.gradingScale,
     group: row.groupSlug,
+    timer: timerFromColumns(row.timerMode, row.timeLimitSeconds),
     questions: row.questions,
   })
   if (!parsed.success) throw new Error(`Library quiz ${number} does not match the quiz schema`)
@@ -89,7 +96,8 @@ async function copyImages(copier: LibraryImageCopier, teacherId: string, pairs: 
   try {
     await forEachLimited(pairs, COPY_CONCURRENCY, async ({ from, to }) => {
       await copier.copyFile(from, to)
-      await copier.createRow(to, teacherId)
+      // Сразу, а не на createQuiz: иначе для удалённого аккаунта скопировались бы все файлы задания
+      if (!(await copier.createRow(to, teacherId))) throw new UnauthorizedError()
     })
   } catch (error) {
     if (!(error instanceof ExternalServiceError)) throw error

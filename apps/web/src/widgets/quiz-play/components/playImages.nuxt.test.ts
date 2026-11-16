@@ -22,6 +22,7 @@ async function startQuiz(showAnswers = false) {
     quiz: {
       title: 'Животные',
       showAnswers,
+      timer: { mode: 'none' },
       version: 'v1',
       questions: [
         {

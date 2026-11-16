@@ -63,6 +63,7 @@ function questionField(wrapper: Wrapper) {
 
 async function fillValidQuiz(wrapper: Wrapper): Promise<void> {
   await wrapper.find('.quiz-editor__title-input').setValue('Животные')
+  useQuizEditorStore().quiz.group = 'other'
   await wrapper.find('.question-card__text').setValue('Где кошка?')
   const names = ['Кошка', 'Собака', 'Рыбка', 'Птичка']
   for (const [index, option] of wrapper.findAll('.question-card__option-text').entries()) await option.setValue(names[index] ?? '')

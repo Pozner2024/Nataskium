@@ -2,8 +2,9 @@
 export type OwnedQuizImage = { id: string; quizId: string | null }
 
 export type QuizImageRepository = {
-  // id задаёт вызывающий (randomUUID): ключ файла нужен до записи строки
-  create(id: string, teacherId: string): Promise<{ id: string }>
+  // id задаёт вызывающий (randomUUID): ключ файла нужен до записи строки.
+  // null — учителя уже нет (аккаунт удалён при ещё действующем access-токене)
+  create(id: string, teacherId: string): Promise<{ id: string } | null>
   findOwned(ids: readonly string[], teacherId: string): Promise<OwnedQuizImage[]>
   // Привязывает только картинки учителя, свободные или уже этой викторины; возвращает число привязанных —
   // меньше ids.length значит, что часть чужая, неизвестная или занята другой викториной
@@ -25,3 +26,14 @@ export type QuizImageRepository = {
 export type ImageProcessor = (bytes: Uint8Array) => Promise<Uint8Array>
 
 export type UploadedImage = { id: string; url: string }
+
+// lastModified — null, если хранилище не вернуло дату
+export type StoredImageObject = { key: string; lastModified: Date | null }
+
+// Порт хранилища файлов картинок для use-case; реализация (S3) связывается в app.ts. Сбой — ExternalServiceError (→ 503)
+export type QuizImageStorage = {
+  put(key: string, body: Uint8Array, contentType: 'image/webp'): Promise<void>
+  remove(keys: readonly string[]): Promise<void>
+  listObjects(prefix: string): Promise<StoredImageObject[]>
+  publicUrl(key: string): string
+}

@@ -1,4 +1,3 @@
-import { DEFAULT_GROUP_SLUG } from '@nataskium/shared/schemas'
 import type { QuizInput, QuizQuestion } from './types'
 
 const NEW_QUESTION_OPTIONS_COUNT = 4
@@ -12,6 +11,7 @@ export function newQuestion(): QuizQuestion {
   }
 }
 
+// Раздел пустой: учитель выбирает его сам, схема не даст сохранить без выбора
 export function newQuiz(): QuizInput {
-  return { title: '', showAnswers: true, gradingScale: null, group: DEFAULT_GROUP_SLUG, questions: [newQuestion()] }
+  return { title: '', showAnswers: true, gradingScale: null, group: '', timer: { mode: 'none' }, questions: [newQuestion()] }
 }

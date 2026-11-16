@@ -1,3 +1,5 @@
+import { MAX_LIBRARY_NUMBER } from '../schemas/library'
+
 const MAX_SLUG_LENGTH = 60
 const FALLBACK_SLUG = 'quiz'
 
@@ -23,5 +25,7 @@ export interface ParsedQuizSlug {
 export function parseQuizSlug(value: string): ParsedQuizSlug | null {
   const match = /^([1-9]\d{0,9})(?:-(.*))?$/.exec(value)
   if (match === null) return null
-  return { number: Number(match[1]), slug: match[2] ?? '' }
+  const number = Number(match[1])
+  if (number > MAX_LIBRARY_NUMBER) return null
+  return { number, slug: match[2] ?? '' }
 }

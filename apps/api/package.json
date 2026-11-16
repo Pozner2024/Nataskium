@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "NODE_ENV=development tsx watch --env-file=../../.env src/index.ts",
     "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev --config prisma7.config.ts",
+    "db:deploy": "prisma migrate deploy --config prisma7.config.ts",
     "postinstall": "prisma generate",
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts",

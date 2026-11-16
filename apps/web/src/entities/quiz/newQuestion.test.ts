@@ -18,6 +18,7 @@ describe('newQuiz', () => {
     expect(quiz.questions).toHaveLength(1)
     expect(quiz.showAnswers).toBe(true)
     expect(quiz.gradingScale).toBeNull()
+    expect(quiz.timer).toEqual({ mode: 'none' })
   })
 })
 

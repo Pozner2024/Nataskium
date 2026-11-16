@@ -1,18 +1,22 @@
-import type { QuizInput } from '@nataskium/shared/schemas'
+import type { QuizInput, QuizSummary } from '@nataskium/shared/schemas'
 
 export type StoredQuiz = QuizInput & { id: string; shareToken: string; updatedAt: Date }
 
 // Каждый метод с teacherId сам проверяет владельца и deletedAt: чужая и удалённая викторины неотличимы от отсутствующей
 export type QuizRepository = {
-  listByTeacher(teacherId: string): Promise<StoredQuiz[]>
+  // Без вопросов: список показывает только их количество, его считает база
+  listByTeacher(teacherId: string): Promise<QuizSummary[]>
   // Только неудалённые
   countByTeacher(teacherId: string): Promise<number>
   findOwned(id: string, teacherId: string): Promise<StoredQuiz | null>
-  // null — shareToken уже занят (одна повторная попытка с новым токеном делается в use-case)
+  // null — shareToken уже занят (одна повторная попытка с новым токеном делается в use-case);
+  // 'referenceMissing' — нет учителя или группы (внешний ключ): транзакция прервана, причину выясняет use-case.
   // isPublic по умолчанию true: задание автоматически публикуется в библиотеку; копия из библиотеки — false
-  create(teacherId: string, input: QuizInput, shareToken: string, isPublic?: boolean): Promise<StoredQuiz | null>
+  create(teacherId: string, input: QuizInput, shareToken: string, isPublic?: boolean): Promise<StoredQuiz | null | 'referenceMissing'>
   updateOwned(id: string, teacherId: string, input: QuizInput): Promise<boolean>
   softDeleteOwned(id: string, teacherId: string): Promise<boolean>
+  // Физически удаляет викторины всех учителей, мягко удалённые раньше olderThan; возвращает их число
+  purgeDeletedBefore(olderThan: Date): Promise<number>
   groupExists(slug: string): Promise<boolean>
   // Для ученика: без владельца, но удалённая не находится
   findByShareToken(token: string): Promise<StoredQuiz | null>

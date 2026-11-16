@@ -1,5 +1,5 @@
 import { createPinia, setActivePinia } from 'pinia'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { playApi } from '@/entities/quiz'
 import { ApiError } from '@/shared'
 import { usePlayStore } from './store'
@@ -25,6 +25,7 @@ function quiz(showAnswers: boolean) {
     quiz: {
       title: 'Столицы',
       showAnswers,
+      timer: { mode: 'none' },
       version: 'v1',
       questions: [
         { text: 'Q1', imageUrl: null, options: options('a', 'b', 'c'), selectCount: 2 },
@@ -245,6 +246,7 @@ describe('usePlayStore: картинки', () => {
       quiz: {
         title: 'Картинки',
         showAnswers: false,
+        timer: { mode: 'none' },
         version: 'v1',
         questions: [
           {
@@ -271,5 +273,229 @@ describe('usePlayStore: картинки', () => {
     store.toggle(store.question!.options[2]!.index)
     await store.submit()
     expect(finish).toHaveBeenCalledWith(TOKEN, { version: 'v1', answers: [[0]] })
+  })
+})
+
+describe('usePlayStore: таймер', () => {
+  const START = new Date('2026-01-01T10:00:00Z').getTime()
+  const MS = 1000
+
+  function timedQuiz(showAnswers: boolean, timer: unknown) {
+    return { quiz: { ...quiz(showAnswers).quiz, timer } }
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(START)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('startedAt ставится после загрузки вопросов, а не раньше', async () => {
+    let release: (value: ReturnType<typeof timedQuiz>) => void = () => {}
+    get.mockReturnValue(new Promise((resolve) => { release = resolve }))
+    const pending = store.start(TOKEN, NO_SHUFFLE)
+    expect(store.startedAt).toBeNull()
+    vi.setSystemTime(START + 5 * MS)
+    release(timedQuiz(false, { mode: 'limit', seconds: 60 }))
+    await pending
+    expect(store.startedAt).toBe(START + 5 * MS)
+    expect(store.timer).toEqual({ mode: 'limit', seconds: 60 })
+  })
+
+  it('expire: неотвеченные вопросы и неотправленный выбор уходят пустыми, ответ засчитан не будет', async () => {
+    get.mockResolvedValue(timedQuiz(false, { mode: 'limit', seconds: 60 }))
+    finish.mockResolvedValue({ result: RESULT })
+    await store.start(TOKEN, NO_SHUFFLE)
+    store.toggle(0)
+    store.toggle(1)
+    await store.submit()
+    store.toggle(0)
+    await store.expire()
+    expect(finish).toHaveBeenCalledTimes(1)
+    expect(finish).toHaveBeenCalledWith(TOKEN, { version: 'v1', answers: [[0, 1], []] })
+    expect(store.timedOut).toBe(true)
+    expect(store.phase).toBe('result')
+    expect(store.selected).toEqual([])
+  })
+
+  it('expire без единого ответа: все массивы пустые', async () => {
+    get.mockResolvedValue(timedQuiz(false, { mode: 'limit', seconds: 60 }))
+    finish.mockResolvedValue({ result: RESULT })
+    await store.start(TOKEN, NO_SHUFFLE)
+    await store.expire()
+    expect(finish).toHaveBeenCalledWith(TOKEN, { version: 'v1', answers: [[], []] })
+  })
+
+  it('в фазе feedback отправленный ответ остаётся засчитанным', async () => {
+    get.mockResolvedValue(timedQuiz(true, { mode: 'limit', seconds: 60 }))
+    check.mockResolvedValue({ correct: [0, 1] })
+    finish.mockResolvedValue({ result: RESULT })
+    await store.start(TOKEN, NO_SHUFFLE)
+    store.toggle(0)
+    store.toggle(1)
+    await store.submit()
+    expect(store.phase).toBe('feedback')
+    await store.expire()
+    expect(finish).toHaveBeenCalledWith(TOKEN, { version: 'v1', answers: [[0, 1], []] })
+  })
+
+  it('второй expire не шлёт второй finish', async () => {
+    get.mockResolvedValue(timedQuiz(false, { mode: 'limit', seconds: 60 }))
+    finish.mockResolvedValue({ result: RESULT })
+    await store.start(TOKEN, NO_SHUFFLE)
+    await Promise.all([store.expire(), store.expire()])
+    await store.expire()
+    expect(finish).toHaveBeenCalledTimes(1)
+  })
+
+  it('expire после результата ничего не делает', async () => {
+    get.mockResolvedValue(timedQuiz(false, { mode: 'limit', seconds: 60 }))
+    finish.mockResolvedValue({ result: RESULT })
+    await store.start(TOKEN, NO_SHUFFLE)
+    store.toggle(0)
+    store.toggle(1)
+    await store.submit()
+    store.toggle(0)
+    await store.submit()
+    expect(store.phase).toBe('result')
+    await store.expire()
+    expect(finish).toHaveBeenCalledTimes(1)
+    expect(store.timedOut).toBe(false)
+  })
+
+  it('при незавершённом check порядок «check → finish», а поздний ответ check не открывает feedback', async () => {
+    get.mockResolvedValue(timedQuiz(true, { mode: 'limit', seconds: 60 }))
+    finish.mockResolvedValue({ result: RESULT })
+    await store.start(TOKEN, NO_SHUFFLE)
+    const order: string[] = []
+    let release: (value: { correct: number[] }) => void = () => {}
+    check.mockImplementation(() => {
+      order.push('check')
+      return new Promise((resolve) => { release = resolve })
+    })
+    finish.mockImplementation(async () => {
+      order.push('finish')
+      return { result: RESULT }
+    })
+    store.toggle(0)
+    store.toggle(1)
+    const submitting = store.submit()
+    const expiring = store.expire()
+    await Promise.resolve()
+    expect(finish).not.toHaveBeenCalled()
+    release({ correct: [0, 1] })
+    await Promise.all([submitting, expiring])
+    expect(order).toEqual(['check', 'finish'])
+    expect(store.correct).toEqual([])
+    expect(store.phase).toBe('result')
+    expect(finish).toHaveBeenCalledWith(TOKEN, { version: 'v1', answers: [[0, 1], []] })
+  })
+
+  it('сбой сети на finish: состояние ошибки, «Повторить» шлёт именно finish', async () => {
+    get.mockResolvedValue(timedQuiz(true, { mode: 'limit', seconds: 60 }))
+    finish.mockRejectedValueOnce(new ApiError(0)).mockResolvedValueOnce({ result: RESULT })
+    await store.start(TOKEN, NO_SHUFFLE)
+    await store.expire()
+    expect(store.status).toBe('failed')
+    expect(store.phase).toBe('question')
+    await store.retry()
+    expect(finish).toHaveBeenCalledTimes(2)
+    expect(check).not.toHaveBeenCalled()
+    expect(store.status).toBe('ready')
+    expect(store.phase).toBe('result')
+    expect(store.timedOut).toBe(true)
+  })
+
+  it('«Пройти ещё раз» сбрасывает startedAt, timedOut и elapsedSeconds', async () => {
+    get.mockResolvedValue(timedQuiz(false, { mode: 'stopwatch' }))
+    finish.mockResolvedValue({ result: RESULT })
+    await store.start(TOKEN, NO_SHUFFLE)
+    vi.setSystemTime(START + 30 * MS)
+    await store.expire()
+    expect(store.timedOut).toBe(true)
+    expect(store.elapsedSeconds).toBe(30)
+
+    get.mockReturnValue(new Promise(() => {}))
+    void store.start()
+    expect(store.startedAt).toBeNull()
+    expect(store.timedOut).toBe(false)
+    expect(store.elapsedSeconds).toBeNull()
+    expect(store.timer).toEqual({ mode: 'none' })
+  })
+
+  it('секундомер: elapsedSeconds фиксируется при получении результата', async () => {
+    get.mockResolvedValue(timedQuiz(false, { mode: 'stopwatch' }))
+    finish.mockImplementation(async () => {
+      vi.setSystemTime(START + 222 * MS)
+      return { result: RESULT }
+    })
+    await store.start(TOKEN, NO_SHUFFLE)
+    store.toggle(0)
+    store.toggle(1)
+    await store.submit()
+    expect(store.elapsedSeconds).toBeNull()
+    store.toggle(0)
+    await store.submit()
+    expect(store.elapsedSeconds).toBe(222)
+    vi.setSystemTime(START + 900 * MS)
+    expect(store.elapsedSeconds).toBe(222)
+  })
+
+  it('режим none: startedAt есть, но таймерных состояний нет', async () => {
+    get.mockResolvedValue(quiz(false))
+    finish.mockResolvedValue({ result: RESULT })
+    await store.start(TOKEN, NO_SHUFFLE)
+    expect(store.timer).toEqual({ mode: 'none' })
+    store.toggle(0)
+    store.toggle(1)
+    await store.submit()
+    store.toggle(0)
+    await store.submit()
+    expect(store.timedOut).toBe(false)
+    expect(finish).toHaveBeenCalledWith(TOKEN, { version: 'v1', answers: [[0, 1], [0]] })
+  })
+  it('регрессия M2: expire при обычном finish в полёте не ставит timedOut и не шлёт второй finish', async () => {
+    get.mockResolvedValue(timedQuiz(false, { mode: 'limit', seconds: 60 }))
+    let release: (value: { result: typeof RESULT }) => void = () => {}
+    finish.mockReturnValue(new Promise((resolve) => { release = resolve }))
+    await store.start(TOKEN, NO_SHUFFLE)
+    store.toggle(0)
+    store.toggle(1)
+    await store.submit()
+    store.toggle(0)
+    const submitting = store.submit()
+    expect(finish).toHaveBeenCalledTimes(1)
+
+    vi.setSystemTime(START + 61 * MS)
+    await store.expire()
+    expect(store.timedOut).toBe(false)
+    expect(finish).toHaveBeenCalledTimes(1)
+
+    release({ result: RESULT })
+    await submitting
+    expect(store.phase).toBe('result')
+    expect(store.timedOut).toBe(false)
+  })
+
+  it('expire после сбоя сети в обычном finish ставит timedOut и повторяет finish', async () => {
+    get.mockResolvedValue(timedQuiz(false, { mode: 'limit', seconds: 60 }))
+    finish.mockRejectedValueOnce(new ApiError(0)).mockResolvedValueOnce({ result: RESULT })
+    await store.start(TOKEN, NO_SHUFFLE)
+    store.toggle(0)
+    store.toggle(1)
+    await store.submit()
+    store.toggle(0)
+    await store.submit()
+    expect(store.status).toBe('failed')
+    expect(store.timedOut).toBe(false)
+
+    vi.setSystemTime(START + 61 * MS)
+    await store.expire()
+    expect(store.timedOut).toBe(true)
+    expect(finish).toHaveBeenCalledTimes(2)
+    expect(store.phase).toBe('result')
   })
 })

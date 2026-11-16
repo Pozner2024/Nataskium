@@ -9,6 +9,7 @@
       <PcbGlow />
       <slot />
     </main>
+    <AppFooter />
   </div>
 </template>
 
@@ -17,6 +18,7 @@ import { onBeforeUnmount, onMounted, watch } from 'vue'
 import { useHead, useLocalePath, useRouter } from '#imports'
 import { restoreSession, useAuthStore } from '@/features/auth'
 import { initPcbGlow, PcbGlow } from '@/shared'
+import { AppFooter } from '@/widgets/app-footer'
 import { AppHeader } from '@/widgets/app-header'
 import { TeacherTabs } from '@/widgets/teacher-tabs'
 

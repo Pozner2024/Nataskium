@@ -1,4 +1,4 @@
-import { shareTokenSchema } from '@nataskium/shared/schemas'
+import { shareTokenSchema, type QuizTimer } from '@nataskium/shared/schemas'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { playApi, type QuizResult } from '@/entities/quiz'
@@ -11,6 +11,7 @@ type PlayStatus = 'loading' | 'ready' | 'notFound' | 'changed' | 'failed'
 type PlayOption = { text: string; imageUrl: string | null; index: number }
 type PlayQuestionView = { text: string; imageUrl: string | null; selectCount: number; options: PlayOption[] }
 
+const MS_PER_SECOND = 1000
 const NOT_FOUND_STATUS = 404
 const CONFLICT_STATUS = 409
 
@@ -31,13 +32,22 @@ export const usePlayStore = defineStore('play', () => {
   const result = ref<QuizResult | null>(null)
   const status = ref<PlayStatus>('loading')
   const busy = ref(false)
+  const timer = ref<QuizTimer>({ mode: 'none' })
+  // Метка Date.now() показа первого вопроса: отсчёт идёт по ней, а не по счётчику секунд
+  const startedAt = ref<number | null>(null)
+  const timedOut = ref(false)
+  const elapsedSeconds = ref<number | null>(null)
   let retryAction: (() => Promise<void>) | null = null
   // Растёт при каждом старте: ответ запроса из прошлого прохождения уже не нужен
   let epoch = 0
+  // Последний запрос: expire ждёт его, чтобы finish не обогнал check
+  let inflight: Promise<void> = Promise.resolve()
+  // Обычный finish уже идёт: истечение времени его не заменяет и «Время вышло» не ставит
+  let finishing = false
 
   const question = computed(() => questions.value[current.value] ?? null)
   const isLast = computed(() => current.value === questions.value.length - 1)
-  const canSubmit = computed(() => question.value !== null && selected.value.length === question.value.selectCount && !busy.value)
+  const canSubmit = computed(() => question.value !== null && !timedOut.value && selected.value.length === question.value.selectCount && !busy.value)
 
   // Только в фазе feedback, когда check уже вернул правильные варианты
   const feedback = computed<'correct' | 'partial' | 'wrong' | null>(() => {
@@ -53,7 +63,7 @@ export const usePlayStore = defineStore('play', () => {
 
   // Полный выбор блокирует остальные варианты, снять отметку можно всегда
   function isDisabled(index: number): boolean {
-    if (phase.value !== 'question' || busy.value) return true
+    if (phase.value !== 'question' || busy.value || timedOut.value) return true
     if (question.value === null || isSelected(index)) return false
     return selected.value.length >= question.value.selectCount
   }
@@ -77,18 +87,24 @@ export const usePlayStore = defineStore('play', () => {
     status.value = 'failed'
   }
 
-  async function run(action: () => Promise<void>, pending: PlayStatus = 'ready'): Promise<void> {
-    const startedAt = epoch
+  async function execute(action: () => Promise<void>, pending: PlayStatus = 'ready'): Promise<void> {
+    const runEpoch = epoch
     busy.value = true
     status.value = pending
     try {
       await action()
-      if (startedAt === epoch) status.value = 'ready'
+      if (runEpoch === epoch) status.value = 'ready'
     } catch (error) {
-      if (startedAt === epoch) fail(error, pending === 'loading' ? null : action)
+      if (runEpoch === epoch) fail(error, pending === 'loading' ? null : action)
     } finally {
-      if (startedAt === epoch) busy.value = false
+      if (runEpoch === epoch) busy.value = false
     }
+  }
+
+  function run(action: () => Promise<void>, pending: PlayStatus = 'ready'): Promise<void> {
+    const task = execute(action, pending)
+    inflight = task
+    return task
   }
 
   function reset(): void {
@@ -100,6 +116,11 @@ export const usePlayStore = defineStore('play', () => {
     phase.value = 'question'
     result.value = null
     questions.value = []
+    timer.value = { mode: 'none' }
+    startedAt.value = null
+    timedOut.value = false
+    elapsedSeconds.value = null
+    finishing = false
     retryAction = null
   }
 
@@ -110,13 +131,14 @@ export const usePlayStore = defineStore('play', () => {
       status.value = 'notFound'
       return
     }
-    const startedAt = epoch
+    const runEpoch = epoch
     await run(async () => {
       const { quiz } = await playApi.get(token.value)
-      if (startedAt !== epoch) return
+      if (runEpoch !== epoch) return
       title.value = quiz.title
       showAnswers.value = quiz.showAnswers
       version.value = quiz.version
+      timer.value = quiz.timer
       questions.value = quiz.questions.map((item) => ({
         text: item.text,
         imageUrl: item.imageUrl,
@@ -124,15 +146,22 @@ export const usePlayStore = defineStore('play', () => {
         options: shuffle(item.options, random).map(({ item: option, index }) => ({ text: option.text, imageUrl: option.imageUrl, index })),
       }))
       answers.value = quiz.questions.map(() => [])
+      startedAt.value = Date.now()
     }, 'loading')
   }
 
   async function finish(): Promise<void> {
-    const startedAt = epoch
-    const response = await playApi.finish(token.value, { version: version.value, answers: answers.value })
-    if (startedAt !== epoch) return
-    result.value = response.result
-    phase.value = 'result'
+    const runEpoch = epoch
+    finishing = true
+    try {
+      const response = await playApi.finish(token.value, { version: version.value, answers: answers.value })
+      if (runEpoch !== epoch) return
+      elapsedSeconds.value = startedAt.value === null ? null : Math.floor((Date.now() - startedAt.value) / MS_PER_SECOND)
+      result.value = response.result
+      phase.value = 'result'
+    } finally {
+      if (runEpoch === epoch) finishing = false
+    }
   }
 
   function goNext(): Promise<void> {
@@ -153,10 +182,11 @@ export const usePlayStore = defineStore('play', () => {
       await run(goNext)
       return
     }
-    const startedAt = epoch
+    const runEpoch = epoch
     await run(async () => {
       const response = await playApi.check(token.value, { version: version.value, questionIndex: index, selected: chosen })
-      if (startedAt !== epoch) return
+      if (runEpoch !== epoch) return
+      if (timedOut.value) return
       correct.value = response.correct
       phase.value = 'feedback'
     })
@@ -167,16 +197,29 @@ export const usePlayStore = defineStore('play', () => {
     await run(goNext)
   }
 
+  // Выбор, не отправленный к концу времени, не засчитывается: в answers он так и остаётся пустым
+  async function expire(): Promise<void> {
+    if (phase.value === 'result' || timedOut.value || finishing) return
+    timedOut.value = true
+    if (phase.value === 'question') selected.value = []
+    const runEpoch = epoch
+    await inflight
+    if (runEpoch !== epoch || phase.value === 'result') return
+    await run(finish)
+  }
+
   async function retry(): Promise<void> {
     if (busy.value) return
+    if (timedOut.value && phase.value !== 'result') return run(finish)
     const action = retryAction
     if (action === null) return start()
     await run(action)
   }
 
   return {
+    timer, startedAt, timedOut, elapsedSeconds,
     title, showAnswers, questions, current, selected, answers, correct, phase, result, status, busy,
     question, isLast, canSubmit, feedback,
-    isSelected, isDisabled, toggle, start, submit, next, retry,
+    isSelected, isDisabled, toggle, start, submit, next, retry, expire,
   }
 })

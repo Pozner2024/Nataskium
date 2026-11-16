@@ -1,6 +1,7 @@
 <template>
   <div v-if="store.result" class="play-result">
     <h1 ref="heading" class="play-result__title" tabindex="-1">{{ t('play.finished', { title: store.title }) }}</h1>
+    <p v-if="store.timedOut" class="play-result__note">{{ t('play.timer.timedOutNote') }}</p>
     <p class="play-result__percent">{{ t('play.percent', { percent: store.result.percent }) }}</p>
 
     <p v-if="store.result.grade !== null" class="play-result__grade">
@@ -13,6 +14,10 @@
       <p class="play-result__stat">{{ t('play.partial', { count: store.result.partialCount }) }}</p>
     </template>
 
+    <p v-if="store.timer.mode === 'stopwatch' && store.elapsedSeconds !== null" class="play-result__stat">
+      {{ t('play.timer.elapsed', { time: formatClock(store.elapsedSeconds) }) }}
+    </p>
+
     <button class="play-result__again" type="button" :disabled="store.busy" @click="store.start()">
       {{ t('play.again') }}
     </button>
@@ -22,6 +27,7 @@
 <script setup lang="ts">
 import { onMounted, useTemplateRef } from 'vue'
 import { useI18n } from '#imports'
+import { formatClock } from '../formatClock'
 import { usePlayStore } from '../store'
 
 const { t } = useI18n()
@@ -52,6 +58,14 @@ onMounted(() => heading.value?.focus())
   font-weight: 600;
   line-height: 1.4;
   overflow-wrap: anywhere;
+}
+
+.play-result__note {
+  margin: 12px 0 0;
+  color: var(--color-text-muted);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.4;
 }
 
 .play-result__percent {

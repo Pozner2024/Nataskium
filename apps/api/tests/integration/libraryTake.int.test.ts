@@ -39,7 +39,7 @@ function get(path: string, headers: Record<string, string> = {}) {
   return request(createTestApp({ prisma, imageStorage }), 'GET', path, headers)
 }
 
-type SourceOptions = { isPublic?: boolean; deletedAt?: Date | null; moderationHiddenAt?: Date | null; withImages?: boolean }
+type SourceOptions = { timerMode?: string; timeLimitSeconds?: number; isPublic?: boolean; deletedAt?: Date | null; moderationHiddenAt?: Date | null; withImages?: boolean }
 
 // Публичное задание автора; при withImages — картинка вопроса и картинка варианта: строки автора, привязанные к заданию, и файлы
 async function seedSource(storage: ReturnType<typeof makeMemoryImageStorage> | null, authorId: string, options: SourceOptions = {}) {
@@ -53,6 +53,8 @@ async function seedSource(storage: ReturnType<typeof makeMemoryImageStorage> | n
       showAnswers: false,
       gradingScale: 'five',
       groupSlug: 'other',
+      timerMode: options.timerMode ?? 'none',
+      timeLimitSeconds: options.timeLimitSeconds ?? null,
       isPublic: options.isPublic ?? true,
       deletedAt: options.deletedAt ?? null,
       moderationHiddenAt: options.moderationHiddenAt ?? null,
@@ -142,6 +144,18 @@ describe('POST /api/library/:number/take', () => {
     expect(copy.questions).toEqual(source.questions)
     // источник не тронут
     expect(await prisma.quiz.findUniqueOrThrow({ where: { id: source.id } })).toMatchObject({ teacherId: author.id, isPublic: true })
+  })
+
+  it('таймер источника копируется в копию', async () => {
+    const author = await createTeacher(prisma)
+    const taker = await createTeacher(prisma)
+    const { quiz: source } = await seedSource(null, author.id, { timerMode: 'limit', timeLimitSeconds: 900 })
+
+    const { quizId } = (await (await take(source.publicNumber, await auth(taker.id))).json()) as { quizId: string }
+
+    expect(await prisma.quiz.findUniqueOrThrow({ where: { id: quizId } })).toMatchObject({ timerMode: 'limit', timeLimitSeconds: 900 })
+    const got = quizResponseSchema.parse(await (await get(`/api/quizzes/${quizId}`, await auth(taker.id))).json())
+    expect(got.quiz.timer).toEqual({ mode: 'limit', seconds: 900 })
   })
 
   it('копия видна взявшему в «Моих заданиях», но не видна в библиотеке и по своему номеру; чужой учитель её не читает', async () => {
@@ -388,5 +402,26 @@ describe('POST /api/library/:number/take', () => {
     expect(Number(limited.headers.get('retry-after'))).toBeGreaterThan(0)
 
     expect((await request(app, 'POST', `${LIBRARY}/${NOT_FOUND_NUMBER}/take`, {}, '10.0.2.2')).status).toBe(401)
+  })
+
+  // Аккаунт удалён, access-токен ещё действует: строка картинки или задания упирается во внешний ключ teacher_id
+  it.each([
+    ['с картинками (сбой на строке картинки)', true],
+    ['без картинок (сбой на строке задания)', false],
+  ])('учителя уже нет, %s → 401 как у requireAuth, без записи в лог; ни копии, ни строк, ни лишних файлов', async (_name, withImages) => {
+    const author = await createTeacher(prisma)
+    const storage = makeMemoryImageStorage()
+    imageStorage = storage.storage
+    const { quiz: source, imageIds } = await seedSource(storage, author.id, { withImages })
+
+    const response = await take(source.publicNumber, await auth(randomUUID()))
+
+    expect(response.status).toBe(401)
+    expect(response.headers.get('www-authenticate')).toBe('Bearer')
+    expect(await response.json()).toEqual({ error: 'Unauthorized' })
+    expect(vi.mocked(console.error)).not.toHaveBeenCalled()
+    expect(await prisma.quiz.count()).toBe(1)
+    expect(await prisma.quizImage.count()).toBe(imageIds.length)
+    expect([...storage.objects.keys()].sort()).toEqual(imageIds.map(imageKey).sort())
   })
 })

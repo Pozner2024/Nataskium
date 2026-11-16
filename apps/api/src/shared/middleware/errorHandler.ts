@@ -23,8 +23,8 @@ function getErrorType(error: Error): string {
 
 // Вне разработки стека в логе нет: в нём есть message, а значит возможны данные пользователя.
 // routePath — шаблон маршрута; c.req.path логировать нельзя, в нём будет shareToken
-function logError(error: Error, c: Context): void {
-  const stack = process.env.NODE_ENV === 'development' ? [error.stack] : []
+function logError(error: Error, c: Context, withStack: boolean): void {
+  const stack = withStack ? [error.stack] : []
   console.error(getErrorType(error), c.req.method, routePath(c), ...stack)
 }
 
@@ -38,8 +38,8 @@ function forwardedHeaders(error: HTTPException): Record<string, string> {
   return headers
 }
 
-export const errorHandler: ErrorHandler = (error, c) => {
-  if (shouldLog(error)) logError(error, c)
+export const makeErrorHandler = (logStack: boolean): ErrorHandler => (error, c) => {
+  if (shouldLog(error)) logError(error, c, logStack)
 
   if (error instanceof ValidationError) {
     return c.json({ error: error.message, issues: error.issues }, error.status, error.headers)

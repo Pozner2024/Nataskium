@@ -4,6 +4,8 @@ import {
   MAX_IMAGE_UPLOAD_BYTES,
   MAX_OPTIONS,
   MAX_QUESTIONS,
+  MAX_TIME_LIMIT_SECONDS,
+  MIN_TIME_LIMIT_SECONDS,
   OPTION_TEXT_MAX_LENGTH,
   PLAY_VERSION_MAX_LENGTH,
   QUESTION_TEXT_MAX_LENGTH,
@@ -14,7 +16,10 @@ import {
   playQuizResponseSchema,
   quizInputSchema,
   quizResponseSchema,
+  quizTimerSchema,
   shareTokenSchema,
+  timerFromColumns,
+  timerToColumns,
 } from './index'
 
 const question = (overrides: Record<string, unknown> = {}) => ({
@@ -83,6 +88,61 @@ describe('quizInputSchema', () => {
   it('отклоняет лишнее поле и неизвестную шкалу', () => {
     expect(quizInputSchema.safeParse(quiz({ extra: 1 })).success).toBe(false)
     expect(quizInputSchema.safeParse(quiz({ gradingScale: 'six' })).success).toBe(false)
+  })
+})
+
+describe('таймер задания', () => {
+  it('принимает none и stopwatch без секунд и limit с секундами в границах', () => {
+    expect(quizTimerSchema.safeParse({ mode: 'none' }).success).toBe(true)
+    expect(quizTimerSchema.safeParse({ mode: 'stopwatch' }).success).toBe(true)
+    for (const seconds of [MIN_TIME_LIMIT_SECONDS, 600, MAX_TIME_LIMIT_SECONDS]) {
+      expect(quizTimerSchema.safeParse({ mode: 'limit', seconds }).success).toBe(true)
+    }
+  })
+
+  it('отклоняет limit без секунд, вне границ, дробные и строку', () => {
+    const invalid = [undefined, MIN_TIME_LIMIT_SECONDS - 1, MAX_TIME_LIMIT_SECONDS + 1, 1.5, '600', null]
+    for (const seconds of invalid) {
+      expect(quizTimerSchema.safeParse({ mode: 'limit', seconds }).success).toBe(false)
+    }
+  })
+
+  it('отклоняет секунды вне limit и неизвестный режим', () => {
+    expect(quizTimerSchema.safeParse({ mode: 'none', seconds: 600 }).success).toBe(false)
+    expect(quizTimerSchema.safeParse({ mode: 'stopwatch', seconds: 600 }).success).toBe(false)
+    expect(quizTimerSchema.safeParse({ mode: 'foo' }).success).toBe(false)
+  })
+
+  it('без поля timer задание сохраняется без таймера', () => {
+    expect(quizInputSchema.parse(quiz()).timer).toEqual({ mode: 'none' })
+    expect(quizInputSchema.parse(quiz({ timer: { mode: 'limit', seconds: 900 } })).timer).toEqual({
+      mode: 'limit',
+      seconds: 900,
+    })
+    expect(quizInputSchema.safeParse(quiz({ timer: { mode: 'limit' } })).success).toBe(false)
+  })
+
+  it('timerToColumns и timerFromColumns взаимно обратны', () => {
+    for (const timer of [{ mode: 'none' }, { mode: 'stopwatch' }, { mode: 'limit', seconds: 900 }] as const) {
+      const { timerMode, timeLimitSeconds } = timerToColumns(timer)
+      expect(timerFromColumns(timerMode, timeLimitSeconds)).toEqual(timer)
+    }
+    expect(timerToColumns({ mode: 'stopwatch' })).toEqual({ timerMode: 'stopwatch', timeLimitSeconds: null })
+  })
+
+  it('timerFromColumns бросает ошибку на недопустимой комбинации колонок', () => {
+    expect(() => timerFromColumns('limit', null)).toThrow()
+    expect(() => timerFromColumns('none', 600)).toThrow()
+    expect(() => timerFromColumns('foo', null)).toThrow()
+  })
+
+  it('quizResponseSchema и playQuizResponseSchema требуют timer', () => {
+    const base = {
+      quiz: { ...quiz(), id: IMAGE_ID, shareToken: 'A'.repeat(22) },
+    }
+    expect(quizResponseSchema.safeParse(base).success).toBe(false)
+    const play = { quiz: { title: 'T', showAnswers: true, version: 'v1', questions: [] } }
+    expect(playQuizResponseSchema.safeParse(play).success).toBe(false)
   })
 })
 
@@ -216,6 +276,7 @@ describe('картинки в ответах API', () => {
       }),
       id: IMAGE_ID,
       shareToken: 'A'.repeat(22),
+      timer: { mode: 'none' },
     },
   })
 
@@ -234,6 +295,7 @@ describe('картинки в ответах API', () => {
         title: 'География',
         showAnswers: true,
         version: 'v1',
+        timer: { mode: 'none' },
         questions: [{ text: 'Столица Франции?', imageUrl: IMAGE_URL, options, selectCount: 1 }],
       },
     })
@@ -253,5 +315,54 @@ describe('картинки в ответах API', () => {
     expect(imageUploadResponseSchema.safeParse({ image: { id: IMAGE_ID } }).success).toBe(false)
     expect(MAX_IMAGE_UPLOAD_BYTES).toBe(15 * 1024 * 1024)
     expect(IMAGE_UPLOAD_FIELD).toBe('file')
+  })
+})
+
+describe('запрещённые символы в текстах викторины', () => {
+  const withTitle = (title: string) => quiz({ title })
+  const withQuestionText = (text: string) => quiz({ questions: [question({ text })] })
+  const withOptionText = (text: string) =>
+    quiz({ questions: [question({ options: [{ text, isCorrect: true }, { text: 'B', isCorrect: false }] })] })
+  const ok = (value: unknown) => quizInputSchema.safeParse(value).success
+
+  it('пропускает кириллицу, латиницу с диакритикой, RTL-письменности, эмодзи и математику', () => {
+    const texts = [
+      'Тест по географии',
+      'Café naïve Zürich ñ',
+      'مرحبا بالعالم',
+      'שלום עולם',
+      '😀 👨‍👩‍👧 日本語',
+      'x² ≥ 4, √2 ∑ π',
+    ]
+    for (const text of texts) {
+      expect(ok(withTitle(text)), text).toBe(true)
+      expect(ok(withQuestionText(text)), text).toBe(true)
+      expect(ok(withOptionText(text)), text).toBe(true)
+    }
+  })
+
+  it('перенос строки проходит в тексте вопроса, но не в названии и не в варианте', () => {
+    expect(ok(withQuestionText('первая\nвторая'))).toBe(true)
+    expect(ok(withTitle('a\nb'))).toBe(false)
+    expect(ok(withOptionText('a\nb'))).toBe(false)
+  })
+
+  it('табуляция и возврат каретки заменяются пробелом, \\r\\n — переводом строки', () => {
+    const parsed = quizInputSchema.parse(withQuestionText('a\tb\rc\r\nd'))
+    expect(parsed.questions[0]?.text).toBe('a b c\nd')
+    expect(quizInputSchema.parse(withTitle('a\tb')).title).toBe('a b')
+    expect(ok(withOptionText('a\tb'))).toBe(true)
+    expect(ok(withTitle('a\r\nb'))).toBe(false)
+  })
+
+  it.each([
+    ['нулевой байт', '\u0000'],
+    ['BEL', '\u0007'],
+    ['U+202E', '\u202E'],
+    ['U+2066', '\u2066'],
+  ])('отклоняет %s везде, в том числе в тексте вопроса', (_name, char) => {
+    expect(ok(withQuestionText(`a${char}b`))).toBe(false)
+    expect(ok(withTitle(`a${char}b`))).toBe(false)
+    expect(ok(withOptionText(`a${char}b`))).toBe(false)
   })
 })

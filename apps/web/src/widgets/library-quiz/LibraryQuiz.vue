@@ -54,8 +54,8 @@ import { authorizedRequest, restoreSession, useAuthStore } from '@/features/auth
 import { TakeLibraryQuizButton } from '@/features/take-library-quiz'
 import { AUTH_PATHS, TEACHER_PATHS, useCurrentLocale } from '@/shared'
 import { formatLibraryDate } from './formatLibraryDate'
-import LibraryLoginDialog from './LibraryLoginDialog.vue'
-import LibraryQuizQuestion from './LibraryQuizQuestion.vue'
+import LibraryLoginDialog from './components/LibraryLoginDialog.vue'
+import LibraryQuizQuestion from './components/LibraryQuizQuestion.vue'
 import { useLibraryQuiz } from './useLibraryQuiz'
 
 const props = defineProps<{ number: number }>()

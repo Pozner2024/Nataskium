@@ -2,7 +2,7 @@ import type { GradingScaleType } from '@nataskium/shared/grading'
 import type { QuizInput } from '@nataskium/shared/schemas'
 
 // Только то, что нужно игре ученика. Фича не знает о репозитории викторин: связывание в app.ts
-export type PlayableQuiz = Pick<QuizInput, 'title' | 'showAnswers' | 'questions'> & {
+export type PlayableQuiz = Pick<QuizInput, 'title' | 'showAnswers' | 'timer' | 'questions'> & {
   gradingScale: GradingScaleType | null
   updatedAt: Date
 }

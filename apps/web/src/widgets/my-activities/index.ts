@@ -1,3 +1,4 @@
+export { default as ManageActivities } from './ManageActivities.vue'
 export { default as MyActivities } from './MyActivities.vue'
 export { ACTIVITIES_STUB } from './activitiesStub'
 export { useMyActivities } from './useMyActivities'

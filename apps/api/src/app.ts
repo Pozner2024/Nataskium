@@ -69,11 +69,13 @@ import {
   quizImageKey,
 } from './features/quiz-images'
 import {
+  QUIZ_LIMITS,
   QUIZ_ROUTES_BASE_PATH,
   makeCreateQuiz,
   makeDeleteQuiz,
   makeGetQuiz,
   makeListQuizzes,
+  makePurgeDeletedQuizzes,
   makeQuizRepository,
   makeQuizRouter,
   makeUpdateQuiz,
@@ -85,7 +87,7 @@ import { AppError } from './shared/errors'
 import type { ImageStorage } from './shared/infrastructure'
 import {
   createRateLimiter,
-  errorHandler,
+  makeErrorHandler,
   makeClientIpResolver,
   makeRequireAuth,
   nonErrorHandler,
@@ -161,6 +163,11 @@ export function createImageCleanup(
   return makeCleanupImages({ images: makeQuizImageRepository(prisma), storage: imageStorage, reconcileStorage, now: () => new Date() })
 }
 
+// Отдельно от createApp, как и очистка картинок: своё суточное расписание в index.ts
+export function createQuizCleanup(prisma: PrismaClient): () => Promise<void> {
+  return makePurgeDeletedQuizzes({ quizzes: makeQuizRepository(prisma), now: () => new Date() })
+}
+
 // Composition root: единственное место, где application связывается с infrastructure
 export function createApp({ env, prisma, limits, passwordHasher, emailSender, googleIdentity, imageStorage }: AppDeps) {
   const app = new Hono()
@@ -179,7 +186,7 @@ export function createApp({ env, prisma, limits, passwordHasher, emailSender, go
   // Последним перед маршрутами: ловит сбой самого errorHandler
   app.use(nonErrorHandler)
 
-  app.onError(errorHandler)
+  app.onError(makeErrorHandler(env.NODE_ENV === 'development'))
   app.notFound(notFoundHandler)
 
   app.get('/health', (c) => c.json({ status: 'ok' }))
@@ -298,6 +305,8 @@ export function createApp({ env, prisma, limits, passwordHasher, emailSender, go
         }
   const imageUrl = (imageId: string) => imageFiles?.publicUrl(imageId) ?? null
   const quizWriteDeps = { quizzes, transaction: quizTransaction, imageFiles }
+  const quizLimiter = (limit: { max: number; windowMs: number }) =>
+    createRateLimiter({ ...limit, maxTrackedKeys: QUIZ_LIMITS.maxTrackedKeys })
   app.route(
     QUIZ_ROUTES_BASE_PATH,
     makeQuizRouter({
@@ -308,6 +317,11 @@ export function createApp({ env, prisma, limits, passwordHasher, emailSender, go
       deleteQuiz: makeDeleteQuiz(quizWriteDeps),
       imageUrl,
       requireAuth: makeRequireAuth(tokens.verifyAccessToken),
+      limiters: {
+        read: quizLimiter(QUIZ_LIMITS.read),
+        write: quizLimiter(QUIZ_LIMITS.write),
+        create: quizLimiter(QUIZ_LIMITS.create),
+      },
     }),
   )
 
@@ -359,9 +373,7 @@ export function createApp({ env, prisma, limits, passwordHasher, emailSender, go
       ? null
       : {
           copyFile: (fromImageId, toImageId) => imageStorage.copy(quizImageKey(fromImageId), quizImageKey(toImageId)),
-          createRow: async (imageId, teacherId) => {
-            await quizImages.create(imageId, teacherId)
-          },
+          createRow: async (imageId, teacherId) => (await quizImages.create(imageId, teacherId)) !== null,
           deleteRows: (imageIds) => quizImages.deleteRows(imageIds),
           removeFiles: (imageIds) => imageStorage.remove(imageIds.map(quizImageKey)),
         }

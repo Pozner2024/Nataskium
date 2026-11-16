@@ -7,6 +7,7 @@ tools:
   - Bash
   - Grep
   - Glob
+  - SendMessage
 ---
 
 You are the senior code reviewer of the Nataskium team. Review changed files and produce a severity-rated report. Critical and high findings block the commit.

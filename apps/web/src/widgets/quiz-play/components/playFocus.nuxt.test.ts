@@ -19,6 +19,7 @@ async function startQuiz() {
     quiz: {
       title: 'Quiz',
       showAnswers: true,
+      timer: { mode: 'none' },
       version: 'v1',
       questions: [
         { text: 'Q1', imageUrl: null, options: [{ text: 'a', imageUrl: null }, { text: 'b', imageUrl: null }], selectCount: 1 },

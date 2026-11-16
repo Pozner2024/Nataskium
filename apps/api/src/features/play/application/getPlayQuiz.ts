@@ -14,6 +14,7 @@ export function makeGetPlayQuiz(deps: { quizzes: PlayQuizSource; imageUrl: PlayI
       quiz: {
         title: quiz.title,
         showAnswers: quiz.showAnswers,
+        timer: quiz.timer,
         version: quizVersion(quiz),
         questions: quiz.questions.map((question) => ({
           text: question.text,

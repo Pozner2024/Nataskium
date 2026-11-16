@@ -113,13 +113,16 @@ describe('POST /api/quiz-images', () => {
     expect(await prisma.quizImage.count()).toBe(0)
   })
 
-  it('учителя удалили до записи строки → ошибка, файл из хранилища убран', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => {})
+  it('учителя удалили до записи строки → 401 как у requireAuth, без записи в лог; файл из хранилища убран', async () => {
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {})
     const storage = makeMemoryImageStorage()
 
     const response = await upload(storage, randomUUID(), await png(20, 20))
 
-    expect(response.status).toBe(500)
+    expect(response.status).toBe(401)
+    expect(response.headers.get('www-authenticate')).toBe('Bearer')
+    expect(await response.json()).toEqual({ error: 'Unauthorized' })
+    expect(errorLog).not.toHaveBeenCalled()
     expect(storage.objects.size).toBe(0)
     expect(await prisma.quizImage.count()).toBe(0)
   })

@@ -28,6 +28,7 @@ const INPUT: QuizInput = {
   showAnswers: true,
   gradingScale: null,
   group: 'other',
+  timer: { mode: 'none' },
   questions: [
     {
       text: 'Столица Франции?',
@@ -106,6 +107,32 @@ describe('/api/quizzes', () => {
     ])
     const got = quizResponseSchema.parse(await (await call('GET', `/${quiz.id}`, headers)).json())
     expect(got.quiz).toEqual(quiz)
+  })
+
+  it('таймер: limit сохраняется и читается; смена на не-limit обнуляет секунды в базе', async () => {
+    const teacher = await createTeacher(prisma)
+    const headers = await auth(teacher.id)
+    const quiz = await createQuiz(headers, { ...INPUT, timer: { mode: 'limit', seconds: 900 } })
+    expect(quiz.timer).toEqual({ mode: 'limit', seconds: 900 })
+    expect(quizResponseSchema.parse(await (await call('GET', `/${quiz.id}`, headers)).json()).quiz.timer).toEqual(quiz.timer)
+    expect(await prisma.quiz.findUniqueOrThrow({ where: { id: quiz.id } })).toMatchObject({ timerMode: 'limit', timeLimitSeconds: 900 })
+
+    const response = await call('PATCH', `/${quiz.id}`, headers, { ...INPUT, timer: { mode: 'stopwatch' } })
+    expect(quizResponseSchema.parse(await response.json()).quiz.timer).toEqual({ mode: 'stopwatch' })
+    expect(await prisma.quiz.findUniqueOrThrow({ where: { id: quiz.id } })).toMatchObject({ timerMode: 'stopwatch', timeLimitSeconds: null })
+  })
+
+  it('тело без поля timer сохраняется как «без таймера»; неверный timer — 400', async () => {
+    const teacher = await createTeacher(prisma)
+    const headers = await auth(teacher.id)
+    const withoutTimer: Partial<QuizInput> = { ...INPUT }
+    delete withoutTimer.timer
+    const response = await call('POST', '/', headers, withoutTimer)
+    expect(response.status).toBe(201)
+    expect(quizResponseSchema.parse(await response.json()).quiz.timer).toEqual({ mode: 'none' })
+    for (const timer of [{ mode: 'limit' }, { mode: 'limit', seconds: 30 }, { mode: 'none', seconds: 600 }, { mode: 'foo' }]) {
+      expect((await call('POST', '/', headers, { ...INPUT, timer })).status).toBe(400)
+    }
   })
 
   it('101-я викторина учителя — 409, удалённые не считаются', async () => {
@@ -194,6 +221,7 @@ describe('quizRepository.findByShareToken', () => {
     const repository = makeQuizRepository(prisma)
     const created = await repository.create(teacher.id, INPUT, 'A'.repeat(22))
     expect(created).not.toBeNull()
+    if (created === 'referenceMissing') throw new Error('teacher and group exist')
     expect((await repository.findByShareToken('A'.repeat(22)))?.title).toBe('Столицы')
     expect(await repository.findByShareToken('B'.repeat(22))).toBeNull()
 
@@ -467,5 +495,94 @@ describe('/api/quizzes: картинки', () => {
     const { quiz } = quizResponseSchema.parse(await response.json())
     expect(quiz.questions).toHaveLength(MAX_QUESTIONS)
     expect(await prisma.quizImage.count({ where: { quizId: quiz.id } })).toBe(ids.length)
+  })
+})
+
+// Аккаунт удалён, access-токен ещё действует (до 15 минут): вставка упирается во внешний ключ teacher_id
+describe('/api/quizzes: учителя уже нет', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('создание — 401 как у requireAuth (WWW-Authenticate: Bearer), без записи в лог; викторины нет', async () => {
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const unauthenticated = await call('POST', '/', {}, INPUT)
+
+    const response = await call('POST', '/', await auth(randomUUID()), INPUT)
+
+    expect(response.status).toBe(401)
+    expect(response.headers.get('www-authenticate')).toBe('Bearer')
+    expect(await response.json()).toEqual(await unauthenticated.json())
+    expect(errorLog).not.toHaveBeenCalled()
+    expect(await prisma.quiz.count()).toBe(0)
+  })
+
+  it('группу удалили между проверкой и вставкой — 400 Unknown group, а не 401', async () => {
+    const headers = await auth((await createTeacher(prisma)).id)
+    // Первая проверка группы (до вставки) «находит» несуществующую группу; повторная после сбоя — настоящая
+    vi.spyOn(prisma.libraryGroup, 'count').mockResolvedValueOnce(1)
+
+    const response = await call('POST', '/', headers, { ...INPUT, group: 'ghost-group' })
+
+    expect(response.status).toBe(400)
+    expect(await errorMessage(response)).toBe('Unknown group')
+    expect(await prisma.quiz.count()).toBe(0)
+  })
+})
+
+describe('GET /api/quizzes: список без разбора вопросов', () => {
+  const SUMMARY_KEYS = ['gradingScale', 'id', 'questionCount', 'shareToken', 'title']
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  async function seedRow(teacherId: string, title: string, options: { questions?: object; createdAt?: Date; deletedAt?: Date } = {}) {
+    return prisma.quiz.create({
+      data: {
+        teacherId,
+        title,
+        shareToken: randomBytes(16).toString('base64url'),
+        questions: options.questions ?? INPUT.questions,
+        createdAt: options.createdAt,
+        deletedAt: options.deletedAt,
+      },
+    })
+  }
+
+  it('поля элемента — ровно контракт; количество вопросов считает база; новые сверху; удалённые и чужие не видны', async () => {
+    const teacher = await createTeacher(prisma)
+    const other = await createTeacher(prisma)
+    const older = await seedRow(teacher.id, 'Старая', { createdAt: new Date(Date.now() - 60_000) })
+    const newer = await seedRow(teacher.id, 'Новая', { questions: [...INPUT.questions, ...INPUT.questions, ...INPUT.questions] })
+    await seedRow(teacher.id, 'Удалённая', { deletedAt: new Date() })
+    await seedRow(other.id, 'Чужая')
+
+    const body = (await (await call('GET', '/', await auth(teacher.id))).json()) as { quizzes: Record<string, unknown>[] }
+
+    for (const item of body.quizzes) expect(Object.keys(item).sort()).toEqual(SUMMARY_KEYS)
+    expect(quizListResponseSchema.parse(body).quizzes).toEqual([
+      { id: newer.id, title: 'Новая', questionCount: 3, gradingScale: null, shareToken: newer.shareToken },
+      { id: older.id, title: 'Старая', questionCount: 1, gradingScale: null, shareToken: older.shareToken },
+    ])
+  })
+
+  it('вопросы, не проходящие схему, не ломают список', async () => {
+    const teacher = await createTeacher(prisma)
+    const headers = await auth(teacher.id)
+    const broken = await seedRow(teacher.id, 'Битая', { questions: [{ broken: true }, { broken: true }] })
+
+    const response = await call('GET', '/', headers)
+
+    expect(response.status).toBe(200)
+    expect(quizListResponseSchema.parse(await response.json()).quizzes).toMatchObject([{ id: broken.id, questionCount: 2 }])
+  })
+
+  it('questions не массив — рассинхрон данных: 500', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const teacher = await createTeacher(prisma)
+    await seedRow(teacher.id, 'Не массив', { questions: { broken: true } })
+
+    expect((await call('GET', '/', await auth(teacher.id))).status).toBe(500)
   })
 })

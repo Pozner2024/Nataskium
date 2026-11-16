@@ -1,6 +1,5 @@
-import type { ImageStorage } from '../../../shared/infrastructure'
 import { QUIZ_IMAGE_KEY_PREFIX, quizImageKey } from './imageKey'
-import type { QuizImageRepository } from '../types'
+import type { QuizImageRepository, QuizImageStorage } from '../types'
 
 // Картинку загрузили, но викторину не сохранили — через сутки строка и файл удаляются.
 // Тот же срок защищает сверку: загрузка пишет файл раньше строки, свежий файл без строки — не сирота
@@ -13,7 +12,7 @@ const IMAGE_FILE_NAME_PATTERN = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 export type CleanupImagesDeps = {
   images: QuizImageRepository
   // null — хранилище не настроено: файлов нет, чистятся только строки
-  storage: ImageStorage | null
+  storage: QuizImageStorage | null
   // Сверка удаляет файлы без строки в базе — только если бакет принадлежит ТОЛЬКО этой базе (IMAGE_STORAGE_RECONCILE)
   reconcileStorage: boolean
   now: () => Date
@@ -50,7 +49,7 @@ async function removeOrphans(deps: CleanupImagesDeps, olderThan: Date): Promise<
 }
 
 // Id файлов старше срока; объекты без даты не трогаем — неизвестно, не идёт ли к ним загрузка
-async function listOldImageIds(storage: ImageStorage, olderThan: Date): Promise<string[]> {
+async function listOldImageIds(storage: QuizImageStorage, olderThan: Date): Promise<string[]> {
   const objects = await storage.listObjects(QUIZ_IMAGE_KEY_PREFIX)
   const ids: string[] = []
   let withoutDate = 0
@@ -68,7 +67,7 @@ async function listOldImageIds(storage: ImageStorage, olderThan: Date): Promise<
 }
 
 // Шаг 2: файлы старше срока, для которых нет строки (например, строки удалены каскадом вместе с аккаунтом учителя)
-async function removeStrayFiles(deps: CleanupImagesDeps, storage: ImageStorage, olderThan: Date): Promise<void> {
+async function removeStrayFiles(deps: CleanupImagesDeps, storage: QuizImageStorage, olderThan: Date): Promise<void> {
   const candidateIds = await listOldImageIds(storage, olderThan)
   const strayIds: string[] = []
   for (const batch of batches(candidateIds)) {

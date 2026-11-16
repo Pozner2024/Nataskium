@@ -14,7 +14,15 @@ export function makeFakeQuizRepository(takenTokens: string[] = []) {
 
   const repository: QuizRepository = {
     async listByTeacher(teacherId) {
-      return records.filter((r) => r.teacherId === teacherId && r.deletedAt === null).map((r) => r.quiz)
+      return records
+        .filter((r) => r.teacherId === teacherId && r.deletedAt === null)
+        .map(({ quiz }) => ({
+          id: quiz.id,
+          title: quiz.title,
+          questionCount: quiz.questions.length,
+          gradingScale: quiz.gradingScale,
+          shareToken: quiz.shareToken,
+        }))
     },
     async countByTeacher(teacherId) {
       return records.filter((r) => r.teacherId === teacherId && r.deletedAt === null).length
@@ -43,6 +51,11 @@ export function makeFakeQuizRepository(takenTokens: string[] = []) {
       if (record === undefined) return false
       record.deletedAt = new Date()
       return true
+    },
+    async purgeDeletedBefore(olderThan) {
+      const expired = records.filter((r) => r.deletedAt !== null && r.deletedAt < olderThan)
+      for (const record of expired) records.splice(records.indexOf(record), 1)
+      return expired.length
     },
     async findByShareToken(token) {
       return records.find((r) => r.quiz.shareToken === token && r.deletedAt === null)?.quiz ?? null

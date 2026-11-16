@@ -14,7 +14,8 @@ export function makeFinishQuiz(deps: { quizzes: PlayQuizSource }) {
 
     const points = quiz.questions.map((question, index) => {
       const selected = input.answers[index] ?? []
-      assertSelectionFits(question, selected)
+      // Пустой ответ — «не отвечено» (например, вышло время): 0 баллов; непустой проверяется строго
+      if (selected.length > 0) assertSelectionFits(question, selected)
       return scoreQuestion(selected, correctIndexes(question))
     })
     return { result: summarizeQuiz(points, quiz.gradingScale) }

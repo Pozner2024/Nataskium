@@ -22,6 +22,8 @@ function row(overrides: Partial<LibraryQuizCopyRow> = {}): LibraryQuizCopyRow {
     showAnswers: true,
     gradingScale: 'five',
     groupSlug: 'other',
+    timerMode: 'none',
+    timeLimitSeconds: null,
     questions: [
       {
         text: 'Столица Франции?',
@@ -47,9 +49,10 @@ function questionsWithImages(count: number): LibraryQuizCopyRow['questions'] {
   }))
 }
 
-type Setup = { source?: LibraryQuizCopyRow | null; count?: number; withCopier?: boolean; failCopyOn?: (from: string) => boolean }
+// teacherGone — строка картинки не записывается: учителя удалили при действующем токене
+type Setup = { source?: LibraryQuizCopyRow | null; count?: number; withCopier?: boolean; failCopyOn?: (from: string) => boolean; teacherGone?: boolean }
 
-function setup({ source = row(), count = 0, withCopier = true, failCopyOn }: Setup = {}) {
+function setup({ source = row(), count = 0, withCopier = true, failCopyOn, teacherGone = false }: Setup = {}) {
   const log: string[] = []
   const copies: { from: string; to: string }[] = []
   const rows: { id: string; teacherId: string }[] = []
@@ -75,7 +78,9 @@ function setup({ source = row(), count = 0, withCopier = true, failCopyOn }: Set
     },
     async createRow(id, teacherId) {
       log.push('createRow')
+      if (teacherGone) return false
       rows.push({ id, teacherId })
+      return true
     },
     async deleteRows(ids) {
       log.push('deleteRows')
@@ -121,6 +126,26 @@ describe('takeLibraryQuiz (use-case)', () => {
     expect(s.created).toHaveLength(1)
     expect(s.created[0]).toMatchObject({ teacherId: TEACHER, options: { isPublic: false } })
     expect(s.created[0]!.input).toMatchObject({ title: 'Столицы', showAnswers: true, gradingScale: 'five', group: 'other' })
+  })
+
+  it('таймер копируется: limit с секундами, stopwatch и none', async () => {
+    const cases = [
+      [{ timerMode: 'limit', timeLimitSeconds: 900 }, { mode: 'limit', seconds: 900 }],
+      [{ timerMode: 'stopwatch', timeLimitSeconds: null }, { mode: 'stopwatch' }],
+      [{ timerMode: 'none', timeLimitSeconds: null }, { mode: 'none' }],
+    ] as const
+    for (const [columns, timer] of cases) {
+      const s = setup({ source: row(columns) })
+      await s.take(TEACHER, NUMBER)
+      expect(s.created[0]!.input.timer).toEqual(timer)
+    }
+  })
+
+  it('недопустимая комбинация колонок таймера → внутренняя ошибка, ничего не создано', async () => {
+    const s = setup({ source: row({ timerMode: 'limit', timeLimitSeconds: null }) })
+    const error = await rejection(s.take(TEACHER, NUMBER))
+    expect(error).not.toBeInstanceOf(AppError)
+    expect(s.created).toHaveLength(0)
   })
 
   it('все imageId заменяются новыми и различными; для каждого — копия файла и строка взявшего', async () => {
@@ -254,7 +279,9 @@ describe('takeLibraryQuiz (use-case)', () => {
       countQuizzes: async () => 0,
       imageCopier: {
         async copyFile() {},
-        async createRow() {},
+        async createRow() {
+          return true
+        },
         async deleteRows() {
           throw new Error('cleanup failed')
         },
@@ -296,5 +323,19 @@ describe('takeLibraryQuiz (use-case)', () => {
     const s = setup()
     await s.take(TEACHER, NUMBER)
     expect(s.library.findForCopy).toHaveBeenCalledWith(NUMBER)
+  })
+
+  it('учителя уже нет (строка картинки не записана) → 401 как у requireAuth; задание не создано, копии убраны, новые не начинаются', async () => {
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const s = setup({ source: row({ questions: questionsWithImages(MANY_IMAGES) }), teacherGone: true })
+
+    const error = await rejection(s.take(TEACHER, NUMBER))
+
+    expect(error).toBeInstanceOf(AppError)
+    expect(error).toMatchObject({ status: 401, message: 'Unauthorized', headers: { 'WWW-Authenticate': 'Bearer' } })
+    expect(s.createQuiz).not.toHaveBeenCalled()
+    expect(s.copies.length).toBeLessThanOrEqual(COPY_CONCURRENCY)
+    for (const id of s.copies.map((c) => c.to)) expect(s.removedFiles).toContain(id)
+    expect(errorLog).not.toHaveBeenCalled()
   })
 })

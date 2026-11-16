@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { SUPPORTED_LOCALES } from '../locales'
 import { isCommonPassword } from './passwordBlocklist'
+import { LONE_SURROGATE, hasNoUnsafeChars } from './textChars'
 
 export const MAX_EMAIL_LENGTH = 254
 // RFC 5321: имя ящика до 64 октетов; оно только из ASCII, поэтому символы = октеты
@@ -16,14 +17,6 @@ const BITS_PER_BASE64_CHAR = 6
 // base64url без '=': 32 байта → 43 символа
 export const AUTH_TOKEN_LENGTH = Math.ceil((AUTH_TOKEN_BYTES * BITS_PER_BYTE) / BITS_PER_BASE64_CHAR)
 const INVALID_EMAIL_MESSAGE = 'Invalid email'
-// С флагом u пара суррогатов — один code point, поэтому диапазон совпадает только с одиночными.
-// Не isWellFormed(): его нет в Safari до 16.4, а схемы работают и в браузере
-const LONE_SURROGATE = /[\uD800-\uDFFF]/u
-// Категория Cc, как в CHECK teachers_display_name_no_control_chars_check (там без U+0000: в text его не бывает)
-const CONTROL_CHARS = /[\x00-\x1f\x7f-\x9f]/
-// U+061C, U+200E, U+200F, U+202A–U+202E, U+2066–U+2069: переворачивают текст вокруг имени в письмах и кабинете.
-// Не весь \p{Cf}: ZWJ (U+200D) нужен в составных эмодзи
-const BIDI_CONTROL_CHARS = /\p{Bidi_Control}/u
 const VISIBLE_CHAR = /[\p{L}\p{N}\p{S}\p{P}]/u
 // Невидимые, хотя часть из них формально буквы: ZWSP, Hangul Filler U+3164 и др., пустой знак Брайля U+2800
 const INVISIBLE_CHARS = /[\p{Default_Ignorable_Code_Point}\u2800]/gu
@@ -110,8 +103,7 @@ export const loginPasswordSchema = z
   .refine((password) => !LONE_SURROGATE.test(password), { error: 'Password contains invalid characters' })
 
 function hasOnlyAllowedChars(name: string): boolean {
-  const hasForbidden = CONTROL_CHARS.test(name) || BIDI_CONTROL_CHARS.test(name) || LONE_SURROGATE.test(name)
-  return !hasForbidden && VISIBLE_CHAR.test(name.replace(INVISIBLE_CHARS, ''))
+  return hasNoUnsafeChars(name) && VISIBLE_CHAR.test(name.replace(INVISIBLE_CHARS, ''))
 }
 
 // Обрезка как String.prototype.trim (все \s, включая NBSP и BOM); NFC до проверки длины

@@ -13,6 +13,7 @@ export type {
   QuizQuestion,
   QuizResponse,
   QuizSummary,
+  QuizTimer,
 } from '@nataskium/shared/schemas'
 
 export type UploadedImage = ImageUploadResponse['image']

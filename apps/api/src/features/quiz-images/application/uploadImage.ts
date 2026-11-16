@@ -1,20 +1,19 @@
 import { randomUUID } from 'node:crypto'
 import { MAX_IMAGE_UPLOAD_BYTES } from '@nataskium/shared/schemas'
-import { ExternalServiceError } from '../../../shared/errors'
-import type { ImageStorage } from '../../../shared/infrastructure'
+import { ExternalServiceError, UnauthorizedError } from '../../../shared/errors'
 import { imageStorageUnavailable, imageTooLarge } from './imageErrors'
 import { quizImageKey } from './imageKey'
-import type { ImageProcessor, QuizImageRepository, UploadedImage } from '../types'
+import type { ImageProcessor, QuizImageRepository, QuizImageStorage, UploadedImage } from '../types'
 
 export type UploadImageDeps = {
   images: QuizImageRepository
   // null — хранилище не настроено (только вне production)
-  storage: ImageStorage | null
+  storage: QuizImageStorage | null
   processImage: ImageProcessor
   generateId?: () => string
 }
 
-async function putOrUnavailable(storage: ImageStorage, key: string, body: Uint8Array): Promise<void> {
+async function putOrUnavailable(storage: QuizImageStorage, key: string, body: Uint8Array): Promise<void> {
   try {
     await storage.put(key, body, 'image/webp')
   } catch (error) {
@@ -26,7 +25,7 @@ async function putOrUnavailable(storage: ImageStorage, key: string, body: Uint8A
 
 // Строки без файла не бывает: файл пишется первым. Файл без строки (сбой записи строки) удаляем сразу,
 // не вышло — его найдёт сверка хранилища с базой
-async function removeQuietly(storage: ImageStorage, key: string): Promise<void> {
+async function removeQuietly(storage: QuizImageStorage, key: string): Promise<void> {
   try {
     await storage.remove([key])
   } catch (error) {
@@ -47,11 +46,17 @@ export function makeUploadImage(deps: UploadImageDeps) {
     const id = generateId()
     const key = quizImageKey(id)
     await putOrUnavailable(storage, key, webp)
+    let row: { id: string } | null
     try {
-      await deps.images.create(id, teacherId)
+      row = await deps.images.create(id, teacherId)
     } catch (error) {
       await removeQuietly(storage, key)
       throw error
+    }
+    // Аккаунт удалён при ещё действующем access-токене: тот же 401, что и у requireAuth
+    if (row === null) {
+      await removeQuietly(storage, key)
+      throw new UnauthorizedError()
     }
     return { id, url: storage.publicUrl(key) }
   }

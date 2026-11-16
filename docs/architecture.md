@@ -1,6 +1,6 @@
 # Nataskium — Архитектура проекта
 
-**Версия:** 0.1 (план, кода ещё нет)
+**Версия:** 0.1
 **Дата:** 2026-10-19
 
 ---
@@ -64,9 +64,10 @@ Nataskium/
 ├── packages/
 │   └── shared/           ← npm workspace
 │       ├── schemas/      ← Zod валидация
-│       ├── types/        ← TS типы
-│       ├── enums/        ← GradingScaleType (string enums)
-│       └── grading/      ← расчёт оценки по шкале (общий для api и web)
+│       ├── grading/      ← расчёт оценки по шкале (общий для api и web)
+│       ├── library/      ← slug библиотечных викторин
+│       ├── locales/      ← языки интерфейса (SUPPORTED_LOCALES)
+│       └── routes/       ← пути страниц (auth, teacher, library)
 │
 ├── docs/                 ← документация
 └── package.json          ← npm workspaces
@@ -360,6 +361,8 @@ npm run test:integration -w @nataskium/api        # migrate deploy, затем �
 
 - После смены зависимостей (`package-lock.json`) — `docker compose up -d --build -V`: `-V` пересоздаёт анонимный том `/app/node_modules`, иначе контейнер останется со старыми пакетами
 - Контейнер `api` при старте только генерирует Prisma Client; миграции применяются отдельно командой Prisma (`prisma migrate`)
+- Миграции: разработка — `npm run db:migrate -w apps/api` (`prisma migrate dev`), сервер — `npm run db:deploy -w apps/api` (`prisma migrate deploy`)
+- Конфиг Prisma — `apps/api/prisma7.config.ts` (нестандартное имя, поэтому команды передают `--config`)
 
 ---
 
@@ -368,9 +371,10 @@ npm run test:integration -w @nataskium/api        # migrate deploy, затем �
 ```
 packages/shared/
 ├── schemas/               Zod-схемы валидации
-├── types/                 TypeScript типы
-├── enums/                 String enums (GradingScaleType)
-└── grading/               чистые функции расчёта процента и оценки
+├── grading/               чистые функции расчёта процента и оценки
+├── library/               slug библиотечных викторин
+├── locales/               языки интерфейса (SUPPORTED_LOCALES)
+└── routes/                пути страниц (auth, teacher, library)
 ```
 
 Расчёт оценки живёт в `packages/shared/grading`, чтобы бэкенд и фронтенд (превью шкалы в редакторе) считали одинаково.
@@ -416,23 +420,25 @@ packages/shared/
 
 ### Викторины и игра
 
-- **Модель `quizzes`:** `title`, `shareToken` (уникальный), `showAnswers`, `gradingScale` (`ten` / `five` / `letter` / `null`), `questions` (jsonb: форму и длины проверяет Zod из `packages/shared/schemas/quiz.ts`), `deletedAt`. CHECK в миграции: `grading_scale` только из трёх значений, `title` и `share_token` не пустые. Индекс `(teacher_id, deleted_at)`. FK на учителя с `ON DELETE CASCADE` — при удалении аккаунта викторины удаляются физически, включая помеченные `deletedAt`. Удаление викторины учителем — soft delete
+- **Модель `quizzes`:** `title`, `shareToken` (уникальный), `showAnswers`, `gradingScale` (`ten` / `five` / `letter` / `null`), `timerMode` (`none` / `stopwatch` / `limit`, по умолчанию `none`), `timeLimitSeconds` (секунды, только при `limit`), `questions` (jsonb: форму и длины проверяет Zod из `packages/shared/schemas/quiz.ts`), `deletedAt`. CHECK в миграциях: `grading_scale` только из трёх значений, `title` и `share_token` не пустые, `timer_mode` из трёх значений, `time_limit_seconds` задан только при `limit` и в пределах 60…10800 (`quizzes_time_limit_check`, `IS NOT NULL` в ветке `limit` обязателен). В Zod таймер — одно поле `timer`: `{ mode: 'none' } | { mode: 'stopwatch' } | { mode: 'limit', seconds }`; колонки ↔ объект — `timerFromColumns` / `timerToColumns` в `packages/shared`. Решение — ADR 0012. Индекс `(teacher_id, deleted_at)`. FK на учителя с `ON DELETE CASCADE` — при удалении аккаунта викторины удаляются физически, включая помеченные `deletedAt`. Удаление викторины учителем — soft delete
 - **Лимит:** не больше `MAX_QUIZZES_PER_TEACHER = 100` неудалённых викторин на учителя (`packages/shared/schemas/quiz.ts`). Сверх лимита `POST /api/quizzes` отвечает 409. Проверка не атомарна: две параллельные попытки на последней викторине могут обе пройти
 - **`/api/quizzes`** (кабинет, Bearer на всех маршрутах): `GET /` список, `POST /` создать, `GET|PATCH|DELETE /:id`. Владелец проверяется в каждом запросе; чужая, удалённая и несуществующая викторина (в том числе невалидный `:id`) дают одинаковый 404, не 403
 - **`/api/play/:shareToken`** (публично, лимит по IP):
-  - `GET /` — викторина без правильных ответов: тексты вариантов, `selectCount`, `version`
+  - `GET /` — викторина без правильных ответов: тексты вариантов, `selectCount`, `version`, `timer` (режим и лимит публичны, не секретны)
   - `POST /check` — правильные индексы вопроса; при `showAnswers: false` отвечает 404, как будто маршрута нет
-  - `POST /finish` — `{ percent, grade }`, ничего не сохраняется
-  - 409 — `version` не совпала с текущей (учитель изменил викторину); 400 — индексы выбранных вариантов вне диапазона или неверное число ответов
+  - `POST /finish` — `{ percent, grade }`, ничего не сохраняется. Пустой массив в `answers[i]` означает «не отвечено» (например, вышло время) и даёт 0 баллов за вопрос; непустой проверяется строго. Сервер про время не знает
+  - 409 — `version` не совпала с текущей (учитель изменил викторину); 400 — индексы выбранных вариантов вне диапазона или неверное число отмеченных у непустого ответа (`check` пустой выбор тоже отклоняет)
   - `version` — `updatedAt` викторины в ISO
 
 ### Сценарий игры
 
-Один сценарий: учитель создаёт задание и делится ссылкой → ученик открывает ссылку и проходит игру в своём темпе → видит процент и оценку. Только обычные HTTP-запросы.
+Один сценарий: учитель создаёт задание и делится ссылкой → ученик открывает ссылку и проходит игру в своём темпе → видит процент и оценку. Только обычные HTTP-запросы. Таймер (без таймера / секундомер / лимит на всё задание) отсчитывается на клиенте от показа первого вопроса; по истечении лимита игра завершается сама, неотвеченные вопросы дают 0 (ADR 0012).
 
 ### База данных
 
-- **Soft delete:** `deletedAt` поле вместо физического DELETE — для отдельных сущностей вроде заданий
+- **Soft delete:** `deletedAt` поле вместо физического DELETE — для отдельных сущностей вроде заданий. Задания, удалённые больше 30 дней назад (`DELETED_QUIZ_RETENTION_MS`), раз в сутки удаляются физически (`purgeDeletedQuizzes`)
+- **Списки заданий** (кабинет и библиотека) не загружают `questions`: число вопросов считает база (`jsonb_array_length`)
+- **Учитель удалён, а access-токен ещё жив** (до 15 минут): создание задания, загрузка картинки и «Взять себе» отвечают 401, а не 500
 - **Удаление аккаунта учителя — полное (GDPR):** запись учителя удаляется физически вместе с его данными, без `deletedAt`. Вместе с учителем удаляются и его задания и шкалы, включая помеченные `deletedAt`. Файлы его картинок удаляются из хранилища сразу после удаления аккаунта (id собираются до удаления строк); сбой хранилища удаление не откатывает — такие файлы подчищает сверка
 - **Подтверждение удаления аккаунта.** Учитель с паролем подтверждает удаление паролем (`POST /api/auth/delete-account`). Учитель, у которого вход только через Google, — повторным входом в тот же Google-аккаунт:
   - `POST /api/auth/google/reauth/start` под Bearer создаёт одноразовую запись `pending_google_reauths` (HMAC от state, 5 минут) и cookie `oauth` с `purpose: reauth`; ответ — адрес Google, переход делает страница.
@@ -485,6 +491,8 @@ packages/shared/
 - Числа — в `features/auth/limits.ts` (`PRODUCTION_LIMITS`); `src/index.ts` передаёт их всегда, независимо от `NODE_ENV`
 - Маршруты ученика — `features/play/limits.ts` (`PLAY_LIMITS`), на IP, в минуту: `GET` — 120, `check` — 600, `finish` — 120; не больше 100 000 отслеживаемых ключей. Лимиты мягкие: за школьным NAT играет целый класс
 - Загрузка картинок — `features/quiz-images/limits.ts` (`IMAGE_UPLOAD_LIMITS`), см. «Изображения»
+- Кабинет учителя `/api/quizzes` — `features/quizzes/limits.ts` (`QUIZ_LIMITS`), на учителя (ключ — `teacherId` из токена): чтение — 120 в минуту, запись (`POST`, `PATCH`, `DELETE`) — 60 в минуту, создание — ещё и не больше 200 в сутки
+- `GET /api/auth/me` — `mePerIp`, 300 за 15 минут на IP
 
 ### Деплой: Caddy, заголовки и CSP
 

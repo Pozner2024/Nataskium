@@ -32,6 +32,8 @@ export type AuthLimits = {
   changePasswordPerIp: RateLimit
   // refresh, logout, logout-all
   sessionPerIp: RateLimit
+  // GET /me: дешёвая проверка JWT; лимит широкий, чтобы школьный NAT не блокировал учителей, и нужен только против флуда
+  mePerIp: RateLimit
 }
 
 const MS_PER_MINUTE = 60 * 1000
@@ -48,6 +50,7 @@ const VERIFY_EMAIL_PER_IP = 30
 const REGISTRATION_EMAILS_PER_HOUR = 3
 const REGISTRATION_EMAILS_PER_DAY = 5
 const SESSION_PER_IP = 60
+const ME_PER_IP = 300
 const RESET_EMAILS_PER_HOUR = 3
 const RESET_EMAILS_PER_DAY = 5
 const FORGOT_PASSWORD_PER_IP = 30
@@ -69,6 +72,7 @@ export const PRODUCTION_LIMITS: AuthLimits = {
   registrationEmailsPerHour: { max: REGISTRATION_EMAILS_PER_HOUR, windowMs: MS_PER_HOUR },
   registrationEmailsPerDay: { max: REGISTRATION_EMAILS_PER_DAY, windowMs: MS_PER_DAY },
   sessionPerIp: { max: SESSION_PER_IP, windowMs: FIFTEEN_MINUTES_MS },
+  mePerIp: { max: ME_PER_IP, windowMs: FIFTEEN_MINUTES_MS },
   resetEmailsPerHour: { max: RESET_EMAILS_PER_HOUR, windowMs: MS_PER_HOUR },
   resetEmailsPerDay: { max: RESET_EMAILS_PER_DAY, windowMs: MS_PER_DAY },
   forgotPasswordPerIp: { max: FORGOT_PASSWORD_PER_IP, windowMs: MS_PER_HOUR },

@@ -1,7 +1,7 @@
 import { mountSuspended } from '@nuxt/test-utils/runtime'
 import { flushPromises, type VueWrapper } from '@vue/test-utils'
 import { afterEach, describe, expect, it } from 'vitest'
-import LibraryLoginDialog from './LibraryLoginDialog.vue'
+import LibraryLoginDialog from './components/LibraryLoginDialog.vue'
 
 const SCROLL_LOCK_CLASS = 'is-scroll-locked'
 const RU_QUIZ_PATH = '/library/quiz/5-столицы'

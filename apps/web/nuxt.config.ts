@@ -18,7 +18,7 @@ const PREFIXES = ['', ...LOCALES.filter(({ code }) => code !== DEFAULT_LOCALE).m
 // Библиотека — пока тоже (ADR-0007): серверная отрисовка с запросами к API отложена
 const CLIENT_ONLY_PATHS = ['/auth/**', '/teacher', '/teacher/**', '/play/**', '/library', '/library/**']
 
-const DEV_ONLY_PATHS = ['/nat', '/auth-card-preview', '/teacher-preview']
+const DEV_ONLY_PATHS = ['/nat', '/auth-card-preview', '/teacher-preview', '/intro-preview']
 // Порт API в dev (API_PORT по умолчанию в apps/api)
 const DEV_API_PORT = 3001
 

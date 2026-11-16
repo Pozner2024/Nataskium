@@ -16,6 +16,7 @@ const INPUT: QuizInput = {
   showAnswers: true,
   gradingScale: null,
   group: 'other',
+  timer: { mode: 'none' },
   questions: [
     {
       text: 'Столица Франции?',
@@ -115,6 +116,14 @@ describe('викторины: use-cases', () => {
     const updated = await update('teacher-a', quiz.id, { ...INPUT, title: 'Новое' })
     expect(updated.title).toBe('Новое')
     expect(updated.shareToken).toBe(quiz.shareToken)
+  })
+
+  it('таймер сохраняется при создании и заменяется при update', async () => {
+    const { create, update, get } = setup()
+    const quiz = await create('teacher-a', { ...INPUT, timer: { mode: 'limit', seconds: 900 } })
+    expect(quiz.timer).toEqual({ mode: 'limit', seconds: 900 })
+    await update('teacher-a', quiz.id, { ...INPUT, timer: { mode: 'stopwatch' } })
+    expect((await get('teacher-a', quiz.id)).timer).toEqual({ mode: 'stopwatch' })
   })
 })
 
@@ -265,5 +274,40 @@ describe('викторины: картинки', () => {
     await expectNotFound(remove('teacher-b', quiz.id))
     expect(images.removedFiles).toEqual([])
     expect(images.rows.get(IMAGE_A)?.quizId).toBe(quiz.id)
+  })
+})
+
+// Учителя удалили, а его access-токен ещё действует: вставка упирается во внешний ключ
+describe('викторины: внешний ключ при создании', () => {
+  const UNAUTHORIZED_STATUS = 401
+  const BAD_REQUEST_STATUS = 400
+
+  // create отвечает 'referenceMissing'; groupExists — сначала true (проверка до вставки), затем groupAfterFailure
+  function setupMissingReference(groupAfterFailure: boolean) {
+    const base = makeFakeQuizRepository()
+    const groupChecks: boolean[] = [true, groupAfterFailure]
+    const quizzes: QuizRepository = {
+      ...base,
+      create: vi.fn(async () => 'referenceMissing' as const),
+      groupExists: vi.fn(async () => groupChecks.shift() ?? groupAfterFailure),
+    }
+    return { quizzes, create: makeCreateQuiz(writeDeps(quizzes)) }
+  }
+
+  it('группа на месте — значит, нет учителя: 401 Unauthorized с WWW-Authenticate, без повторной попытки', async () => {
+    const { quizzes, create } = setupMissingReference(true)
+    const error = await create('teacher-gone', INPUT).then(() => null, (e: unknown) => e)
+
+    expect(error).toBeInstanceOf(AppError)
+    expect(error).toMatchObject({ status: UNAUTHORIZED_STATUS, message: 'Unauthorized', headers: { 'WWW-Authenticate': 'Bearer' } })
+    expect(quizzes.create).toHaveBeenCalledTimes(1)
+  })
+
+  it('группу удалили между проверкой и вставкой — 400 Unknown group, не 401', async () => {
+    const { create } = setupMissingReference(false)
+    const error = await create('teacher-a', INPUT).then(() => null, (e: unknown) => e)
+
+    expect(error).toBeInstanceOf(AppError)
+    expect(error).toMatchObject({ status: BAD_REQUEST_STATUS, message: 'Unknown group' })
   })
 })

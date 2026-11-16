@@ -23,6 +23,7 @@ function setup(overrides: Partial<PlayableQuiz> = {}) {
     title: 'Тест',
     showAnswers: true,
     gradingScale: 'five',
+    timer: { mode: 'none' },
     updatedAt: UPDATED_AT,
     questions: [question([true, false]), question([false, true, true]), question([true, false, false])],
     ...overrides,
@@ -107,6 +108,7 @@ describe('getPlayQuiz', () => {
           title: 'Тест',
           showAnswers: true,
           gradingScale: null,
+          timer: { mode: 'none' },
           updatedAt: UPDATED_AT,
           questions: [{ ...question([true, false]), imageId: '0b6f2f8e-1111-4c1a-9a51-000000000001' }],
         }
@@ -114,6 +116,13 @@ describe('getPlayQuiz', () => {
     }
     const { quiz } = await makeGetPlayQuiz({ quizzes, imageUrl: () => null })(TOKEN)
     expect(quiz.questions[0]?.imageUrl).toBeNull()
+  })
+
+  it('отдаёт таймер задания', async () => {
+    for (const timer of [{ mode: 'none' }, { mode: 'stopwatch' }, { mode: 'limit', seconds: 900 }] as const) {
+      const { getPlayQuiz } = setup({ timer })
+      expect((await getPlayQuiz(TOKEN)).quiz.timer).toEqual(timer)
+    }
   })
 
   it('не содержит лишних полей модели', async () => {
@@ -195,6 +204,25 @@ describe('finishQuiz', () => {
   it('неверное число ответов, длина selected и индекс вне диапазона — 400', async () => {
     const { finishQuiz } = setup()
     for (const answers of [[[0]], [[0], [1, 2], [0], [0]], [[0, 1], [1, 2], [0]], [[0], [1, 2], [3]], [[0], [1], [0]]]) {
+      expect(await rejection(finishQuiz(TOKEN, { version: VERSION, answers }))).toBeInstanceOf(ValidationError)
+    }
+  })
+
+  it('пустой ответ — «не отвечено»: 0 баллов за вопрос, остальные считаются как обычно', async () => {
+    const { finishQuiz } = setup()
+    const { result } = await finishQuiz(TOKEN, { version: VERSION, answers: [[0], [], []] })
+    expect(result).toEqual({ percent: 33, grade: '2', correctCount: 1, partialCount: 0, totalCount: 3 })
+  })
+
+  it('пустые ответы на все вопросы — 0%', async () => {
+    const { finishQuiz } = setup()
+    const { result } = await finishQuiz(TOKEN, { version: VERSION, answers: [[], [], []] })
+    expect(result).toEqual({ percent: 0, grade: '2', correctCount: 0, partialCount: 0, totalCount: 3 })
+  })
+
+  it('непустой ответ рядом с пустыми проверяется строго', async () => {
+    const { finishQuiz } = setup()
+    for (const answers of [[[0, 1], [], []], [[], [1], []], [[], [], [3]]]) {
       expect(await rejection(finishQuiz(TOKEN, { version: VERSION, answers }))).toBeInstanceOf(ValidationError)
     }
   })

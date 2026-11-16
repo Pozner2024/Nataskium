@@ -63,6 +63,45 @@
       </table>
     </div>
 
+    <div class="quiz-settings__row">
+      <fieldset class="quiz-settings__scales quiz-settings__scales--timer" :aria-describedby="timerHintId">
+        <legend class="quiz-settings__legend quiz-settings__legend--title">{{ t('teacher.quizEditor.settings.timer.title') }}</legend>
+        <label v-for="mode in TIMER_MODES" :key="mode" class="quiz-settings__scale">
+          <input
+            class="quiz-settings__scale-input"
+            type="radio"
+            name="quiz-timer"
+            :value="mode"
+            :checked="store.quiz.timer.mode === mode"
+            :disabled="isSaving"
+            @change="chooseTimerMode(mode)"
+          >
+          <span class="quiz-settings__scale-name">{{ t(`teacher.quizEditor.settings.timer.${mode}`) }}</span>
+        </label>
+      </fieldset>
+      <p :id="timerHintId" class="quiz-settings__hint">{{ t(`teacher.quizEditor.settings.timer.${store.quiz.timer.mode}Hint`) }}</p>
+
+      <div v-if="store.quiz.timer.mode === 'limit'" class="quiz-settings__minutes">
+        <label class="quiz-settings__minutes-label" for="quiz-time-limit">{{ t('teacher.quizEditor.settings.timer.minutes') }}</label>
+        <input
+          id="quiz-time-limit"
+          :value="minutesText"
+          class="quiz-settings__minutes-input"
+          type="number"
+          inputmode="numeric"
+          :min="MIN_TIME_LIMIT_MINUTES"
+          :max="MAX_TIME_LIMIT_MINUTES"
+          step="1"
+          :disabled="isSaving"
+          :aria-invalid="minutesError !== ''"
+          :aria-describedby="minutesError ? `${timerHintId} quiz-time-limit-error` : timerHintId"
+          @input="minutesText = ($event.target as HTMLInputElement).value"
+          @change="commitMinutes"
+        >
+        <p v-if="minutesError" id="quiz-time-limit-error" class="quiz-settings__error" role="alert">{{ minutesError }}</p>
+      </div>
+    </div>
+
     <p v-if="errorMessage" class="quiz-settings__error" role="alert">{{ errorMessage }}</p>
     <p class="quiz-settings__saved" role="status">{{ savedMessage }}</p>
 
@@ -85,14 +124,34 @@
 
 <script setup lang="ts">
 import { GRADING_SCALES, GRADING_SCALE_TYPES, type GradingScaleType } from '@nataskium/shared/grading'
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { DEFAULT_TIME_LIMIT_SECONDS, MAX_TIME_LIMIT_SECONDS, MIN_TIME_LIMIT_SECONDS, TIMER_MODES } from '@nataskium/shared/schemas'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { navigateTo, useI18n } from '#imports'
-import { PREVIEW_QUERY, playUrl } from '@/entities/quiz'
+import { PREVIEW_QUERY, playUrl, type QuizTimer } from '@/entities/quiz'
 import { useQuizEditorStore } from '../store'
 import GroupSelect from './GroupSelect.vue'
 
 // Сколько показывается «Ссылка скопирована»
 const COPY_STATUS_MS = 2500
+const SECONDS_PER_MINUTE = 60
+const MIN_TIME_LIMIT_MINUTES = MIN_TIME_LIMIT_SECONDS / SECONDS_PER_MINUTE
+const MAX_TIME_LIMIT_MINUTES = MAX_TIME_LIMIT_SECONDS / SECONDS_PER_MINUTE
+const timerHintId = 'quiz-timer-hint'
+
+type MinutesParse = { seconds: number } | { error: 'range' | 'integer' }
+
+// Единственное место перевода минут формы в секунды схемы
+function minutesToSeconds(text: string): MinutesParse {
+  const minutes = text.trim() === '' ? Number.NaN : Number(text)
+  if (!Number.isFinite(minutes)) return { error: 'range' }
+  if (!Number.isInteger(minutes)) return { error: 'integer' }
+  if (minutes < MIN_TIME_LIMIT_MINUTES || minutes > MAX_TIME_LIMIT_MINUTES) return { error: 'range' }
+  return { seconds: minutes * SECONDS_PER_MINUTE }
+}
+
+function secondsToMinutes(seconds: number): string {
+  return String(seconds / SECONDS_PER_MINUTE)
+}
 
 const { t } = useI18n()
 const store = useQuizEditorStore()
@@ -110,6 +169,8 @@ const savedMessage = computed(() => {
   if (isSaving.value) return t('teacher.quizEditor.saving')
   return store.saveStatus === 'saved' && !store.isDirty ? t('teacher.quizEditor.settings.autoSaved') : ''
 })
+const minutesText = ref('')
+const minutesError = ref('')
 const copyMessage = ref('')
 let resetTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -146,6 +207,40 @@ async function chooseScale(scale: GradingScaleType): Promise<void> {
   const previous = store.quiz.gradingScale
   store.quiz.gradingScale = scale
   if (!(await store.save())) store.quiz.gradingScale = previous
+}
+
+watch(
+  () => store.quiz.timer,
+  (timer) => {
+    minutesError.value = ''
+    if (timer.mode === 'limit') minutesText.value = secondsToMinutes(timer.seconds)
+  },
+  { immediate: true },
+)
+
+async function saveTimer(timer: QuizTimer): Promise<void> {
+  const previous = store.quiz.timer
+  store.quiz.timer = timer
+  if (!(await store.save())) store.quiz.timer = previous
+}
+
+async function chooseTimerMode(mode: QuizTimer['mode']): Promise<void> {
+  if (store.quiz.timer.mode === mode) return
+  await saveTimer(mode === 'limit' ? { mode, seconds: DEFAULT_TIME_LIMIT_SECONDS } : { mode })
+}
+
+async function commitMinutes(): Promise<void> {
+  const parsed = minutesToSeconds(minutesText.value)
+  if ('error' in parsed) {
+    minutesError.value =
+      parsed.error === 'integer'
+        ? t('teacher.quizEditor.settings.timer.minutesInteger')
+        : t('teacher.quizEditor.settings.timer.minutesRange', { min: MIN_TIME_LIMIT_MINUTES, max: MAX_TIME_LIMIT_MINUTES })
+    return
+  }
+  minutesError.value = ''
+  if (store.quiz.timer.mode === 'limit' && store.quiz.timer.seconds === parsed.seconds) return
+  await saveTimer({ mode: 'limit', seconds: parsed.seconds })
 }
 
 async function copyLink(): Promise<void> {
@@ -356,6 +451,57 @@ $switch-knob: 26px;
   }
 
   .quiz-settings__scale-input:disabled + & {
+    opacity: 0.6;
+  }
+}
+
+.quiz-settings__scales--timer {
+  margin-top: 0;
+}
+
+.quiz-settings__legend--title {
+  margin-bottom: 10px;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.quiz-settings__minutes {
+  display: flex;
+  grid-column: 1 / -1;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.quiz-settings__minutes-label {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.quiz-settings__minutes-input {
+  width: 120px;
+  min-height: 48px;
+  padding: 10px 14px;
+  border: 2px solid rgb(var(--rgb-blue) / 0.45);
+  border-radius: 14px;
+  background: var(--color-white);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 18px;
+  font-weight: 700;
+
+  &:focus-visible {
+    outline: 3px solid var(--focus-color);
+    outline-offset: 2px;
+  }
+
+  &[aria-invalid='true'] {
+    border-color: var(--color-orange-dark);
+  }
+
+  &:disabled {
     opacity: 0.6;
   }
 }

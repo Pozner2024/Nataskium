@@ -56,6 +56,13 @@ const MANUAL_CHECKS = [
   ['quizzes', 'quizzes_grading_scale_check', `CHECK ("grading_scale" IN ('ten', 'five', 'letter'))`],
   ['quizzes', 'quizzes_title_not_empty_check', `CHECK ("title" <> '')`],
   ['quizzes', 'quizzes_share_token_not_empty_check', `CHECK ("share_token" <> '')`],
+  ['quizzes', 'quizzes_timer_mode_check', `CHECK ("timer_mode" IN ('none', 'stopwatch', 'limit'))`],
+  // IS NOT NULL в ветке limit обязателен: без него (limit, NULL) проходит CHECK
+  [
+    'quizzes',
+    'quizzes_time_limit_check',
+    `CHECK ( ("timer_mode" = 'limit' AND "time_limit_seconds" IS NOT NULL AND "time_limit_seconds" BETWEEN 60 AND 10800) OR ("timer_mode" <> 'limit' AND "time_limit_seconds" IS NULL) )`,
+  ],
   ['library_groups', 'library_groups_slug_format_check', `CHECK ("slug" ~ '^[a-z][a-z0-9-]{1,39}$' AND "slug" <> 'quiz')`],
   [
     'library_groups',

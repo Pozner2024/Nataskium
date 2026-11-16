@@ -44,6 +44,7 @@ async function mountNew() {
 
 async function fillValidQuiz(wrapper: Awaited<ReturnType<typeof mountNew>>) {
   await wrapper.find('.quiz-editor__title-input').setValue('Столицы')
+  useQuizEditorStore().quiz.group = 'other'
   await wrapper.find('.question-card__text').setValue('Столица Франции?')
   const options = wrapper.findAll('.question-card__option-text')
   const names = ['Париж', 'Лион', 'Ницца', 'Лилль']
@@ -126,7 +127,7 @@ describe('Редактор викторины: загрузка', () => {
   })
 
   it('«Настройки и ссылка» сохраняет и показывает ссылку ученика', async () => {
-    const quiz = saved({ title: 'Дроби', showAnswers: true, gradingScale: null, group: 'other', questions: [{ text: 'Q', imageId: null, options: [{ text: 'a', isCorrect: true, imageId: null }, { text: 'b', isCorrect: false, imageId: null }] }] })
+    const quiz = saved({ title: 'Дроби', showAnswers: true, gradingScale: null, group: 'other', timer: { mode: 'none' }, questions: [{ text: 'Q', imageId: null, options: [{ text: 'a', isCorrect: true, imageId: null }, { text: 'b', isCorrect: false, imageId: null }] }] })
     vi.spyOn(quizApi, 'get').mockResolvedValue(quiz)
     const update = vi.spyOn(quizApi, 'update').mockResolvedValue(quiz)
     const wrapper = await mountSuspended(QuizEditorPage, { props: { quizId: ID } })
@@ -148,6 +149,7 @@ const FETCHED = saved({
   showAnswers: true,
   gradingScale: null,
   group: 'other',
+  timer: { mode: 'none' },
   questions: [{ text: 'Q', imageId: null, options: [{ text: 'a', isCorrect: true, imageId: null }, { text: 'b', isCorrect: false, imageId: null }] }],
 })
 
@@ -262,5 +264,157 @@ describe('Редактор викторины: сбой сохранения п�
 
     expect(useQuizEditorStore().quiz.showAnswers).toBe(true)
     expect(wrapper.find<HTMLInputElement>('#quiz-show-answers').element.checked).toBe(true)
+  })
+})
+
+describe('Редактор викторины: таймер в настройках', () => {
+  function withTimer(timer: Parameters<typeof saved>[0]['timer']) {
+    return saved({
+      title: 'Дроби',
+      showAnswers: true,
+      gradingScale: null,
+      group: 'other',
+      timer,
+      questions: [{ text: 'Q', imageId: null, options: [{ text: 'a', isCorrect: true, imageId: null }, { text: 'b', isCorrect: false, imageId: null }] }],
+    })
+  }
+
+  async function openSettings(timer: Parameters<typeof saved>[0]['timer']) {
+    const quiz = withTimer(timer)
+    vi.spyOn(quizApi, 'get').mockResolvedValue(quiz)
+    const update = vi.spyOn(quizApi, 'update').mockImplementation(async (_id, input) => saved(input))
+    const wrapper = await mountSuspended(QuizEditorPage, { props: { quizId: ID } })
+    mounted.push(wrapper)
+    await flushPromises()
+    await wrapper.find('.quiz-editor__settings').trigger('click')
+    await flushPromises()
+    update.mockClear()
+    return { wrapper, update }
+  }
+
+  const modeInput = (wrapper: Awaited<ReturnType<typeof mountNew>>, index: number) =>
+    wrapper.findAll<HTMLInputElement>('input[name="quiz-timer"]')[index]!
+  const NONE = 0
+  const STOPWATCH = 1
+  const LIMIT = 2
+  const minutesInput = (wrapper: Awaited<ReturnType<typeof mountNew>>) => wrapper.find<HTMLInputElement>('#quiz-time-limit')
+
+  async function typeMinutes(wrapper: Awaited<ReturnType<typeof mountNew>>, text: string) {
+    const input = minutesInput(wrapper)
+    input.element.value = text
+    await input.trigger('input')
+    await input.trigger('change')
+    await flushPromises()
+  }
+
+  it('три режима в группе, выбран сохранённый, поле минут скрыто', async () => {
+    const { wrapper } = await openSettings({ mode: 'none' })
+    expect(wrapper.findAll('input[name="quiz-timer"]')).toHaveLength(3)
+    expect(modeInput(wrapper, NONE).element.checked).toBe(true)
+    expect(minutesInput(wrapper).exists()).toBe(false)
+  })
+
+  it('«Секундомер» сохраняет { mode: "stopwatch" }, поле минут не появляется', async () => {
+    const { wrapper, update } = await openSettings({ mode: 'none' })
+    await modeInput(wrapper, STOPWATCH).setValue(true)
+    await flushPromises()
+    expect(update).toHaveBeenCalledWith(ID, expect.objectContaining({ timer: { mode: 'stopwatch' } }), 'access-1')
+    expect(minutesInput(wrapper).exists()).toBe(false)
+  })
+
+  it('«Лимит» сохраняет 600 с по умолчанию и показывает поле с 10 минутами', async () => {
+    const { wrapper, update } = await openSettings({ mode: 'none' })
+    await modeInput(wrapper, LIMIT).setValue(true)
+    await flushPromises()
+    expect(update).toHaveBeenCalledWith(ID, expect.objectContaining({ timer: { mode: 'limit', seconds: 600 } }), 'access-1')
+    expect(minutesInput(wrapper).element.value).toBe('10')
+  })
+
+  it('возврат на «Без таймера» сохраняет { mode: "none" } без seconds и прячет поле', async () => {
+    const { wrapper, update } = await openSettings({ mode: 'limit', seconds: 600 })
+    await modeInput(wrapper, NONE).setValue(true)
+    await flushPromises()
+    expect(update).toHaveBeenCalledWith(ID, expect.objectContaining({ timer: { mode: 'none' } }), 'access-1')
+    expect(minutesInput(wrapper).exists()).toBe(false)
+  })
+
+  it('загруженный лимит 900 с показан как «15» минут', async () => {
+    const { wrapper } = await openSettings({ mode: 'limit', seconds: 900 })
+    expect(modeInput(wrapper, LIMIT).element.checked).toBe(true)
+    expect(minutesInput(wrapper).element.value).toBe('15')
+  })
+
+  it.each([['0'], ['181'], [''], ['5.5']])('значение «%s» не сохраняется и показывает ошибку', async (text) => {
+    const { wrapper, update } = await openSettings({ mode: 'limit', seconds: 900 })
+    await typeMinutes(wrapper, text)
+    expect(update).not.toHaveBeenCalled()
+    expect(wrapper.find('#quiz-time-limit-error').attributes('role')).toBe('alert')
+    expect(wrapper.find('#quiz-time-limit-error').text()).not.toBe('')
+    expect(minutesInput(wrapper).attributes('aria-invalid')).toBe('true')
+    expect(minutesInput(wrapper).attributes('aria-describedby')).toContain('quiz-time-limit-error')
+    expect(useQuizEditorStore().quiz.timer).toEqual({ mode: 'limit', seconds: 900 })
+  })
+
+  it('дробное значение — ошибка про целое число, выход за границы — про диапазон', async () => {
+    const { wrapper } = await openSettings({ mode: 'limit', seconds: 900 })
+    await typeMinutes(wrapper, '5.5')
+    expect(wrapper.find('#quiz-time-limit-error').text()).toBe('Введите целое число минут')
+    await typeMinutes(wrapper, '181')
+    expect(wrapper.find('#quiz-time-limit-error').text()).toBe('Введите число от 1 до 180')
+  })
+
+  it('корректное значение по change сохраняется как минуты × 60, ошибка пропадает', async () => {
+    const { wrapper, update } = await openSettings({ mode: 'limit', seconds: 900 })
+    await typeMinutes(wrapper, '0')
+    expect(wrapper.find('#quiz-time-limit-error').exists()).toBe(true)
+
+    await typeMinutes(wrapper, '20')
+    expect(update).toHaveBeenCalledTimes(1)
+    expect(update).toHaveBeenCalledWith(ID, expect.objectContaining({ timer: { mode: 'limit', seconds: 1200 } }), 'access-1')
+    expect(wrapper.find('#quiz-time-limit-error').exists()).toBe(false)
+    expect(minutesInput(wrapper).attributes('aria-invalid')).toBe('false')
+  })
+
+  it('границы 1 и 180 минут допустимы', async () => {
+    const { wrapper, update } = await openSettings({ mode: 'limit', seconds: 900 })
+    await typeMinutes(wrapper, '1')
+    await typeMinutes(wrapper, '180')
+    expect(update).toHaveBeenNthCalledWith(1, ID, expect.objectContaining({ timer: { mode: 'limit', seconds: 60 } }), 'access-1')
+    expect(update).toHaveBeenNthCalledWith(2, ID, expect.objectContaining({ timer: { mode: 'limit', seconds: 10800 } }), 'access-1')
+  })
+
+  it('то же значение не вызывает повторное сохранение', async () => {
+    const { wrapper, update } = await openSettings({ mode: 'limit', seconds: 900 })
+    await typeMinutes(wrapper, '15')
+    expect(update).not.toHaveBeenCalled()
+  })
+
+  it('неудачное сохранение режима откатывает выбор', async () => {
+    const { wrapper, update } = await openSettings({ mode: 'none' })
+    update.mockRejectedValue(new ApiError(500))
+    await modeInput(wrapper, LIMIT).setValue(true)
+    await flushPromises()
+    expect(useQuizEditorStore().quiz.timer).toEqual({ mode: 'none' })
+    expect(modeInput(wrapper, NONE).element.checked).toBe(true)
+    expect(minutesInput(wrapper).exists()).toBe(false)
+  })
+
+  it('неудачное сохранение минут возвращает прежнее значение в поле', async () => {
+    const { wrapper, update } = await openSettings({ mode: 'limit', seconds: 900 })
+    update.mockRejectedValue(new ApiError(500))
+    await typeMinutes(wrapper, '20')
+    expect(useQuizEditorStore().quiz.timer).toEqual({ mode: 'limit', seconds: 900 })
+    expect(minutesInput(wrapper).element.value).toBe('15')
+  })
+
+  it('toQuizInput переносит timer: загрузка с сервера кладёт его в форму и в отправляемые данные', async () => {
+    vi.spyOn(quizApi, 'get').mockResolvedValue(withTimer({ mode: 'limit', seconds: 1800 }))
+    const store = useQuizEditorStore()
+    await store.load(ID)
+    expect(store.quiz.timer).toEqual({ mode: 'limit', seconds: 1800 })
+    expect(store.isDirty).toBe(false)
+    const update = vi.spyOn(quizApi, 'update').mockImplementation(async (_id, input) => saved(input))
+    await store.save()
+    expect(update).toHaveBeenCalledWith(ID, expect.objectContaining({ timer: { mode: 'limit', seconds: 1800 } }), 'access-1')
   })
 })

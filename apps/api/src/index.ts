@@ -1,5 +1,5 @@
 import { serve } from '@hono/node-server'
-import { createApp, createAuthCleanup, createImageCleanup } from './app'
+import { createApp, createAuthCleanup, createImageCleanup, createQuizCleanup } from './app'
 import {
   PASSWORD_RESET_TTL_MS,
   PENDING_REGISTRATION_TTL_MS,
@@ -23,6 +23,8 @@ const PASSWORD_RESET_LINK_TTL_HOURS = PASSWORD_RESET_TTL_MS / MS_PER_HOUR
 const CLEANUP_INTERVAL_MS = MS_PER_HOUR
 // Неприкреплённые картинки живут сутки: чаще проверять незачем, а сверка листает весь префикс бакета
 const IMAGE_CLEANUP_INTERVAL_MS = 24 * MS_PER_HOUR
+// Удалённые задания хранятся 30 дней: суточная точность срока достаточна
+const QUIZ_CLEANUP_INTERVAL_MS = 24 * MS_PER_HOUR
 
 function readEnv(): Env {
   try {
@@ -72,4 +74,5 @@ serve({ fetch: app.fetch, port: env.API_PORT, hostname: API_HOST }, ({ address, 
   // После старта сервера: первый запуск сразу, дальше раз в CLEANUP_INTERVAL_MS
   startCleanupSchedule({ cleanup: createAuthCleanup(prisma), intervalMs: CLEANUP_INTERVAL_MS })
   startCleanupSchedule({ cleanup: createImageCleanup(prisma, imageStorage, { reconcileStorage: env.IMAGE_STORAGE_RECONCILE }), intervalMs: IMAGE_CLEANUP_INTERVAL_MS })
+  startCleanupSchedule({ cleanup: createQuizCleanup(prisma), intervalMs: QUIZ_CLEANUP_INTERVAL_MS })
 })

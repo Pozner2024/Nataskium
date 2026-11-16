@@ -1,22 +1,22 @@
 <template>
   <div class="play-layout">
-    <header class="play-layout__header">
-      <NuxtLink class="play-layout__logo" :to="localePath('/')">
-        <AppLogo />
-      </NuxtLink>
-    </header>
+    <AppHeader />
     <main class="play-layout__main">
       <slot />
     </main>
+    <AppFooter />
   </div>
 </template>
 
 <script setup lang="ts">
-import { NuxtLink } from '#components'
-import { useLocalePath } from '#imports'
-import { AppLogo } from '@/shared'
+import { onMounted } from 'vue'
+import { restoreSession } from '@/features/auth'
+import { AppFooter } from '@/widgets/app-footer'
+import { AppHeader } from '@/widgets/app-header'
 
-const localePath = useLocalePath()
+onMounted(() => {
+  void restoreSession()
+})
 </script>
 
 <style scoped lang="scss">
@@ -33,20 +33,6 @@ const localePath = useLocalePath()
   );
 
   background: var(--color-white);
-}
-
-.play-layout__header {
-  display: flex;
-  justify-content: center;
-  padding: 4px var(--gutter) 0;
-}
-
-.play-layout__logo {
-  display: flex;
-  align-items: center;
-  width: 112px;
-  min-height: 48px;
-  border-radius: 12px;
 }
 
 .play-layout__main {

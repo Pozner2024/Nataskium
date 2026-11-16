@@ -18,6 +18,7 @@ beforeEach(() => {
       title: 'T',
       showAnswers: true,
       gradingScale: null,
+      timer: { mode: 'none' },
       questions: [{
         text: 'Q',
         imageId: null,

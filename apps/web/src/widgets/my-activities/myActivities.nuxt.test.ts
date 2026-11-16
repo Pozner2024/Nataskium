@@ -65,7 +65,7 @@ describe('Мои задания', () => {
     await flushPromises()
     expect(remove).not.toHaveBeenCalled()
 
-    await wrapper.find('.teacher-activities-page__confirm').trigger('click')
+    await wrapper.find('.app-confirm-dialog__confirm').trigger('click')
     await flushPromises()
 
     expect(remove).toHaveBeenCalledWith('q1', 'access-1')
@@ -89,11 +89,11 @@ describe('Мои задания', () => {
     const wrapper = await mountPage()
 
     await wrapper.findComponent({ name: 'MyActivities' }).vm.$emit('delete', { ...QUIZZES[0], type: 'quiz' })
-    await wrapper.find('.teacher-activities-page__confirm').trigger('click')
+    await wrapper.find('.app-confirm-dialog__confirm').trigger('click')
     await flushPromises()
 
     expect(wrapper.findAll('.my-activities__list > li')).toHaveLength(2)
-    expect(wrapper.find('.teacher-activities-page__error[role="alert"]').exists()).toBe(true)
+    expect(wrapper.find('.manage-activities__error[role="alert"]').exists()).toBe(true)
   })
 
   it('повторная загрузка сбрасывает старую ошибку удаления', async () => {
@@ -101,14 +101,14 @@ describe('Мои задания', () => {
     vi.spyOn(quizApi, 'remove').mockRejectedValue(new Error('network'))
     const wrapper = await mountPage()
     await wrapper.findComponent({ name: 'MyActivities' }).vm.$emit('delete', { ...QUIZZES[0], type: 'quiz' })
-    await wrapper.find('.teacher-activities-page__confirm').trigger('click')
+    await wrapper.find('.app-confirm-dialog__confirm').trigger('click')
     await flushPromises()
 
     list.mockRejectedValue(new Error('network'))
     await wrapper.findComponent({ name: 'MyActivities' }).vm.$emit('retry')
     await flushPromises()
 
-    expect(wrapper.find('.teacher-activities-page__error').exists()).toBe(false)
+    expect(wrapper.find('.manage-activities__error').exists()).toBe(false)
   })
 
   it('два быстрых подтверждения — один запрос удаления', async () => {
@@ -117,7 +117,7 @@ describe('Мои задания', () => {
     const wrapper = await mountPage()
 
     await wrapper.findComponent({ name: 'MyActivities' }).vm.$emit('delete', { ...QUIZZES[0], type: 'quiz' })
-    const confirm = wrapper.find('.teacher-activities-page__confirm')
+    const confirm = wrapper.find('.app-confirm-dialog__confirm')
     await confirm.trigger('click')
     await confirm.trigger('click')
     await flushPromises()

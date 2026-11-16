@@ -67,6 +67,7 @@ describe('useQuizEditorStore: isDirty', () => {
   it('новая викторина не изменена, правка включает isDirty', () => {
     expect(store.isDirty).toBe(false)
     store.quiz.title = 'Дроби'
+    store.quiz.group = 'other'
     expect(store.isDirty).toBe(true)
   })
 
@@ -84,6 +85,7 @@ describe('useQuizEditorStore: isDirty', () => {
       },
     }))
     store.quiz.title = 'Дроби '
+    store.quiz.group = 'other'
     store.quiz.questions[0]!.text = 'Q'
     store.quiz.questions[0]!.options.forEach((option, index) => {
       option.text = `o${index}`
@@ -98,6 +100,7 @@ describe('useQuizEditorStore: правки во время сохранения'
     let resolveCreate: (value: Awaited<ReturnType<typeof quizApi.create>>) => void = () => undefined
     vi.spyOn(quizApi, 'create').mockReturnValue(new Promise((resolve) => (resolveCreate = resolve)))
     store.quiz.title = 'Старое'
+    store.quiz.group = 'other'
     store.quiz.questions[0]!.text = 'Q'
     store.quiz.questions[0]!.options.forEach((option, index) => {
       option.text = `o${index}`
@@ -121,6 +124,7 @@ const SHARE_TOKEN = 'abcdefghijklmnopqrstuv'
 
 function fillTexts(): void {
   store.quiz.title = 'Животные'
+  store.quiz.group = 'other'
   store.quiz.questions[0]!.text = 'Где кошка?'
   store.quiz.questions[0]!.options.forEach((option, index) => {
     option.text = `o${index}`
@@ -190,6 +194,7 @@ describe('useQuizEditorStore: картинки', () => {
         showAnswers: true,
         gradingScale: null,
         group: 'other',
+        timer: { mode: 'none' },
         questions: [
           {
             text: 'Где кошка?',

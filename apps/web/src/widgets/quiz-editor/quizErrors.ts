@@ -2,9 +2,11 @@ import { MAX_OPTIONS, MAX_QUESTIONS, MIN_OPTIONS, MIN_QUESTIONS } from '@nataski
 import type { Translate } from '@/features/auth'
 
 const ISSUE_MESSAGES: { prefix: string; key: string; params?: Record<string, unknown> }[] = [
+  { prefix: 'Invalid group', key: 'teacher.quizEditor.errors.groupRequired' },
   { prefix: 'Text is required', key: 'teacher.quizEditor.errors.required' },
   { prefix: 'Text or image is required', key: 'teacher.quizEditor.errors.textOrImage' },
   { prefix: 'Text must be at most', key: 'teacher.quizEditor.errors.tooLong' },
+  { prefix: 'Text contains invalid characters', key: 'teacher.quizEditor.errors.invalidChars' },
   { prefix: 'At least one option must be correct', key: 'teacher.quizEditor.errors.noCorrect' },
   { prefix: 'At least one option must be incorrect', key: 'teacher.quizEditor.errors.noIncorrect' },
   { prefix: 'At least', key: 'teacher.quizEditor.errors.optionsMin', params: { min: MIN_OPTIONS } },

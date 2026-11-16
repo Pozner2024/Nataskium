@@ -31,6 +31,7 @@ const INPUT: QuizInput = {
   showAnswers: true,
   gradingScale: 'five',
   group: 'other',
+  timer: { mode: 'none' },
   questions: [
     {
       text: 'Столица Франции?',
@@ -119,6 +120,31 @@ describe('/api/play: режим «показывать»', () => {
     expect(finish.status).toBe(200)
     const finished: PlayFinishResponse = playFinishResponseSchema.parse(await finish.json())
     expect(finished.result).toEqual({ percent: 75, grade: '4', correctCount: 1, partialCount: 1, totalCount: 2 })
+  })
+
+  it('GET отдаёт таймер; finish принимает пустой ответ как «не отвечено»', async () => {
+    const created = await createQuiz({ ...INPUT, timer: { mode: 'limit', seconds: 600 } })
+    const quiz = await loadPlay(created.shareToken)
+    expect(quiz.timer).toEqual({ mode: 'limit', seconds: 600 })
+
+    const finish = await request('POST', `/api/play/${created.shareToken}/finish`, { version: quiz.version, answers: [[1], []] })
+    expect(finish.status).toBe(200)
+    expect(playFinishResponseSchema.parse(await finish.json()).result).toEqual({
+      percent: 50,
+      grade: '3',
+      correctCount: 1,
+      partialCount: 0,
+      totalCount: 2,
+    })
+    const none = await request('POST', `/api/play/${created.shareToken}/finish`, { version: quiz.version, answers: [[], []] })
+    expect(playFinishResponseSchema.parse(await none.json()).result.percent).toBe(0)
+  })
+
+  it('check с пустым выбором — по-прежнему 400', async () => {
+    const created = await createQuiz()
+    const quiz = await loadPlay(created.shareToken)
+    const check = await request('POST', `/api/play/${created.shareToken}/check`, { version: quiz.version, questionIndex: 0, selected: [] })
+    expect(check.status).toBe(BAD_REQUEST)
   })
 
   it('ничего не пишет в базу', async () => {

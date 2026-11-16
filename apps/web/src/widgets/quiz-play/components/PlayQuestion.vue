@@ -4,6 +4,7 @@
       <span class="play-question__title">{{ store.title }}</span>
       <span class="play-question__progress">{{ store.current + 1 }} / {{ store.questions.length }}</span>
     </header>
+    <PlayTimer />
     <progress
       class="play-question__bar"
       :max="store.questions.length"
@@ -71,6 +72,7 @@
 import { computed, nextTick, onMounted, ref, useTemplateRef, watch } from 'vue'
 import { useI18n } from '#imports'
 import { usePlayStore } from '../store'
+import PlayTimer from './PlayTimer.vue'
 
 const { t } = useI18n()
 const store = usePlayStore()

@@ -1,7 +1,7 @@
 import { LIBRARY_PAGE_SIZE, type LibraryListQuery, type LibraryListResponse } from '@nataskium/shared/schemas'
 import type { LibraryRepository } from '../types'
 import { libraryNotFound } from './libraryErrors'
-import { parseQuestions, toLibrarySummary } from './toLibrarySummary'
+import { toLibrarySummary } from './toLibrarySummary'
 
 export function makeListLibraryQuizzes(deps: { library: LibraryRepository }) {
   return async function listLibraryQuizzes(query: LibraryListQuery): Promise<LibraryListResponse> {
@@ -14,7 +14,7 @@ export function makeListLibraryQuizzes(deps: { library: LibraryRepository }) {
       limit: LIBRARY_PAGE_SIZE + 1,
     })
     return {
-      quizzes: rows.slice(0, LIBRARY_PAGE_SIZE).map((row) => toLibrarySummary(row, parseQuestions(row).length)),
+      quizzes: rows.slice(0, LIBRARY_PAGE_SIZE).map((row) => toLibrarySummary(row, row.questionCount)),
       page: query.page,
       hasNext: rows.length > LIBRARY_PAGE_SIZE,
     }

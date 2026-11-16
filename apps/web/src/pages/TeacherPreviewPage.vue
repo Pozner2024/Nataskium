@@ -51,7 +51,7 @@ import { ACTIVITIES_STUB, MyActivities } from '@/widgets/my-activities'
 import { QuizEditor } from '@/widgets/quiz-editor'
 
 // Состояния редактора викторины задаются прямо в state Pinia: store виджета наружу не экспортируется
-const QUIZ_CASES = ['new', 'filled', 'errors', 'settings', 'settings-error'] as const
+const QUIZ_CASES = ['new', 'filled', 'errors', 'settings', 'settings-error', 'settings-stopwatch', 'settings-limit'] as const
 type QuizCase = (typeof QUIZ_CASES)[number]
 
 interface QuizEditorPreviewState {
@@ -59,6 +59,7 @@ interface QuizEditorPreviewState {
     title: string
     showAnswers: boolean
     gradingScale: 'ten' | 'five' | 'letter' | null
+    timer: { mode: 'none' | 'stopwatch' } | { mode: 'limit'; seconds: number }
     questions: { text: string; options: { text: string; isCorrect: boolean }[] }[]
   }
   shareToken: string | null
@@ -67,6 +68,8 @@ interface QuizEditorPreviewState {
   saveStatus: string
   fieldErrors: Record<string, string>
 }
+
+const PREVIEW_LIMIT_SECONDS = 900
 
 const PREVIEW_QUESTIONS = [
   {
@@ -104,8 +107,8 @@ function showQuizCase(name: QuizCase) {
   state.fieldErrors = {}
   state.expandedIndex = isNew ? 0 : 1
   state.quiz = isNew
-    ? { title: '', showAnswers: true, gradingScale: null, questions: [structuredClone(PREVIEW_QUESTIONS[2]!)] }
-    : { title: 'Столицы Европы', showAnswers: true, gradingScale: 'ten', questions: structuredClone(PREVIEW_QUESTIONS) }
+    ? { title: '', showAnswers: true, gradingScale: null, timer: { mode: 'none' }, questions: [structuredClone(PREVIEW_QUESTIONS[2]!)] }
+    : { title: 'Столицы Европы', showAnswers: true, gradingScale: 'ten', timer: { mode: 'none' }, questions: structuredClone(PREVIEW_QUESTIONS) }
   if (name === 'errors') {
     state.quiz.title = ''
     state.expandedIndex = 2
@@ -116,9 +119,11 @@ function showQuizCase(name: QuizCase) {
       'questions.2.options.0.text': 'Text is required',
     }
   }
-  if (name === 'settings' || name === 'settings-error') {
+  if (name.startsWith('settings')) {
     state.shareToken = 'k7Qm2xTz'
     state.view = 'settings'
+    if (name === 'settings-stopwatch') state.quiz.timer = { mode: 'stopwatch' }
+    if (name === 'settings-limit') state.quiz.timer = { mode: 'limit', seconds: PREVIEW_LIMIT_SECONDS }
     if (name === 'settings-error') state.saveStatus = 'failed'
   }
 }

@@ -6,7 +6,7 @@ import { type LibraryQuizDetails, type LibraryQuizResponse, libraryApi } from '@
 import { ApiError } from '@/shared'
 import { formatLibraryDate } from './formatLibraryDate'
 import LibraryQuiz from './LibraryQuiz.vue'
-import LibraryQuizQuestion from './LibraryQuizQuestion.vue'
+import LibraryQuizQuestion from './components/LibraryQuizQuestion.vue'
 
 const NUMBER = 12
 const CREATED_AT = '2026-11-15T10:00:00.000Z'

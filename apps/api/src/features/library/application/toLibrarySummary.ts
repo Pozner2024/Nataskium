@@ -1,5 +1,5 @@
 import { type LibraryQuizSummary, type QuizQuestion, quizInputSchema } from '@nataskium/shared/schemas'
-import type { LibraryQuizRow } from '../types'
+import type { LibraryQuizMeta, LibraryQuizRow } from '../types'
 
 // Строка, не прошедшая схему, — рассинхрон данных и кода: внутренняя ошибка (500), а не ошибка клиента
 export function parseQuestions(row: LibraryQuizRow): QuizQuestion[] {
@@ -8,7 +8,7 @@ export function parseQuestions(row: LibraryQuizRow): QuizQuestion[] {
   return parsed.data
 }
 
-export function toLibrarySummary(row: LibraryQuizRow, questionCount: number): LibraryQuizSummary {
+export function toLibrarySummary(row: LibraryQuizMeta, questionCount: number): LibraryQuizSummary {
   return {
     number: row.number,
     title: row.title,
