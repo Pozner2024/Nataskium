@@ -1,12 +1,10 @@
-import { randomBytes } from 'node:crypto'
 import { MAX_QUIZZES_PER_TEACHER, type QuizInput } from '@nataskium/shared/schemas'
 import { type AppError, UnauthorizedError } from '../../../shared/errors'
+import { randomShareToken } from '../../../shared/utils'
 import { collectImageIds, syncQuizImages } from './quizImages'
 import { quizLimitReached, unknownGroup } from './quizErrors'
 import type { QuizWriteDeps, StoredQuiz } from '../types'
 
-// 16 байт → 22 символа base64url без '=': формат shareTokenSchema
-const SHARE_TOKEN_BYTES = 16
 const CREATE_ATTEMPTS = 2
 
 export type CreateQuizDeps = QuizWriteDeps & {
@@ -20,10 +18,6 @@ export type CreateQuizOptions = { isPublic?: boolean }
 // следующая — в новой транзакции, а причину отсутствующей ссылки можно выяснить только после отката
 class ShareTokenTaken extends Error {}
 class ReferenceMissing extends Error {}
-
-function randomShareToken(): string {
-  return randomBytes(SHARE_TOKEN_BYTES).toString('base64url')
-}
 
 export function makeCreateQuiz(deps: CreateQuizDeps) {
   const generateShareToken = deps.generateShareToken ?? randomShareToken

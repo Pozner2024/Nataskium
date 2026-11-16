@@ -1,0 +1,7 @@
+export { makeCreateMatching } from './application/createMatching'
+export type { CreateMatchingOptions } from './application/createMatching'
+export { makeDeleteMatching } from './application/deleteMatching'
+export { makeGetMatching } from './application/getMatching'
+export { makeUpdateMatching } from './application/updateMatching'
+export { makeMatchingRepository } from './infrastructure/matchingRepository'
+export type { MatchingRepository, StoredMatching } from './types'
