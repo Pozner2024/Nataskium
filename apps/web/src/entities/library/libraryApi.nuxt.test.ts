@@ -34,6 +34,7 @@ function json(body: unknown, status = 200): Response {
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  vi.restoreAllMocks()
 })
 
 describe('libraryApi.get', () => {
@@ -78,6 +79,15 @@ describe('libraryApi.take', () => {
     expect(calls[0]?.init.headers).toMatchObject({ Authorization: 'Bearer access-1' })
     expect(calls[0]?.init.body).toBeUndefined()
     expect(response).toEqual({ quizId: QUIZ_ID })
+  })
+
+  it('ждёт ответа 60 секунд: копирование картинок идёт дольше обычного запроса', async () => {
+    const timeout = vi.spyOn(AbortSignal, 'timeout')
+    stubFetch(json({ quizId: QUIZ_ID }, 201))
+
+    await libraryApi.take(QUIZ_NUMBER, 'access-1')
+
+    expect(timeout).toHaveBeenCalledWith(60_000)
   })
 
   it.each([401, 404, 409, 429, 503])('статус %i даёт ApiError с этим статусом', async (status) => {

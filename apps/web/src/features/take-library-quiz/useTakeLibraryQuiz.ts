@@ -1,4 +1,4 @@
-import { computed, ref } from 'vue'
+import { computed, getCurrentScope, onScopeDispose, ref } from 'vue'
 import { ApiError, NETWORK_ERROR_STATUS } from '@/shared'
 import type { TakeStatus, TakenQuiz } from './types'
 
@@ -35,6 +35,10 @@ function failureStatus(error: unknown): TakeStatus {
 export function useTakeLibraryQuiz(options: TakeLibraryQuizOptions) {
   const status = ref<TakeStatus>('idle')
   const isBusy = computed(() => status.value === 'taking' || status.value === 'taken')
+  // Человек мог уйти со страницы, пока шло копирование: ответ придёт к уже убранному компоненту,
+  // и переход в редактор посреди другой работы только помешал бы. Копия при этом создана
+  let isDisposed = false
+  if (getCurrentScope()) onScopeDispose(() => (isDisposed = true))
 
   async function run(): Promise<void> {
     // Проверка и установка статуса идут синхронно, до первого await: два быстрых нажатия не запустят два копирования
@@ -46,9 +50,11 @@ export function useTakeLibraryQuiz(options: TakeLibraryQuizOptions) {
     status.value = 'taking'
     try {
       const { quizId } = await options.take()
+      if (isDisposed) return
       status.value = 'taken'
       options.onTaken(quizId)
     } catch (error) {
+      if (isDisposed) return
       if (error instanceof ApiError && error.status === UNAUTHORIZED_STATUS) {
         status.value = 'idle'
         options.onLoginRequired()

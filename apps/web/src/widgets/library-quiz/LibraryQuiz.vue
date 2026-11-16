@@ -18,6 +18,11 @@
         {{ quiz.graded ? t('library.graded') : t('library.notGraded') }}
       </p>
 
+      <!-- Кнопка стоит до превью: на телефоне главное действие видно без прокрутки длинного списка вопросов -->
+      <div class="library-quiz__actions">
+        <TakeLibraryQuizButton :is-signed-in="auth.isAuthenticated" :is-ready="isSessionChecked" :take="take" @taken="onTaken" @login-required="isLoginOpen = true" />
+      </div>
+
       <section class="library-quiz__preview" aria-labelledby="library-quiz-preview-title">
         <h2 id="library-quiz-preview-title" class="library-quiz__preview-title">{{ t('library.quiz.previewTitle') }}</h2>
 
@@ -33,19 +38,23 @@
         </p>
       </section>
 
-      <div class="library-quiz__actions" />
     </article>
+
+    <LibraryLoginDialog :open="isLoginOpen" :login-to="loginTo" :register-to="localePath(AUTH_PATHS.register)" @close="isLoginOpen = false" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { libraryGroupPath } from '@nataskium/shared/routes'
-import { computed, onMounted, toRef, watch } from 'vue'
+import { computed, onMounted, ref, toRef, watch } from 'vue'
 import { NuxtLink } from '#components'
-import { useI18n, useLocalePath } from '#imports'
-import { useLibraryGroups } from '@/entities/library'
-import { useCurrentLocale } from '@/shared'
+import { navigateTo, useI18n, useLocalePath, useRoute } from '#imports'
+import { libraryApi, useLibraryGroups } from '@/entities/library'
+import { authorizedRequest, restoreSession, useAuthStore } from '@/features/auth'
+import { TakeLibraryQuizButton } from '@/features/take-library-quiz'
+import { AUTH_PATHS, TEACHER_PATHS, useCurrentLocale } from '@/shared'
 import { formatLibraryDate } from './formatLibraryDate'
+import LibraryLoginDialog from './LibraryLoginDialog.vue'
 import LibraryQuizQuestion from './LibraryQuizQuestion.vue'
 import { useLibraryQuiz } from './useLibraryQuiz'
 
@@ -57,6 +66,19 @@ const localePath = useLocalePath()
 const locale = useCurrentLocale()
 const { groups, load: loadGroups } = useLibraryGroups()
 const { quiz, status, load } = useLibraryQuiz(toRef(props, 'number'))
+const route = useRoute()
+const auth = useAuthStore()
+
+const isSessionChecked = ref(false)
+const isLoginOpen = ref(false)
+
+const take = () => authorizedRequest((token) => libraryApi.take(props.number, token))
+// next проверит safeNextPath на странице входа; регистрация и Google next пока не поддерживают
+const loginTo = computed(() => ({ path: localePath(AUTH_PATHS.login), query: { next: route.fullPath } }))
+
+function onTaken(quizId: string) {
+  void navigateTo(localePath(`${TEACHER_PATHS.quizEdit}/${quizId}`))
+}
 
 const meta = computed(() => {
   if (!quiz.value) return ''
@@ -76,9 +98,15 @@ watch(status, (value) => {
   if (value === 'ready' && quiz.value) emit('loaded', quiz.value.title)
 })
 
-onMounted(() => {
+onMounted(async () => {
   void loadGroups()
   void load()
+  // Статус 'unknown' после сетевой ошибки считаем гостем: кнопка включается и ведёт к окну входа
+  try {
+    await restoreSession()
+  } finally {
+    isSessionChecked.value = true
+  }
 })
 </script>
 

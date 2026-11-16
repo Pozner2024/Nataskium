@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { effectScope } from 'vue'
 import { ApiError, NETWORK_ERROR_STATUS } from '@/shared'
 import type { TakeStatus } from './types'
 import { useTakeLibraryQuiz } from './useTakeLibraryQuiz'
@@ -120,6 +121,37 @@ describe('useTakeLibraryQuiz', () => {
     expect(take).toHaveBeenCalledTimes(2)
     expect(status.value).toBe('taken')
     expect(onTaken).toHaveBeenCalledWith(QUIZ_ID)
+  })
+
+  it('компонент убран до ответа: переход к копии не вызывается', async () => {
+    let finish: (value: { quizId: string }) => void = () => undefined
+    const take = vi.fn(() => new Promise<{ quizId: string }>((resolve) => (finish = resolve)))
+    const onTaken = vi.fn()
+    const scope = effectScope()
+    const { run } = scope.run(() => useTakeLibraryQuiz({ isSignedIn: () => true, take, onTaken, onLoginRequired: vi.fn() }))!
+
+    const pending = run()
+    scope.stop()
+    finish({ quizId: QUIZ_ID })
+    await pending
+
+    expect(take).toHaveBeenCalledTimes(1)
+    expect(onTaken).not.toHaveBeenCalled()
+  })
+
+  it('компонент убран до ответа с ошибкой 401: окно входа не открывается', async () => {
+    let fail: (error: unknown) => void = () => undefined
+    const take = vi.fn(() => new Promise<{ quizId: string }>((_resolve, reject) => (fail = reject)))
+    const onLoginRequired = vi.fn()
+    const scope = effectScope()
+    const { run } = scope.run(() => useTakeLibraryQuiz({ isSignedIn: () => true, take, onTaken: vi.fn(), onLoginRequired }))!
+
+    const pending = run()
+    scope.stop()
+    fail(new ApiError(401))
+    await pending
+
+    expect(onLoginRequired).not.toHaveBeenCalled()
   })
 
   it('isBusy: false в покое и после ошибки, true во время и после успеха', async () => {

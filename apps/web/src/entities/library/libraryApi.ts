@@ -7,6 +7,10 @@ import {
 import { apiRequest } from '@/shared'
 import type { LibraryGroupsResponse, LibraryListResponse, LibraryQuizResponse, LibraryTakeResponse } from './types'
 
+// Сервер копирует картинки задания по одной, и это дольше обычного запроса: при обычных 15 с клиент показал бы
+// «нет связи», а копия на сервере всё равно появилась бы
+const TAKE_TIMEOUT_MS = 60_000
+
 export type LibraryListParams = { group: string | null; q: string | null; page: number }
 
 function listQuery({ group, q, page }: LibraryListParams): string {
@@ -29,5 +33,5 @@ export const libraryApi = {
 
   // Копия задания учителю: 201 с id копии; тела у запроса нет
   take: (number: number, accessToken: string): Promise<LibraryTakeResponse> =>
-    apiRequest(`/library/${number}/take`, libraryTakeResponseSchema, { method: 'POST', accessToken }),
+    apiRequest(`/library/${number}/take`, libraryTakeResponseSchema, { method: 'POST', accessToken, timeoutMs: TAKE_TIMEOUT_MS }),
 }

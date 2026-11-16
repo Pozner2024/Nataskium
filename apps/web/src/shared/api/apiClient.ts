@@ -43,6 +43,9 @@ type RequestOptions = {
   // FormData уходит как есть: Content-Type с boundary браузер ставит сам; остальное — JSON
   body?: unknown
   accessToken?: string | null
+  // Для запросов, которые сервер выполняет заведомо дольше обычного (копирование задания с картинками);
+  // без неё — REQUEST_TIMEOUT_MS, а для FormData — UPLOAD_TIMEOUT_MS
+  timeoutMs?: number
 }
 
 function retryAfter(response: Response): number | null {
@@ -76,7 +79,7 @@ async function send(path: string, options: RequestOptions): Promise<Response> {
       body: requestBody(options.body),
       // refresh-cookie (HttpOnly, Path=/api/auth) браузер подставит сам
       credentials: 'include',
-      signal: AbortSignal.timeout(isFormData ? UPLOAD_TIMEOUT_MS : REQUEST_TIMEOUT_MS),
+      signal: AbortSignal.timeout(options.timeoutMs ?? (isFormData ? UPLOAD_TIMEOUT_MS : REQUEST_TIMEOUT_MS)),
     })
   } catch {
     // Сеть или таймаут — для страницы одно и то же: «нет связи, попробуйте ещё раз»
