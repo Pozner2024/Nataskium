@@ -38,3 +38,4 @@ playwright-report/
 
 # Макеты из визуального компаньона Superpowers
 .superpowers/
+apps/web/public/intro/test.mp4
