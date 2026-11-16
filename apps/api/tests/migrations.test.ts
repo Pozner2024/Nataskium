@@ -56,6 +56,12 @@ const MANUAL_CHECKS = [
   ['quizzes', 'quizzes_grading_scale_check', `CHECK ("grading_scale" IN ('ten', 'five', 'letter'))`],
   ['quizzes', 'quizzes_title_not_empty_check', `CHECK ("title" <> '')`],
   ['quizzes', 'quizzes_share_token_not_empty_check', `CHECK ("share_token" <> '')`],
+  ['library_groups', 'library_groups_slug_format_check', `CHECK ("slug" ~ '^[a-z][a-z0-9-]{1,39}$' AND "slug" <> 'quiz')`],
+  [
+    'library_groups',
+    'library_groups_names_check',
+    `CHECK ( jsonb_typeof("names") = 'object' AND "names" ?& ARRAY['ru', 'en', 'de', 'fr'] AND btrim("names" ->> 'ru') <> '' AND btrim("names" ->> 'en') <> '' AND btrim("names" ->> 'de') <> '' AND btrim("names" ->> 'fr') <> '' )`,
+  ],
 ]
 // Без каскада удаление учителя оставило бы его сессии в базе (GDPR)
 const PASSWORD_RESETS_CASCADE =

@@ -42,7 +42,8 @@ export async function truncateAll(prisma: PrismaClient): Promise<void> {
       SELECT string_agg(format('%I.%I', schemaname, tablename), ', ')
       INTO tables
       FROM pg_tables
-      WHERE schemaname = 'public' AND tablename <> '_prisma_migrations';
+      -- library_groups — справочник, который заполняет сама миграция; задания ссылаются на него внешним ключом
+      WHERE schemaname = 'public' AND tablename NOT IN ('_prisma_migrations', 'library_groups');
 
       IF tables IS NOT NULL THEN
         EXECUTE 'TRUNCATE ' || tables || ' RESTART IDENTITY CASCADE';

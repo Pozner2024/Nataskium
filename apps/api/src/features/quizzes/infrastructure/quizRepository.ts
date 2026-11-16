@@ -51,12 +51,13 @@ export function makeQuizRepository(prisma: Prisma.TransactionClient): QuizReposi
       return row === null ? null : toStoredQuiz(row)
     },
 
-    async create(teacherId, input, shareToken) {
+    async create(teacherId, input, shareToken, isPublic = true) {
       try {
         const row = await prisma.quiz.create({
           data: {
             teacherId,
             shareToken,
+            isPublic,
             title: input.title,
             showAnswers: input.showAnswers,
             gradingScale: input.gradingScale,

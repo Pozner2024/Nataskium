@@ -10,12 +10,17 @@
 - Копии от «Взять себе» в библиотеку автоматически НЕ попадают (`is_public = false` при копировании; системное исключение из автопубликации).
 - Удаление задания учителем у себя убирает его из библиотеки (это одна и та же запись); копии других учителей не затрагиваются.
 
+Решения от 2026-11-16:
+- Две публичные страницы: `/library` (плитки групп и поиск) и `/library/<группа>` (задания группы). Одна страница не нужна.
+- В кабинете учителя библиотеки нет. Вход в библиотеку — из меню и футера.
+- SEO, SSR, sitemap и robots перенесены в конец плана (шаг 13): до стабилизации страниц и адресов их делать нет смысла.
+
 ## Что найдено в коде (опорные факты)
 - `quizzes`: `teacherId` (CASCADE), `shareToken`, `questions` jsonb, `deletedAt`, `@@index([teacherId, deletedAt])`. Репозиторий `makeQuizRepository(prisma: TransactionClient)`, use-cases create/update одним файлом, транзакция `QuizTransaction` (quiz + привязка картинок).
 - `quizInputSchema` строгий (`.strict()`); образец «новое поле с default» — `imageId` (`optionalImageIdSchema`, данные шага 1 без него считаются валидными). `quizResponseSchema` расширяет `quizInputSchema`, поэтому поле появится в ответе автоматически.
 - Картинки: файл `quiz-images/<uuid>.webp`, строка `quiz_images` создаётся после записи файла; инвариант «одна картинка — одно место»; порт `ImageStorage` имеет только `put/remove/listObjects/publicUrl` (нет `copy`/`get`). Удаление аккаунта удаляет строки каскадом и файлы по id учителя.
 - Rate limit: `createRateLimiter` + `makeClientIpResolver`, лимиты в `features/<имя>/limits.ts`, ключ — IP (адрес сокета или `X-Real-IP` только от `TRUSTED_PROXY_IPS`).
-- Web: `apiClient` ходит на относительный `/api` (браузерный `fetch` с `credentials: include`) — на сервере Nuxt он не работает; SSR-вызовов к API сейчас нет вообще. Вкладка `/teacher/library` существует как заглушка (`TeacherLibraryPage.vue`, noindex, CLIENT_ONLY). i18n: `prefix_except_default`, ru/en/de/fr. Редактор автосохраняется по каждому изменению настройки (`QuizSettings.vue` → `store.save()`).
+- Web: `apiClient` ходит на относительный `/api` (браузерный `fetch` с `credentials: include`) — на сервере Nuxt он не работает; SSR-вызовов к API сейчас нет вообще. i18n: `prefix_except_default`, ru/en/de/fr. Редактор автосохраняется по каждому изменению настройки (`QuizSettings.vue` → `store.save()`).
 - Шаблон «пути страниц в shared»: `packages/shared/routes/teacherPages.ts`.
 
 ## Модель данных (Prisma) — ВЫСОКИЙ РИСК, одна миграция `create_library`
@@ -102,18 +107,17 @@ Store не нужен нигде: данные страниц — `useAsyncData`
 - `entities/quiz`: тип и поле `group` в типах/`newQuestion`.
 - `shared/api/apiClient.ts`: поддержка SSR — база адреса на сервере берётся из `runtimeConfig` (`API_INTERNAL_BASE`, приватная, например `http://api:3000/api`), не из `/api`; на сервере пробрасывается только `X-Real-IP`; без `credentials`. Это изменение общего клиента: покрыть тестами, браузерное поведение не менять.
 - `features/take-library-quiz/`: кнопка «Взять себе» + `useTakeLibraryQuiz` (состояния, 409 лимит, 503, ошибки сети). Знание «вошёл ли учитель» получает через prop из виджета (features не импортируют соседние features). Гость → переход на вход с `?next=<адрес карточки>`; успех → в «Мои задания»/редактор.
-- `widgets/library-browser/`: чипы групп (по `sort_order`, первым «Все»), поле поиска, сетка карточек, пагинация ссылками. Режим `public` (фильтр в пути, ссылки на публичные карточки) и `cabinet` (фильтр в query, внутри `/teacher/library`).
+- `widgets/library-browser/`: список заданий группы с поиском по кнопке и «Показать ещё» (страница `/library/<группа>`). Режима для кабинета нет (решение 2026-11-16).
 - `widgets/library-quiz/`: страница-карточка: название, группа, число вопросов, первые вопросы, кнопка «Взять себе» (с `signedIn` из `@/features/auth`).
 - `widgets/quiz-editor/components/GroupSelect.vue` внутри `QuizSettings.vue`: нативный `<select>` без `<optgroup>`, автосохранение через `store.save()` как у остальных настроек, откат при ошибке. Недоступность списка групп — поле скрыто, остаётся `other`.
-- Страницы `src/pages/LibraryPage.vue` (`/library` и `/library/:group` — один компонент по параметру), `LibraryQuizPage.vue`; тонкие `app/pages/library/index.vue`, `library/[group].vue`, `library/quiz/[slug].vue`. `TeacherLibraryPage.vue` заменяет заглушку (`noindex`, CSR остаётся). Slug `quiz` зарезервирован (проверка в CHECK).
+- Страницы: `src/pages/LibraryPage.vue` (`/library`: плитки групп и поиск), `LibraryGroupPage.vue` (`/library/<группа>`: задания группы), `LibraryQuizPage.vue` (карточка, `/library/quiz/<n>-<slug>`, шаг 10); тонкие `app/pages/library/index.vue`, `library/[group].vue`, `library/quiz/[slug].vue`. Две страницы, а не одна (решение 2026-11-16, ADR 0007). Slug `quiz` зарезервирован (проверка в CHECK).
 - i18n: строки интерфейса `library.*` и `teacher.quizEditor.settings.group*` — во все четыре файла `ru/en/de/fr` (паритет); названия групп — из API.
 - Вёрстка только мобильная ([[mobile-first-only]]), цвета/BEM по CLAUDE.md; `ui-designer` для UI; Нат не трогаем.
 
-### SEO / SSR
-- `nuxt.config.ts`: `/library` и `/library/**` (для каждого языкового префикса) — SSR с `swr` (например 10 минут); `/teacher/library` остаётся в `CLIENT_ONLY_PATHS`. Страницы поиска (`?q=`) и пагинации сверх первой — не кэшируются и получают `noindex,follow`.
+### SEO / SSR (шаг 13, делаем последним)
+- `nuxt.config.ts`: `/library` и `/library/**` (для каждого языкового префикса) — SSR с `swr` (например 10 минут). Страницы поиска (`?q=`) и пагинации сверх первой — не кэшируются и получают `noindex,follow`.
 - Для каждой публичной страницы: уникальные `title`/`description`, `canonical`, OG. Карточка: slug из заголовка; несовпадение slug → 301 (`navigateTo(..., { redirectCode: 301 })`). Языковые варианты `/en/library/...`: контент на языке автора, поэтому canonical карточки указывает на адрес без префикса (допущение; hreflang для карточек не ставим). Списки/группы — canonical на себя, hreflang между языковыми версиями.
-- Sitemap: собственный Nitro-роут (`server/routes/sitemap.xml.ts` + нарезка по ~10 000 URL) поверх `GET /api/library/sitemap`; пакет `@nuxtjs/sitemap` не добавляем. `robots.txt`: Disallow `/play/`, `/teacher/`, `/auth/` (и версии с префиксами языков), `?q=`; строка `Sitemap:` требует абсолютного адреса сайта — нужна публичная переменная `SITE_URL` (проверить, есть ли).
-- `/play/**` в Caddy добавить `X-Robots-Tag: noindex`: страница с `ssr: false` отдаёт пустую оболочку, мета-тег виден только после выполнения JS (задача деплоя, рядом с CSP/Caddyfile).
+- Sitemap: собственный Nitro-роут (`server/routes/sitemap.xml.ts` + нарезка по ~10 000 URL) поверх `GET /api/library/sitemap`; пакет `@nuxtjs/sitemap` не добавляем. `robots.txt`: Disallow `/teacher/`, `/auth/` (и версии с префиксами языков), `?q=`; строка `Sitemap:` требует абсолютного адреса сайта — нужна публичная переменная `SITE_URL` (проверить, есть ли).
 - Черновик публичен сразу после первого сохранения задания (следствие автопубликации): допускаем; в sitemap можно добавлять задания не моложе часа — по желанию.
 
 ## GDPR / удаление
@@ -151,13 +155,13 @@ Store не нужен нигде: данные страниц — `useAsyncData`
 `takeLibraryQuiz.ts`, маршрут, лимиты на учителя/IP.
 Критерий: тесты — копия появляется у учителя с новым `shareToken` и `isPublic=false` (в библиотеке не видна); все `imageId` новые, строки `quiz_images` принадлежат взявшему и привязаны; файлы скопированы; лимит 100 → 409; чужое/скрытое/удалённое → 404; без токена → 401; сбой копирования откатывает и чистит файлы; удаление источника или аккаунта автора не ломает копию (картинки на месте); хранилище не настроено + картинки → 503.
 
-### 7. API: sitemap-данные [small]
+### 7. API: sitemap-данные [small] — перенесено в шаг 13
 `GET /api/library/sitemap` с курсором (номер, дата изменения), лимит.
 Критерий: возвращает только публичные; ответ без лишних полей; тест на пагинацию.
 
 ### 8. Web: основа (api-клиент для SSR, `entities/library`, i18n) [medium]
 `runtimeConfig`, SSR-режим `apiClient` (пробрасывается только `X-Real-IP`), слайс `entities/library`, строки во все 4 локали.
-**Частично выполнено 2026-11-15:** `entities/library` (только `libraryApi.groups` и `useLibraryGroups`), строка `settings.group` в 4 локалях. SSR-режим `apiClient` и `runtimeConfig` перенесены в шаг 10 (нужны только публичным страницам, шаг 10 отложен).
+**Частично выполнено 2026-11-15:** `entities/library` (только `libraryApi.groups` и `useLibraryGroups`), строка `settings.group` в 4 локалях. SSR-режим `apiClient` и `runtimeConfig` перенесены в шаг 13 (нужны только SEO-рендерингу).
 Критерий: unit-тесты клиента (браузер — как раньше, сервер — абсолютный адрес и заголовок, без cookie/Authorization); lint без deep imports; паритет локалей.
 
 ### 9. Web: выбор группы в редакторе [small]
@@ -165,20 +169,25 @@ Store не нужен нигде: данные страниц — `useAsyncData`
 **Выполнено 2026-11-15** (без тестов по просьбе пользователя). Шаги 7, 10, 12 отложены пользователем.
 Критерий: тест редактора (`quizEditor.nuxt.test.ts`): выбор группы уходит в `PATCH` и возвращается; при ошибке откатывается; новое задание — «Разное».
 
-### 10. Web: публичные страницы библиотеки + SEO [large]
-Виджеты `library-browser`, `library-quiz`, страницы, `routeRules` с `swr`, meta/canonical, 301 по slug.
-Критерий: HTML ответа сервера содержит заголовок и карточки (curl без JS); canonical и robots корректны; поиск `noindex`; удалённое/скрытое — 404 страница; фильтр по группе работает по URL; Playwright-сценарий.
+### 10. Web: публичные страницы библиотеки [large]
+Виджет `library-quiz`, страницы, маршрут `/library/quiz/<n>-<slug>`. SEO (`routeRules` с `swr`, meta/canonical, 301 по slug) — в шаге 13.
+Критерий: `/library` и `/library/<группа>` открываются, фильтр по группе работает по URL; удалённое или скрытое задание показывает страницу 404; Playwright-сценарий.
 
-### 11. Web: «Взять себе» и вкладка кабинета [medium]
-**Вкладка кабинета частично выполнена 2026-11-15** (по просьбе пользователя, раньше шага 10): `widgets/library-browser` — чипы групп, поиск по кнопке «Найти», список, «Показать ещё»; `TeacherLibraryPage` вместо заглушки. Карточки задания и «Взять себе» нет (решение пользователя: карточку — вместе с «Взять себе»). Свои задания учителя показываются вместе со всеми.
-Фича `take-library-quiz`, `TeacherLibraryPage` с `library-browser` в режиме cabinet.
+### 11. Web: «Взять себе» и карточка [medium]
+Вкладки библиотеки в кабинете не будет (решение 2026-11-16): библиотека только публичная, вход — из меню и футера. Запись «частично выполнено 2026-11-15» была ошибкой: в коде кабинетной вкладки нет (проверено 2026-11-16).
+Фича `take-library-quiz`, карточка задания с кнопкой «Взять себе».
 Критерий: гость → вход с `?next=` и возврат на карточку; вошедший → копия в «Мои задания»; 409 и 503 показывают понятные тексты; двойной клик не создаёт две копии.
 
-### 12. sitemap, robots, деплой-заметки, документация [medium]
-Nitro-роуты `sitemap.xml`/`robots.txt`, `X-Robots-Tag` для `/play/**` и проброс `X-Real-IP` в Caddyfile/`TRUSTED_PROXY_IPS`, обновление `docs/architecture.md` (раздел «Библиотека», лимиты, SEO, миграция).
-Критерий: `/sitemap.xml` перечисляет только публичные адреса; robots закрывает `/play/`, `/teacher/`, `/auth/`; за Caddy лимит считается по IP посетителя, а не контейнера web.
+### 12. Деплой-заметки и документация [medium]
+Проброс `X-Real-IP` в Caddyfile/`TRUSTED_PROXY_IPS` (лимиты по IP посетителя), обновление `docs/architecture.md` (раздел «Библиотека», лимиты, миграция). Sitemap и robots — в шаге 13.
+Критерий: за Caddy лимит считается по IP посетителя, а не контейнера web.
 
-### 13. Итоговая проверка [small]
+### 13. SEO: SSR, meta, sitemap, robots [large] — делаем последним
+Перенесено из шагов 7, 8, 10, 12; подробности — раздел «SEO / SSR». Включает: SSR-режим `apiClient` и `runtimeConfig`; `routeRules` с `swr`; meta/canonical/OG; 301 по slug; `noindex` для `?q=`; `/sitemap.xml` (данные шага 7) и `robots.txt`.
+Критерий: HTML ответа сервера содержит заголовок и карточки (curl без JS); canonical и robots корректны; `/sitemap.xml` перечисляет только публичные адреса.
+Запуск — когда страницы и адреса (`/library/<группа>`, `/library/quiz/<n>-<slug>`) стабильны: смена адресов после индексации дорогая (редиректы, потеря позиций).
+
+### 14. Итоговая проверка [small]
 Tester → code-reviewer (по командной схеме), `npm audit` (новых зависимостей нет), чек-лист: нет `shareToken` и данных учителя в публичных ответах, GDPR-сценарий (удаление аккаунта убирает страницы и файлы).
 
 ## Риски и граничные случаи

@@ -14,6 +14,15 @@ const PUBLIC_SELECT = {
   createdAt: true,
 } satisfies Prisma.QuizSelect
 
+// Для «Взять себе»: полное содержимое задания. Результат публичным не отдаётся — только копируется учителю
+const COPY_SELECT = {
+  title: true,
+  showAnswers: true,
+  gradingScale: true,
+  groupSlug: true,
+  questions: true,
+} satisfies Prisma.QuizSelect
+
 // Prisma передаёт contains в ILIKE как есть: % и _ из поиска иначе работали бы как шаблоны.
 // Обратная косая — экранирующий символ LIKE в Postgres по умолчанию
 function escapeLike(value: string): string {
@@ -57,6 +66,10 @@ export function makeLibraryRepository(prisma: PrismaClient): LibraryRepository {
     async findByNumber(number) {
       const row = await prisma.quiz.findFirst({ where: { ...PUBLIC_WHERE, publicNumber: number }, select: PUBLIC_SELECT })
       return row === null ? null : toLibraryQuizRow(row)
+    },
+
+    async findForCopy(number) {
+      return prisma.quiz.findFirst({ where: { ...PUBLIC_WHERE, publicNumber: number }, select: COPY_SELECT })
     },
   }
 }

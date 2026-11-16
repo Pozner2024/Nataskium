@@ -1,10 +1,11 @@
-// Публичная библиотека: без аккаунта, все маршруты под лимитом по IP.
+// Публичная библиотека: чтение без аккаунта, все маршруты под лимитом по IP; «Взять себе» — только под Bearer.
 // Поисковые запросы и номера не логируются
 import {
   type LibraryGroupsResponse,
   type LibraryListQuery,
   type LibraryListResponse,
   type LibraryQuizResponse,
+  type LibraryTakeResponse,
   libraryListQuerySchema,
   libraryNumberSchema,
 } from '@nataskium/shared/schemas'
@@ -15,12 +16,23 @@ import { libraryNotFound } from '../application/libraryErrors'
 
 export const LIBRARY_ROUTES_BASE_PATH = '/api/library'
 
+const CREATED_STATUS = 201
+
 export type LibraryRouterDeps = {
   listLibraryGroups: () => Promise<LibraryGroupsResponse>
   listLibraryQuizzes: (query: LibraryListQuery) => Promise<LibraryListResponse>
   getLibraryQuiz: (number: number) => Promise<LibraryQuizResponse>
+  takeLibraryQuiz: (teacherId: string, number: number) => Promise<LibraryTakeResponse>
+  requireAuth: MiddlewareHandler
   clientIp: (c: Context) => string
-  limiters: { groups: RateLimiter; list: RateLimiter; search: RateLimiter; quiz: RateLimiter }
+  limiters: {
+    groups: RateLimiter
+    list: RateLimiter
+    search: RateLimiter
+    quiz: RateLimiter
+    takePerIp: RateLimiter
+    takePerTeacher: RateLimiter
+  }
 }
 
 function parseListQuery(c: Context): LibraryListQuery {
@@ -50,6 +62,18 @@ export function makeLibraryRouter(deps: LibraryRouterDeps) {
 
   router.get('/:number', deps.limiters.quiz.middleware(byIp), async (c) =>
     c.json(await deps.getLibraryQuiz(parseNumber(c.req.param('number')))),
+  )
+
+  // Лимит по IP раньше проверки токена: неавторизованный поток не должен доходить до верификации
+  router.post(
+    '/:number/take',
+    deps.limiters.takePerIp.middleware(byIp),
+    deps.requireAuth,
+    deps.limiters.takePerTeacher.middleware((c) => c.get('teacherId')),
+    async (c) => {
+      const response = await deps.takeLibraryQuiz(c.get('teacherId'), parseNumber(c.req.param('number')))
+      return c.json(response, CREATED_STATUS)
+    },
   )
 
   return router
