@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { QUIZ_ACTIVITY } from '@nataskium/shared/schemas'
 import { Prisma, type PrismaClient } from '../../../generated/prisma/client'
 import type { LibraryQuizListRow, LibraryQuizRow, LibraryRepository } from '../types'
 
@@ -63,6 +64,8 @@ function toLibraryQuizRow(row: PublicRow): LibraryQuizRow {
   }
 }
 
+// Карточка, «Взять себе» и список пока показывают только викторины (type = quiz): ветвление по типу и снятие
+// фильтра в list — шаг 7 плана matching
 export function makeLibraryRepository(prisma: PrismaClient): LibraryRepository {
   return {
     async listGroups() {
@@ -84,7 +87,7 @@ export function makeLibraryRepository(prisma: PrismaClient): LibraryRepository {
           created_at AS "createdAt",
           CASE WHEN jsonb_typeof(questions) = 'array' THEN jsonb_array_length(questions) END AS "questionCount"
         FROM quizzes
-        WHERE ${PUBLIC_SQL} ${byGroup} ${byTitle}
+        WHERE ${PUBLIC_SQL} AND type = ${QUIZ_ACTIVITY} ${byGroup} ${byTitle}
         ORDER BY created_at DESC, id DESC
         OFFSET ${offset} LIMIT ${limit}
       `
@@ -92,12 +95,12 @@ export function makeLibraryRepository(prisma: PrismaClient): LibraryRepository {
     },
 
     async findByNumber(number) {
-      const row = await prisma.quiz.findFirst({ where: { ...PUBLIC_WHERE, publicNumber: number }, select: PUBLIC_SELECT })
+      const row = await prisma.quiz.findFirst({ where: { ...PUBLIC_WHERE, type: QUIZ_ACTIVITY, publicNumber: number }, select: PUBLIC_SELECT })
       return row === null ? null : toLibraryQuizRow(row)
     },
 
     async findForCopy(number) {
-      return prisma.quiz.findFirst({ where: { ...PUBLIC_WHERE, publicNumber: number }, select: COPY_SELECT })
+      return prisma.quiz.findFirst({ where: { ...PUBLIC_WHERE, type: QUIZ_ACTIVITY, publicNumber: number }, select: COPY_SELECT })
     },
   }
 }

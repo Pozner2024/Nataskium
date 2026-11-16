@@ -103,7 +103,7 @@ describe('/api/quizzes', () => {
 
     const list = quizListResponseSchema.parse(await (await call('GET', '/', headers)).json())
     expect(list.quizzes).toEqual([
-      { id: quiz.id, title: 'Столицы', questionCount: 1, gradingScale: 'five', shareToken: quiz.shareToken },
+      { id: quiz.id, type: 'quiz', title: 'Столицы', questionCount: 1, gradingScale: 'five', shareToken: quiz.shareToken },
     ])
     const got = quizResponseSchema.parse(await (await call('GET', `/${quiz.id}`, headers)).json())
     expect(got.quiz).toEqual(quiz)
@@ -531,7 +531,7 @@ describe('/api/quizzes: учителя уже нет', () => {
 })
 
 describe('GET /api/quizzes: список без разбора вопросов', () => {
-  const SUMMARY_KEYS = ['gradingScale', 'id', 'questionCount', 'shareToken', 'title']
+  const SUMMARY_KEYS = ['gradingScale', 'id', 'questionCount', 'shareToken', 'title', 'type']
 
   afterEach(() => {
     vi.restoreAllMocks()
@@ -562,8 +562,8 @@ describe('GET /api/quizzes: список без разбора вопросов'
 
     for (const item of body.quizzes) expect(Object.keys(item).sort()).toEqual(SUMMARY_KEYS)
     expect(quizListResponseSchema.parse(body).quizzes).toEqual([
-      { id: newer.id, title: 'Новая', questionCount: 3, gradingScale: null, shareToken: newer.shareToken },
-      { id: older.id, title: 'Старая', questionCount: 1, gradingScale: null, shareToken: older.shareToken },
+      { id: newer.id, type: 'quiz', title: 'Новая', questionCount: 3, gradingScale: null, shareToken: newer.shareToken },
+      { id: older.id, type: 'quiz', title: 'Старая', questionCount: 1, gradingScale: null, shareToken: older.shareToken },
     ])
   })
 

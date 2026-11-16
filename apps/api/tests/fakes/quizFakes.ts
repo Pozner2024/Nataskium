@@ -18,6 +18,7 @@ export function makeFakeQuizRepository(takenTokens: string[] = []) {
         .filter((r) => r.teacherId === teacherId && r.deletedAt === null)
         .map(({ quiz }) => ({
           id: quiz.id,
+          type: 'quiz' as const,
           title: quiz.title,
           questionCount: quiz.questions.length,
           gradingScale: quiz.gradingScale,

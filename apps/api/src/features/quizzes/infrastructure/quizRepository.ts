@@ -1,4 +1,5 @@
 import {
+  QUIZ_ACTIVITY,
   type QuizSummary,
   quizInputSchema,
   quizSummarySchema,
@@ -46,6 +47,8 @@ function toQuizSummary(row: unknown): QuizSummary {
   return parsed.data
 }
 
+// Методы с id и токеном видят только викторины (type = quiz): строки других типов (ADR-0013) схемой викторины
+// не разбираются. Список, подсчёт и purge — намеренно по всем типам.
 // Принимает и клиент транзакции: в ней викторина сохраняется вместе с привязкой картинок
 export function makeQuizRepository(prisma: Prisma.TransactionClient): QuizRepository {
   return {
@@ -54,7 +57,7 @@ export function makeQuizRepository(prisma: Prisma.TransactionClient): QuizReposi
     // Не массив — NULL, и строка не пройдёт схему (500), как и прежде при рассинхроне
     async listByTeacher(teacherId) {
       const rows = await prisma.$queryRaw<unknown[]>`
-        SELECT id::text AS id, title, share_token AS "shareToken", grading_scale AS "gradingScale",
+        SELECT id::text AS id, type, title, share_token AS "shareToken", grading_scale AS "gradingScale",
           CASE WHEN jsonb_typeof(questions) = 'array' THEN jsonb_array_length(questions) END AS "questionCount"
         FROM quizzes
         WHERE teacher_id = ${teacherId}::uuid AND deleted_at IS NULL
@@ -68,7 +71,7 @@ export function makeQuizRepository(prisma: Prisma.TransactionClient): QuizReposi
     },
 
     async findOwned(id, teacherId) {
-      const row = await prisma.quiz.findFirst({ where: { id, teacherId, deletedAt: null }, select: QUIZ_SELECT })
+      const row = await prisma.quiz.findFirst({ where: { id, teacherId, type: QUIZ_ACTIVITY, deletedAt: null }, select: QUIZ_SELECT })
       return row === null ? null : toStoredQuiz(row)
     },
 
@@ -77,6 +80,7 @@ export function makeQuizRepository(prisma: Prisma.TransactionClient): QuizReposi
         const row = await prisma.quiz.create({
           data: {
             teacherId,
+            type: QUIZ_ACTIVITY,
             shareToken,
             isPublic,
             title: input.title,
@@ -98,7 +102,7 @@ export function makeQuizRepository(prisma: Prisma.TransactionClient): QuizReposi
 
     async updateOwned(id, teacherId, input) {
       const { count } = await prisma.quiz.updateMany({
-        where: { id, teacherId, deletedAt: null },
+        where: { id, teacherId, type: QUIZ_ACTIVITY, deletedAt: null },
         data: {
           title: input.title,
           showAnswers: input.showAnswers,
@@ -113,7 +117,7 @@ export function makeQuizRepository(prisma: Prisma.TransactionClient): QuizReposi
 
     async softDeleteOwned(id, teacherId) {
       const { count } = await prisma.quiz.updateMany({
-        where: { id, teacherId, deletedAt: null },
+        where: { id, teacherId, type: QUIZ_ACTIVITY, deletedAt: null },
         data: { deletedAt: new Date() },
       })
       return count === 1
@@ -129,7 +133,7 @@ export function makeQuizRepository(prisma: Prisma.TransactionClient): QuizReposi
     },
 
     async findByShareToken(token) {
-      const row = await prisma.quiz.findFirst({ where: { shareToken: token, deletedAt: null }, select: QUIZ_SELECT })
+      const row = await prisma.quiz.findFirst({ where: { shareToken: token, type: QUIZ_ACTIVITY, deletedAt: null }, select: QUIZ_SELECT })
       return row === null ? null : toStoredQuiz(row)
     },
   }

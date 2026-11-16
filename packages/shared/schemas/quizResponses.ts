@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { GRADING_SCALE_TYPES } from '../grading'
 import type { QuizResult } from '../grading'
+import { activityKindSchema } from './activity'
 import {
   imageIdSchema,
   optionSchema,
@@ -13,8 +14,10 @@ import {
 
 // Формы ответов /api/quizzes/* и /api/play/*: API выводит из них типы, фронтенд разбирает ими ответ
 
+// Список кабинета показывает задания всех типов
 export const quizSummarySchema = z.object({
   id: quizIdSchema,
+  type: activityKindSchema,
   title: z.string(),
   questionCount: z.number().int().min(0),
   gradingScale: z.enum(GRADING_SCALE_TYPES).nullable(),

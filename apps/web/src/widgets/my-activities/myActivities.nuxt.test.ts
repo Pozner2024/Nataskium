@@ -10,8 +10,8 @@ mockNuxtImport('navigateTo', () => navigateToMock)
 
 const TEACHER = { id: 't1', email: 'qa-anna@example.test', displayName: 'Анна', hasPassword: true, hasGoogle: false }
 const QUIZZES = [
-  { id: 'q1', title: 'Столицы', questionCount: 3, gradingScale: null, shareToken: 'tok-1' },
-  { id: 'q2', title: 'Дроби', questionCount: 5, gradingScale: null, shareToken: 'tok-2' },
+  { id: 'q1', type: 'quiz' as const, title: 'Столицы', questionCount: 3, gradingScale: null, shareToken: 'tok-1' },
+  { id: 'q2', type: 'quiz' as const, title: 'Дроби', questionCount: 5, gradingScale: null, shareToken: 'tok-2' },
 ]
 
 beforeEach(() => {
