@@ -253,6 +253,29 @@ describe('POST /api/library/:number/take', () => {
     expect(await prisma.quizImage.count()).toBe(2)
   })
 
+  it('аккаунт автора удалён: его карточка и строка в списке библиотеки исчезают, ответ — обычный 404', async () => {
+    const author = await createTeacher(prisma)
+    const other = await createTeacher(prisma)
+    const { quiz: mine } = await seedSource(null, author.id)
+    const { quiz: foreign } = await seedSource(null, other.id)
+    expect((await get(`${LIBRARY}/${mine.publicNumber}`)).status).toBe(200)
+    const listedBefore = (await (await get(`${LIBRARY}?group=other`)).json()) as { quizzes: { number: number }[] }
+    expect(listedBefore.quizzes.map((item) => item.number)).toContain(mine.publicNumber)
+
+    await prisma.teacher.delete({ where: { id: author.id } })
+
+    const card = await get(`${LIBRARY}/${mine.publicNumber}`)
+    const unknown = await get(`${LIBRARY}/${NOT_FOUND_NUMBER}`)
+    expect(card.status).toBe(404)
+    // Неотличим от несуществующего номера: по ответу не понять, что задание было
+    expect(await card.json()).toEqual(await unknown.json())
+    const listedAfter = (await (await get(`${LIBRARY}?group=other`)).json()) as { quizzes: { number: number }[] }
+    expect(listedAfter.quizzes.map((item) => item.number)).not.toContain(mine.publicNumber)
+    // Чужое задание не затронуто
+    expect(listedAfter.quizzes.map((item) => item.number)).toContain(foreign.publicNumber)
+    expect((await get(`${LIBRARY}/${foreign.publicNumber}`)).status).toBe(200)
+  })
+
   it('хранилище не настроено и картинки есть → 503, копии нет; без картинок — 201', async () => {
     const author = await createTeacher(prisma)
     const taker = await createTeacher(prisma)
