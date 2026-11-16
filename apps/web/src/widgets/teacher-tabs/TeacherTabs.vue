@@ -22,7 +22,6 @@ import { TEACHER_PATHS } from '@/shared'
 const TABS = [
   { path: TEACHER_PATHS.activities, labelKey: 'teacher.tabs.activities', icon: 'M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01' },
   { path: TEACHER_PATHS.create, labelKey: 'teacher.tabs.create', icon: 'M12 6v12M6 12h12', isCreate: true },
-  { path: TEACHER_PATHS.library, labelKey: 'teacher.tabs.library', icon: 'M4 19V5h4v14M8 19V5h5v14M13 19l2.5-14 4 .7-2.5 13.3M3 20h18' },
   {
     path: TEACHER_PATHS.settings,
     labelKey: 'teacher.tabs.settings',

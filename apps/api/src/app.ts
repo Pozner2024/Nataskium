@@ -39,6 +39,17 @@ import {
   makeVerifyEmail,
 } from './features/auth'
 import {
+  LIBRARY_LIMITS,
+  LIBRARY_ROUTES_BASE_PATH,
+  makeGetLibraryQuiz,
+  makeLibraryRepository,
+  makeLibraryRouter,
+  makeListLibraryGroups,
+  makeListLibraryQuizzes,
+  makeTakeLibraryQuiz,
+  type LibraryImageCopier,
+} from './features/library'
+import {
   PLAY_LIMITS,
   PLAY_ROUTES_BASE_PATH,
   makeCheckAnswer,
@@ -337,6 +348,46 @@ export function createApp({ env, prisma, limits, passwordHasher, emailSender, go
         get: playLimiter(PLAY_LIMITS.get),
         check: playLimiter(PLAY_LIMITS.check),
         finish: playLimiter(PLAY_LIMITS.finish),
+      },
+    }),
+  )
+
+  // Библиотека: чтение публичное, только лимиты по IP; «Взять себе» — под Bearer
+  const library = makeLibraryRepository(prisma)
+  const libraryImageCopier: LibraryImageCopier | null =
+    imageStorage === null
+      ? null
+      : {
+          copyFile: (fromImageId, toImageId) => imageStorage.copy(quizImageKey(fromImageId), quizImageKey(toImageId)),
+          createRow: async (imageId, teacherId) => {
+            await quizImages.create(imageId, teacherId)
+          },
+          deleteRows: (imageIds) => quizImages.deleteRows(imageIds),
+          removeFiles: (imageIds) => imageStorage.remove(imageIds.map(quizImageKey)),
+        }
+  const libraryLimiter = (limit: { max: number; windowMs: number }) =>
+    createRateLimiter({ ...limit, maxTrackedKeys: LIBRARY_LIMITS.maxTrackedKeys })
+  app.route(
+    LIBRARY_ROUTES_BASE_PATH,
+    makeLibraryRouter({
+      listLibraryGroups: makeListLibraryGroups({ library }),
+      listLibraryQuizzes: makeListLibraryQuizzes({ library }),
+      getLibraryQuiz: makeGetLibraryQuiz({ library, imageUrl }),
+      takeLibraryQuiz: makeTakeLibraryQuiz({
+        library,
+        countQuizzes: (teacherId) => quizzes.countByTeacher(teacherId),
+        imageCopier: libraryImageCopier,
+        createQuiz: makeCreateQuiz(quizWriteDeps),
+      }),
+      requireAuth: makeRequireAuth(tokens.verifyAccessToken),
+      clientIp: makeClientIpResolver(env.TRUSTED_PROXY_IPS),
+      limiters: {
+        groups: libraryLimiter(LIBRARY_LIMITS.groups),
+        list: libraryLimiter(LIBRARY_LIMITS.list),
+        search: libraryLimiter(LIBRARY_LIMITS.search),
+        quiz: libraryLimiter(LIBRARY_LIMITS.quiz),
+        takePerIp: libraryLimiter(LIBRARY_LIMITS.take.perIp),
+        takePerTeacher: libraryLimiter(LIBRARY_LIMITS.take.perTeacher),
       },
     }),
   )

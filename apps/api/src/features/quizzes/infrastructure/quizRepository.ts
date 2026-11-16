@@ -9,6 +9,7 @@ const QUIZ_SELECT = {
   shareToken: true,
   showAnswers: true,
   gradingScale: true,
+  groupSlug: true,
   questions: true,
   updatedAt: true,
 } satisfies Prisma.QuizSelect
@@ -21,6 +22,7 @@ function toStoredQuiz(row: QuizRow): StoredQuiz {
     title: row.title,
     showAnswers: row.showAnswers,
     gradingScale: row.gradingScale,
+    group: row.groupSlug,
     questions: row.questions,
   })
   if (!parsed.success) throw new Error(`Stored quiz ${row.id} does not match the quiz schema`)
@@ -49,15 +51,17 @@ export function makeQuizRepository(prisma: Prisma.TransactionClient): QuizReposi
       return row === null ? null : toStoredQuiz(row)
     },
 
-    async create(teacherId, input, shareToken) {
+    async create(teacherId, input, shareToken, isPublic = true) {
       try {
         const row = await prisma.quiz.create({
           data: {
             teacherId,
             shareToken,
+            isPublic,
             title: input.title,
             showAnswers: input.showAnswers,
             gradingScale: input.gradingScale,
+            groupSlug: input.group,
             questions: input.questions,
           },
           select: QUIZ_SELECT,
@@ -76,6 +80,7 @@ export function makeQuizRepository(prisma: Prisma.TransactionClient): QuizReposi
           title: input.title,
           showAnswers: input.showAnswers,
           gradingScale: input.gradingScale,
+          groupSlug: input.group,
           questions: input.questions,
         },
       })
@@ -88,6 +93,10 @@ export function makeQuizRepository(prisma: Prisma.TransactionClient): QuizReposi
         data: { deletedAt: new Date() },
       })
       return count === 1
+    },
+
+    async groupExists(slug) {
+      return (await prisma.libraryGroup.count({ where: { slug } })) === 1
     },
 
     async findByShareToken(token) {

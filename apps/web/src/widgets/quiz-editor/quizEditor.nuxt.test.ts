@@ -126,7 +126,7 @@ describe('Редактор викторины: загрузка', () => {
   })
 
   it('«Настройки и ссылка» сохраняет и показывает ссылку ученика', async () => {
-    const quiz = saved({ title: 'Дроби', showAnswers: true, gradingScale: null, questions: [{ text: 'Q', imageId: null, options: [{ text: 'a', isCorrect: true, imageId: null }, { text: 'b', isCorrect: false, imageId: null }] }] })
+    const quiz = saved({ title: 'Дроби', showAnswers: true, gradingScale: null, group: 'other', questions: [{ text: 'Q', imageId: null, options: [{ text: 'a', isCorrect: true, imageId: null }, { text: 'b', isCorrect: false, imageId: null }] }] })
     vi.spyOn(quizApi, 'get').mockResolvedValue(quiz)
     const update = vi.spyOn(quizApi, 'update').mockResolvedValue(quiz)
     const wrapper = await mountSuspended(QuizEditorPage, { props: { quizId: ID } })
@@ -147,6 +147,7 @@ const FETCHED = saved({
   title: 'Дроби',
   showAnswers: true,
   gradingScale: null,
+  group: 'other',
   questions: [{ text: 'Q', imageId: null, options: [{ text: 'a', isCorrect: true, imageId: null }, { text: 'b', isCorrect: false, imageId: null }] }],
 })
 

@@ -39,6 +39,7 @@ function toQuizResponse(quiz: StoredQuiz, imageUrl: ImageUrl): QuizResponse {
       title: quiz.title,
       showAnswers: quiz.showAnswers,
       gradingScale: quiz.gradingScale,
+      group: quiz.group,
       questions: quiz.questions.map((question) => ({
         ...question,
         imageUrl: urlOf(imageUrl, question.imageId),

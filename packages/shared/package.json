@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./grading": "./grading/index.ts",
+    "./library": "./library/index.ts",
     "./schemas": "./schemas/index.ts",
     "./routes": "./routes/index.ts",
     "./locales": "./locales/index.ts"

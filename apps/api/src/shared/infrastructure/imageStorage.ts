@@ -1,4 +1,4 @@
-import { DeleteObjectsCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
+import { CopyObjectCommand, DeleteObjectsCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
 import { NodeHttpHandler } from '@smithy/node-http-handler'
 import type { Env } from '../config'
 import { ExternalServiceError } from '../errors'
@@ -11,6 +11,8 @@ export type StoredObject = { key: string; lastModified: Date | null }
 // Порт хранилища картинок викторин. Сбой хранилища — ExternalServiceError (→ 503)
 export type ImageStorage = {
   put(key: string, body: Uint8Array, contentType: ImageContentType): Promise<void>
+  // Копия внутри бакета, без скачивания: «Взять себе» из библиотеки получает свои файлы, а не общие с автором
+  copy(fromKey: string, toKey: string): Promise<void>
   remove(keys: readonly string[]): Promise<void>
   // С датой изменения: сверка не трогает свежие файлы, к которым ещё пишется строка
   listObjects(prefix: string): Promise<StoredObject[]>
@@ -114,6 +116,13 @@ export function makeS3ImageStorage(config: S3ImageStorageConfig, client: S3Clien
           new PutObjectCommand({ Bucket: bucket, Key: key, Body: body, ContentType: contentType, CacheControl: IMAGE_CACHE_CONTROL }),
         ),
       )
+    },
+
+    async copy(fromKey, toKey) {
+      assertImageKey(fromKey)
+      assertImageKey(toKey)
+      // Метаданные (Content-Type, Cache-Control) копируются вместе с объектом: MetadataDirective по умолчанию COPY
+      await withStorageErrors(() => client.send(new CopyObjectCommand({ Bucket: bucket, CopySource: `${bucket}/${fromKey}`, Key: toKey })))
     },
 
     async remove(keys) {

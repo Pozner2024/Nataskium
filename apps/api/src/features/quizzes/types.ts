@@ -9,9 +9,11 @@ export type QuizRepository = {
   countByTeacher(teacherId: string): Promise<number>
   findOwned(id: string, teacherId: string): Promise<StoredQuiz | null>
   // null — shareToken уже занят (одна повторная попытка с новым токеном делается в use-case)
-  create(teacherId: string, input: QuizInput, shareToken: string): Promise<StoredQuiz | null>
+  // isPublic по умолчанию true: задание автоматически публикуется в библиотеку; копия из библиотеки — false
+  create(teacherId: string, input: QuizInput, shareToken: string, isPublic?: boolean): Promise<StoredQuiz | null>
   updateOwned(id: string, teacherId: string, input: QuizInput): Promise<boolean>
   softDeleteOwned(id: string, teacherId: string): Promise<boolean>
+  groupExists(slug: string): Promise<boolean>
   // Для ученика: без владельца, но удалённая не находится
   findByShareToken(token: string): Promise<StoredQuiz | null>
 }

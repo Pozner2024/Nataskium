@@ -1,5 +1,5 @@
 <template>
-  <button ref="root" class="nat-robot" :class="{ 'nat-robot--paused': isPaused }" type="button" :aria-label="label" :style="{ width: `calc(var(--nat-unit) * ${viewBoxWidth})` }" @click="onClick">
+  <button ref="root" class="nat-robot" :class="{ 'nat-robot--paused': isPaused || isStill }" type="button" :aria-label="label" :style="{ width: `calc(var(--nat-unit) * ${viewBoxWidth})` }" @click="onClick">
     <svg ref="svg" class="nat-robot__svg" :viewBox="viewBox" aria-hidden="true">
       <defs>
         <slot name="defs" />
@@ -26,10 +26,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, shallowRef } from 'vue'
+import { computed, inject, ref, shallowRef } from 'vue'
 import { useOffscreenPause } from '../lib'
 import NatFigure from './NatFigure.vue'
 import { aimAt, easeGaze, NO_GAZE, useSvgPointer } from './lib/gaze'
+import { NAT_STILL } from './lib/natStill'
 import { useFrameLoop } from './lib/useFrameLoop'
 
 const HEAD_CENTER = { x: 255, y: 288 }
@@ -61,6 +62,9 @@ const svg = ref<SVGSVGElement | null>(null)
 const figure = ref<InstanceType<typeof NatFigure> | null>(null)
 const gaze = shallowRef(NO_GAZE)
 const { isPaused } = useOffscreenPause(root)
+const still = inject(NAT_STILL, null)
+// В режиме NAT_STILL парение и моргание стоят, пока Нат не разбужен
+const isStill = computed(() => still !== null && !still.isAwake.value)
 
 if (props.followsCursor) {
   const getPointer = useSvgPointer(svg)

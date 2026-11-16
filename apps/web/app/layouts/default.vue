@@ -4,13 +4,14 @@
     <div class="default-layout__content">
       <slot />
     </div>
-    <PreFooter v-if="withPreFooter" />
+    <PreFooter v-if="withPreFooter && route.meta.preFooter !== false" />
     <AppFooter />
   </div>
 </template>
 
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted } from 'vue'
+import { useRoute } from '#imports'
 import { restoreSession } from '@/features/auth'
 import { initPcbGlow } from '@/shared'
 import { AppFooter } from '@/widgets/app-footer'
@@ -26,7 +27,9 @@ onBeforeUnmount(() => {
   stopPcbGlow?.()
 })
 
-// Призыв «Начните прямо сейчас» не нужен на страницах без учебного контента, например на ошибке
+// Призыв «Начните прямо сейчас» не нужен на страницах без учебного контента, например на ошибке.
+// Страница отключает его через definePageMeta({ preFooter: false }), ошибка — через проп
+const route = useRoute()
 withDefaults(defineProps<{ withPreFooter?: boolean }>(), { withPreFooter: true })
 </script>
 

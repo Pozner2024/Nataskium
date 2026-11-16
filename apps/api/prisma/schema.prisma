@@ -132,22 +132,43 @@ model PendingGoogleReauth {
 // CHECK добавлены вручную в миграции create_quizzes: grading_scale только ten/five/letter, title и share_token не пустые.
 // Мягкое удаление через deleted_at; при удалении аккаунта строки удаляются каскадом (GDPR)
 model Quiz {
-  id           String    @id @default(uuid()) @db.Uuid
-  teacherId    String    @map("teacher_id") @db.Uuid
-  title        String
-  shareToken   String    @unique @map("share_token")
-  showAnswers  Boolean   @default(true) @map("show_answers")
-  gradingScale String?   @map("grading_scale")
-  questions    Json
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz
-  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz
+  id                 String    @id @default(uuid()) @db.Uuid
+  teacherId          String    @map("teacher_id") @db.Uuid
+  title              String
+  shareToken         String    @unique @map("share_token")
+  showAnswers        Boolean   @default(true) @map("show_answers")
+  gradingScale       String?   @map("grading_scale")
+  questions          Json
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt          DateTime? @map("deleted_at") @db.Timestamptz
+  // Библиотека: задание публикуется сразу при создании; скрыть его сможет только платный тариф (пока никто)
+  groupSlug          String    @default("other") @map("group_slug")
+  isPublic           Boolean   @default(true) @map("is_public")
+  // Номер в публичном адресе /library/quiz/<номер>-<slug>; не связан с id и shareToken
+  publicNumber       Int       @unique @default(autoincrement()) @map("public_number")
+  // Заготовка модерации: задание скрыто из библиотеки, пока стоит дата. Ставить её пока нечему
+  moderationHiddenAt DateTime? @map("moderation_hidden_at") @db.Timestamptz
 
-  teacher Teacher     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  teacher Teacher      @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  group   LibraryGroup @relation(fields: [groupSlug], references: [slug], onDelete: Restrict)
   images  QuizImage[]
 
   @@index([teacherId, deletedAt])
+  @@index([groupSlug, createdAt(sort: Desc)])
   @@map("quizzes")
+}
+
+// Разделы библиотеки — данные, а не enum: новая группа добавляется миграцией без правки кода.
+// CHECK в миграции create_library: названия на всех языках сайта и непустые, формат slug, slug `quiz` запрещён
+model LibraryGroup {
+  slug      String @id
+  sortOrder Int    @unique @map("sort_order")
+  names     Json
+
+  quizzes Quiz[]
+
+  @@map("library_groups")
 }
 
 // Загруженная учителем картинка: файл — `quiz-images/<id>.webp` в хранилище, здесь только владелец и привязка.

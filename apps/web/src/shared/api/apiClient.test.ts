@@ -183,6 +183,47 @@ describe('apiRequestWithoutBody', () => {
   })
 })
 
+describe('apiRequest: таймаут', () => {
+  const DEFAULT_TIMEOUT_MS = 15_000
+  const UPLOAD_TIMEOUT_MS = 120_000
+  const CUSTOM_TIMEOUT_MS = 60_000
+
+  function stubTimeout() {
+    const timeout = vi.spyOn(AbortSignal, 'timeout')
+    return timeout
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('по умолчанию — 15 секунд', async () => {
+    const timeout = stubTimeout()
+
+    await apiRequest('/auth/me', authSessionResponseSchema, { method: 'GET' })
+
+    expect(timeout).toHaveBeenCalledWith(DEFAULT_TIMEOUT_MS)
+  })
+
+  it('FormData по умолчанию — 120 секунд', async () => {
+    const timeout = stubTimeout()
+
+    await apiRequest('/quiz-images', authSessionResponseSchema, { body: new FormData() })
+
+    expect(timeout).toHaveBeenCalledWith(UPLOAD_TIMEOUT_MS)
+  })
+
+  it('timeoutMs заменяет значение по умолчанию только для этого запроса', async () => {
+    const timeout = stubTimeout()
+
+    await apiRequest('/library/1/take', authSessionResponseSchema, { timeoutMs: CUSTOM_TIMEOUT_MS })
+    await apiRequest('/auth/me', authSessionResponseSchema, { method: 'GET' })
+
+    expect(timeout).toHaveBeenNthCalledWith(1, CUSTOM_TIMEOUT_MS)
+    expect(timeout).toHaveBeenNthCalledWith(2, DEFAULT_TIMEOUT_MS)
+  })
+})
+
 describe('apiRequest: тело FormData', () => {
   it('FormData уходит как есть — без Content-Type и без JSON.stringify', async () => {
     const form = new FormData()

@@ -1,0 +1,86 @@
+import { z } from 'zod'
+import { SUPPORTED_LOCALES } from '../locales'
+
+export const DEFAULT_GROUP_SLUG = 'other'
+export const LIBRARY_PAGE_SIZE = 24
+export const LIBRARY_MAX_PAGE = 200
+export const LIBRARY_SEARCH_MIN_LENGTH = 2
+export const LIBRARY_SEARCH_MAX_LENGTH = 60
+// Сколько вопросов видно на странице задания в библиотеке; остальные учитель получает после «Взять себе»
+export const LIBRARY_PREVIEW_QUESTIONS = 5
+
+// Занят адресом карточки: /library/quiz/<номер>
+const RESERVED_GROUP_SLUGS = ['quiz']
+
+export const groupSlugSchema = z
+  .string()
+  .regex(/^[a-z][a-z0-9-]{1,39}$/, 'Invalid group')
+  .refine((slug) => !RESERVED_GROUP_SLUGS.includes(slug), 'Invalid group')
+
+export const libraryNumberSchema = z.coerce.number().int().positive()
+
+// Названия групп лежат в БД на всех языках сайта: z.record с enum-ключами требует каждый язык
+export const localizedNamesSchema = z.record(z.enum(SUPPORTED_LOCALES), z.string().trim().min(1))
+
+export const libraryGroupSchema = z.object({
+  slug: groupSlugSchema,
+  names: localizedNamesSchema,
+})
+
+export const libraryGroupsResponseSchema = z.object({
+  groups: z.array(libraryGroupSchema),
+})
+
+export const libraryListQuerySchema = z.object({
+  group: groupSlugSchema.optional(),
+  q: z.string().trim().min(LIBRARY_SEARCH_MIN_LENGTH).max(LIBRARY_SEARCH_MAX_LENGTH).optional(),
+  page: z.coerce.number().int().min(1).max(LIBRARY_MAX_PAGE).default(1),
+})
+
+// Публичные данные: ни id, ни shareToken, ни данных автора, ни шкалы оценки (только факт оценивания)
+export const libraryQuizSummarySchema = z.object({
+  number: libraryNumberSchema,
+  title: z.string(),
+  groupSlug: groupSlugSchema,
+  questionCount: z.number().int().min(0),
+  graded: z.boolean(),
+  createdAt: z.iso.datetime(),
+})
+
+export const libraryListResponseSchema = z.object({
+  quizzes: z.array(libraryQuizSummarySchema),
+  page: z.number().int().min(1),
+  hasNext: z.boolean(),
+})
+
+const imageUrlSchema = z.url().nullable()
+
+// Без isCorrect и selectCount: правильные ответы публично не показываются
+export const libraryQuizResponseSchema = z.object({
+  quiz: libraryQuizSummarySchema.extend({
+    questions: z.array(
+      z.object({
+        text: z.string(),
+        imageUrl: imageUrlSchema,
+        options: z.array(z.object({ text: z.string(), imageUrl: imageUrlSchema })),
+      }),
+    ),
+  }),
+})
+
+export const libraryTakeResponseSchema = z.object({
+  quizId: z.uuid(),
+})
+
+export const librarySitemapResponseSchema = z.object({
+  quizzes: z.array(libraryQuizSummarySchema.pick({ number: true, title: true, createdAt: true })),
+})
+
+export type LibraryGroup = z.infer<typeof libraryGroupSchema>
+export type LibraryGroupsResponse = z.infer<typeof libraryGroupsResponseSchema>
+export type LibraryListQuery = z.infer<typeof libraryListQuerySchema>
+export type LibraryQuizSummary = z.infer<typeof libraryQuizSummarySchema>
+export type LibraryListResponse = z.infer<typeof libraryListResponseSchema>
+export type LibraryQuizResponse = z.infer<typeof libraryQuizResponseSchema>
+export type LibraryTakeResponse = z.infer<typeof libraryTakeResponseSchema>
+export type LibrarySitemapResponse = z.infer<typeof librarySitemapResponseSchema>

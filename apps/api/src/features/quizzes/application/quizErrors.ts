@@ -19,6 +19,10 @@ export function unknownImage(): AppError {
   return new AppError(BAD_REQUEST_STATUS, UNKNOWN_IMAGE_REASON)
 }
 
+export function unknownGroup(): AppError {
+  return new AppError(BAD_REQUEST_STATUS, 'Unknown group')
+}
+
 export function duplicateImage(): AppError {
   return new AppError(BAD_REQUEST_STATUS, 'Image is used more than once')
 }
