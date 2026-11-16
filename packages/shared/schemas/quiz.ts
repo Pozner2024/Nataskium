@@ -10,7 +10,9 @@ export const MIN_OPTIONS = 2
 export const MAX_OPTIONS = 6
 export const MIN_QUESTIONS = 1
 export const MAX_QUESTIONS = 50
-export const MAX_QUIZZES_PER_TEACHER = 100
+// Общий лимит на все типы заданий (ADR-0013)
+export const MAX_ACTIVITIES_PER_TEACHER = 100
+export const MAX_QUIZZES_PER_TEACHER = MAX_ACTIVITIES_PER_TEACHER
 export const TIMER_MODES = ['none', 'stopwatch', 'limit'] as const
 // Дублируются в CHECK миграции add_quiz_timer (quizzes_time_limit_check)
 export const MIN_TIME_LIMIT_SECONDS = 60
@@ -33,7 +35,7 @@ const normalizeWhitespace = (text: string) => text.replace(/\r\n/g, '\n').replac
 
 // Контент викторин публичен (библиотека) и виден детям: управляющие и bidi-символы отклоняются.
 // allowNewline — только для текста вопроса (textarea)
-const safeText = (maxLength: number, allowNewline = false) =>
+export const safeText = (maxLength: number, allowNewline = false) =>
   z
     .string()
     .trim()
@@ -43,7 +45,7 @@ const safeText = (maxLength: number, allowNewline = false) =>
       error: INVALID_CHARS_MESSAGE,
     })
 
-const requiredText = (maxLength: number, allowNewline = false) =>
+export const requiredText = (maxLength: number, allowNewline = false) =>
   z
     .string()
     .trim()
@@ -139,7 +141,7 @@ const optionIndexesSchema = z
   .max(MAX_OPTIONS)
   .refine((indexes) => new Set(indexes).size === indexes.length, 'Indexes must be unique')
 
-const versionSchema = z.string().min(1).max(PLAY_VERSION_MAX_LENGTH)
+export const versionSchema = z.string().min(1).max(PLAY_VERSION_MAX_LENGTH)
 
 export const playCheckInputSchema = z.object({
   version: versionSchema,

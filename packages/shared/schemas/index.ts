@@ -38,6 +38,7 @@ export {
   MAX_IMAGE_UPLOAD_BYTES,
   MAX_OPTIONS,
   MAX_QUESTIONS,
+  MAX_ACTIVITIES_PER_TEACHER,
   MAX_QUIZZES_PER_TEACHER,
   MAX_TIME_LIMIT_SECONDS,
   MIN_OPTIONS,
@@ -109,3 +110,26 @@ export type {
   LibraryQuizSummary,
   LibraryTakeResponse,
 } from './library'
+export { ACTIVITY_KINDS, MATCHING_ACTIVITY, QUIZ_ACTIVITY, activityKindSchema } from './activity'
+export type { ActivityKind } from './activity'
+export {
+  MATCHING_DEFINITION_MAX_LENGTH,
+  MATCHING_TERM_MAX_LENGTH,
+  MAX_MATCHING_PAIRS,
+  MIN_MATCHING_PAIRS,
+  matchingInputSchema,
+  matchingKey,
+  matchingPairSchema,
+  matchingResponseSchema,
+  playMatchingFinishInputSchema,
+  playMatchingFinishResponseSchema,
+  playMatchingResponseSchema,
+} from './matching'
+export type {
+  MatchingInput,
+  MatchingPair,
+  MatchingResponse,
+  PlayMatchingFinishInput,
+  PlayMatchingFinishResponse,
+  PlayMatchingResponse,
+} from './matching'

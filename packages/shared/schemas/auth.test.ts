@@ -628,6 +628,7 @@ describe('схемы auth: публичный API', () => {
     const exported = Object.keys(schemas).filter((name) => name.endsWith('Schema')).sort()
 
     expect(exported).toEqual([
+      'activityKindSchema',
       'apiErrorResponseSchema',
       'authSessionResponseSchema',
       'authTokenSchema',
@@ -654,6 +655,9 @@ describe('схемы auth: публичный API', () => {
       'localizedNamesSchema',
       'loginPasswordSchema',
       'loginSchema',
+      'matchingInputSchema',
+      'matchingPairSchema',
+      'matchingResponseSchema',
       'meResponseSchema',
       'messageResponseSchema',
       'passwordSchema',
@@ -661,6 +665,9 @@ describe('схемы auth: публичный API', () => {
       'playCheckResponseSchema',
       'playFinishInputSchema',
       'playFinishResponseSchema',
+      'playMatchingFinishInputSchema',
+      'playMatchingFinishResponseSchema',
+      'playMatchingResponseSchema',
       'playQuizResponseSchema',
       'quizIdSchema',
       'quizInputSchema',
