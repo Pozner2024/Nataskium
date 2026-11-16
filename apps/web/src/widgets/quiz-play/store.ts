@@ -61,16 +61,21 @@ export const usePlayStore = defineStore('play', () => {
     return selected.value.includes(index)
   }
 
-  // Полный выбор блокирует остальные варианты, снять отметку можно всегда
+  // Полный выбор блокирует остальные варианты, снять отметку можно всегда.
+  // При одном ответе блокировки нет: клик по другому варианту заменяет выбор, как у радиокнопок
   function isDisabled(index: number): boolean {
     if (phase.value !== 'question' || busy.value || timedOut.value) return true
-    if (question.value === null || isSelected(index)) return false
+    if (question.value === null || isSelected(index) || question.value.selectCount === 1) return false
     return selected.value.length >= question.value.selectCount
   }
 
   function toggle(index: number): void {
     if (isDisabled(index)) return
-    selected.value = isSelected(index) ? selected.value.filter((value) => value !== index) : [...selected.value, index]
+    if (isSelected(index)) {
+      selected.value = selected.value.filter((value) => value !== index)
+      return
+    }
+    selected.value = question.value?.selectCount === 1 ? [index] : [...selected.value, index]
   }
 
   // Сбой загрузки повторяется полным стартом (retryAction = null), остальные — тем же запросом
@@ -204,7 +209,8 @@ export const usePlayStore = defineStore('play', () => {
     if (phase.value === 'question') selected.value = []
     const runEpoch = epoch
     await inflight
-    if (runEpoch !== epoch || phase.value === 'result') return
+    // TS сужает phase по проверке до await, а за время ожидания finish мог перевести её в result
+    if (runEpoch !== epoch || (phase.value as PlayPhase) === 'result') return
     await run(finish)
   }
 

@@ -1,3 +1,4 @@
+import type { QuizTimer } from '@nataskium/shared/schemas'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { playApi } from '@/entities/quiz'
@@ -25,7 +26,7 @@ function quiz(showAnswers: boolean) {
     quiz: {
       title: 'Столицы',
       showAnswers,
-      timer: { mode: 'none' },
+      timer: { mode: 'none' } as const,
       version: 'v1',
       questions: [
         { text: 'Q1', imageUrl: null, options: options('a', 'b', 'c'), selectCount: 2 },
@@ -62,6 +63,53 @@ describe('usePlayStore', () => {
     store.toggle(1)
     expect(store.selected).toEqual([0])
     expect(store.canSubmit).toBe(false)
+  })
+
+  it('selectCount = 1: клик по другому варианту заменяет выбор, повторный клик снимает', async () => {
+    get.mockResolvedValue(quiz(false))
+    await store.start(TOKEN, NO_SHUFFLE)
+    store.toggle(0)
+    store.toggle(1)
+    await store.submit()
+    store.toggle(0)
+    expect(store.isDisabled(1)).toBe(false)
+    store.toggle(1)
+    expect(store.selected).toEqual([1])
+    expect(store.canSubmit).toBe(true)
+    store.toggle(1)
+    expect(store.selected).toEqual([])
+  })
+
+  it('selectCount = 1: после «Ответить» выбор не меняется', async () => {
+    get.mockResolvedValue(quiz(true))
+    check.mockResolvedValue({ correct: [0, 2] })
+    await store.start(TOKEN, NO_SHUFFLE)
+    store.toggle(0)
+    store.toggle(1)
+    await store.submit()
+    await store.next()
+    store.toggle(0)
+    check.mockResolvedValue({ correct: [1] })
+    await store.submit()
+    expect(store.phase).toBe('feedback')
+    expect(store.isDisabled(1)).toBe(true)
+    store.toggle(1)
+    expect(store.selected).toEqual([0])
+  })
+
+  it('selectCount = 1: во время отправки (busy) выбор не меняется', async () => {
+    get.mockResolvedValue(quiz(false))
+    finish.mockReturnValue(new Promise(() => {}))
+    await store.start(TOKEN, NO_SHUFFLE)
+    store.toggle(0)
+    store.toggle(1)
+    await store.submit()
+    store.toggle(0)
+    void store.submit()
+    expect(store.busy).toBe(true)
+    expect(store.isDisabled(1)).toBe(true)
+    store.toggle(1)
+    expect(store.selected).toEqual([0])
   })
 
   it('без showAnswers после «Ответить» сразу следующий вопрос, check не вызывается', async () => {
@@ -280,7 +328,7 @@ describe('usePlayStore: таймер', () => {
   const START = new Date('2026-01-01T10:00:00Z').getTime()
   const MS = 1000
 
-  function timedQuiz(showAnswers: boolean, timer: unknown) {
+  function timedQuiz(showAnswers: boolean, timer: QuizTimer) {
     return { quiz: { ...quiz(showAnswers).quiz, timer } }
   }
 
@@ -340,6 +388,22 @@ describe('usePlayStore: таймер', () => {
     expect(store.phase).toBe('feedback')
     await store.expire()
     expect(finish).toHaveBeenCalledWith(TOKEN, { version: 'v1', answers: [[0, 1], []] })
+  })
+
+  it('selectCount = 1: после истечения времени (до ответа сервера) выбор не меняется', async () => {
+    get.mockResolvedValue(timedQuiz(false, { mode: 'limit', seconds: 60 }))
+    finish.mockReturnValue(new Promise(() => {}))
+    await store.start(TOKEN, NO_SHUFFLE)
+    store.toggle(0)
+    store.toggle(1)
+    await store.submit()
+    store.toggle(0)
+    void store.expire()
+    expect(store.timedOut).toBe(true)
+    expect(store.phase).toBe('question')
+    expect(store.isDisabled(1)).toBe(true)
+    store.toggle(1)
+    expect(store.selected).toEqual([])
   })
 
   it('второй expire не шлёт второй finish', async () => {
