@@ -346,3 +346,83 @@ describe('pending_google_links', () => {
     expect(await violatedConstraint(insertLink({ tokenHash: `'${'0'.repeat(64)}'` }))).toBe('pending_google_links_teacher_id_key')
   })
 })
+
+// Тип задания и число пар сопоставления (ADR-0013): форму вопросов викторины база не проверяет
+describe('quizzes.type', () => {
+  const pairsJson = (count: number) =>
+    `'${JSON.stringify(Array.from({ length: count }, (_, i) => ({ term: `t${i}`, definition: `d${i}` })))}'::jsonb`
+
+  function insertQuiz(columns: { type?: string; questions?: string }): string {
+    const { type, questions = "'[]'::jsonb" } = columns
+    return `INSERT INTO quizzes (id, teacher_id, title, share_token, questions, updated_at${type === undefined ? '' : ', type'})
+      VALUES (gen_random_uuid(), '${TEACHER_ID}', 'T', gen_random_uuid()::text, ${questions}, now()${type === undefined ? '' : `, ${type}`})`
+  }
+
+  it("строка без type получает 'quiz' — так же, как существующие строки при ADD COLUMN DEFAULT", async () => {
+    await prisma.$executeRawUnsafe(insertQuiz({}))
+
+    const rows = await prisma.$queryRaw<{ type: string }[]>`SELECT type FROM quizzes`
+    expect(rows).toEqual([{ type: 'quiz' }])
+  })
+
+  it.each([2, 10])('сопоставление с %i парами принимается', async (count) => {
+    await expect(prisma.$executeRawUnsafe(insertQuiz({ type: "'matching'", questions: pairsJson(count) }))).resolves.toBe(1)
+  })
+
+  it.each([
+    ['1 пара', insertQuiz({ type: "'matching'", questions: pairsJson(1) }), 'quizzes_matching_pairs_check'],
+    ['11 пар', insertQuiz({ type: "'matching'", questions: pairsJson(11) }), 'quizzes_matching_pairs_check'],
+    ['questions — объект', insertQuiz({ type: "'matching'", questions: `'{"a": 1}'::jsonb` }), 'quizzes_matching_pairs_check'],
+    ['questions — строка', insertQuiz({ type: "'matching'", questions: `'"pairs"'::jsonb` }), 'quizzes_matching_pairs_check'],
+    ['неизвестный тип', insertQuiz({ type: "'poll'" }), 'quizzes_type_check'],
+  ])('%s', async (_name, sql, constraint) => {
+    expect(await violatedConstraint(sql)).toBe(constraint)
+  })
+
+  it('викторина с пустым массивом вопросов проверкой пар не затрагивается', async () => {
+    await expect(prisma.$executeRawUnsafe(insertQuiz({ type: "'quiz'" }))).resolves.toBe(1)
+  })
+
+  it.each([
+    ['JSON null', `'null'::jsonb`],
+    ['число', `'5'::jsonb`],
+    ['true', `'true'::jsonb`],
+  ])('matching: questions — %s отклоняется именно pairs-проверкой', async (_name, questions) => {
+    expect(await violatedConstraint(insertQuiz({ type: "'matching'", questions }))).toBe('quizzes_matching_pairs_check')
+  })
+
+  it('matching: questions — SQL NULL отклоняется NOT NULL, а не молча', async () => {
+    const error = await prisma.$executeRawUnsafe(insertQuiz({ type: "'matching'", questions: 'NULL' })).catch((caught: unknown) => caught)
+    expect(String(error)).toMatch(/null value in column "questions"/)
+  })
+
+  it('UPDATE существующей викторины в matching с невалидными вопросами отклоняется', async () => {
+    const id = '00000000-0000-0000-0000-0000000000b1'
+    await prisma.$executeRawUnsafe(insertQuiz({ type: "'quiz'", questions: "'[{\"text\": \"q\"}]'::jsonb" }).replace('gen_random_uuid()', `'${id}'`))
+
+    expect(await violatedConstraint(`UPDATE quizzes SET type = 'matching' WHERE id = '${id}'`)).toBe('quizzes_matching_pairs_check')
+  })
+
+  it('UPDATE matching-задания: замена вопросов на один элемент нарушает пары', async () => {
+    const id = '00000000-0000-0000-0000-0000000000b2'
+    await prisma.$executeRawUnsafe(insertQuiz({ type: "'matching'", questions: pairsJson(2) }).replace('gen_random_uuid()', `'${id}'`))
+
+    expect(await violatedConstraint(`UPDATE quizzes SET questions = '[{"term": "a"}]'::jsonb WHERE id = '${id}'`)).toBe(
+      'quizzes_matching_pairs_check',
+    )
+  })
+
+  it.each([
+    ['верхний регистр', "'Quiz'"],
+    ['верхний регистр matching', "'MATCHING'"],
+    ['пустая строка', "''"],
+    ['пробел по краям', "' quiz '"],
+  ])('type: %s отклоняется', async (_name, type) => {
+    expect(await violatedConstraint(insertQuiz({ type }))).toBe('quizzes_type_check')
+  })
+
+  it('type: NULL отклоняется NOT NULL', async () => {
+    const error = await prisma.$executeRawUnsafe(insertQuiz({ type: 'NULL' })).catch((caught: unknown) => caught)
+    expect(String(error)).toMatch(/null value in column "type"/)
+  })
+})

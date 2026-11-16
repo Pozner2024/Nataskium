@@ -63,6 +63,13 @@ const MANUAL_CHECKS = [
     'quizzes_time_limit_check',
     `CHECK ( ("timer_mode" = 'limit' AND "time_limit_seconds" IS NOT NULL AND "time_limit_seconds" BETWEEN 60 AND 10800) OR ("timer_mode" <> 'limit' AND "time_limit_seconds" IS NULL) )`,
   ],
+  ['quizzes', 'quizzes_type_check', `CHECK ("type" IN ('quiz', 'matching'))`],
+  // CASE обязателен: в AND jsonb_array_length на не-массиве может вычислиться первым и бросить ошибку
+  [
+    'quizzes',
+    'quizzes_matching_pairs_check',
+    `CHECK ( "type" <> 'matching' OR CASE WHEN jsonb_typeof("questions") = 'array' THEN jsonb_array_length("questions") BETWEEN 2 AND 10 ELSE false END )`,
+  ],
   ['library_groups', 'library_groups_slug_format_check', `CHECK ("slug" ~ '^[a-z][a-z0-9-]{1,39}$' AND "slug" <> 'quiz')`],
   [
     'library_groups',
