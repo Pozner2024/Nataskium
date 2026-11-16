@@ -1,6 +1,11 @@
-import { libraryGroupsResponseSchema, libraryListResponseSchema } from '@nataskium/shared/schemas'
+import {
+  libraryGroupsResponseSchema,
+  libraryListResponseSchema,
+  libraryQuizResponseSchema,
+  libraryTakeResponseSchema,
+} from '@nataskium/shared/schemas'
 import { apiRequest } from '@/shared'
-import type { LibraryGroupsResponse, LibraryListResponse } from './types'
+import type { LibraryGroupsResponse, LibraryListResponse, LibraryQuizResponse, LibraryTakeResponse } from './types'
 
 export type LibraryListParams = { group: string | null; q: string | null; page: number }
 
@@ -11,10 +16,18 @@ function listQuery({ group, q, page }: LibraryListParams): string {
   return params.toString()
 }
 
-// Публичные маршруты библиотеки /api/library/*: без авторизации
+// Маршруты библиотеки /api/library/*: чтение публичное, «Взять себе» — только с токеном учителя
 export const libraryApi = {
   list: (params: LibraryListParams): Promise<LibraryListResponse> =>
     apiRequest(`/library?${listQuery(params)}`, libraryListResponseSchema, { method: 'GET' }),
 
   groups: (): Promise<LibraryGroupsResponse> => apiRequest('/library/groups', libraryGroupsResponseSchema, { method: 'GET' }),
+
+  // Карточка без правильных ответов; адрес строится из номера, а не из текста
+  get: (number: number): Promise<LibraryQuizResponse> =>
+    apiRequest(`/library/${number}`, libraryQuizResponseSchema, { method: 'GET' }),
+
+  // Копия задания учителю: 201 с id копии; тела у запроса нет
+  take: (number: number, accessToken: string): Promise<LibraryTakeResponse> =>
+    apiRequest(`/library/${number}/take`, libraryTakeResponseSchema, { method: 'POST', accessToken }),
 }

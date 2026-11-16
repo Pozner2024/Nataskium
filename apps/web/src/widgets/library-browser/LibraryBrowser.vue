@@ -34,7 +34,9 @@
     <template v-else>
       <ul class="library-browser__list">
         <li v-for="quiz in quizzes" :key="quiz.number" class="library-browser__card">
-          <h2 class="library-browser__title">{{ quiz.title }}</h2>
+          <h2 class="library-browser__title">
+            <NuxtLink class="library-browser__link" :to="localePath(libraryQuizPath(quiz.number, quiz.title))">{{ quiz.title }}</NuxtLink>
+          </h2>
           <p class="library-browser__meta">
             {{ groupName(quiz.groupSlug) }} · {{ t('library.questions', { count: quiz.questionCount }) }}
           </p>
@@ -53,9 +55,11 @@
 </template>
 
 <script setup lang="ts">
+import { libraryQuizPath } from '@nataskium/shared/routes'
 import { LIBRARY_SEARCH_MAX_LENGTH, LIBRARY_SEARCH_MIN_LENGTH } from '@nataskium/shared/schemas'
 import { onMounted, toRef } from 'vue'
-import { useI18n } from '#imports'
+import { NuxtLink } from '#components'
+import { useI18n, useLocalePath } from '#imports'
 import { useLibraryGroups } from '@/entities/library'
 import { useLibraryBrowser } from './useLibraryBrowser'
 
@@ -64,6 +68,7 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
+const localePath = useLocalePath()
 const { groups, load: loadGroups } = useLibraryGroups()
 const {
   search,
@@ -219,6 +224,7 @@ onMounted(() => {
 }
 
 .library-browser__card {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -233,6 +239,34 @@ onMounted(() => {
   font-weight: 700;
   line-height: 1.3;
   overflow-wrap: anywhere;
+}
+
+.library-browser__link {
+  color: inherit;
+  text-decoration: none;
+
+  // Вся плитка кликабельна: ссылка растянута на карточку, она же даёт зону касания ≥ 44px
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+  }
+
+  &:focus-visible {
+    outline: none;
+
+    &::after {
+      outline: 3px solid var(--color-blue-dark);
+      outline-offset: 2px;
+    }
+  }
+
+  @media (hover: hover) {
+    &:hover {
+      text-decoration: underline;
+    }
+  }
 }
 
 .library-browser__meta {
