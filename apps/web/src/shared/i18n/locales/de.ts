@@ -542,7 +542,7 @@ const messages: Messages = {
       titlePlaceholder: 'Zum Beispiel „Aufbau der Zelle“',
       pairsHeading: 'Paare',
       pairsCount: '{count} von {max}',
-      pairsHint: 'Ein Wort und seine Definition. Die Schüler sehen die Wörter gemischt. Wörter dürfen sich nicht wiederholen, Definitionen auch nicht.',
+      pairsHint: 'Fügen Sie Paare hinzu: ein Wort und seine Definition. Die Schüler sehen die Definitionen der Reihe nach und die Wörter gemischt in einer Leiste oben und ziehen jedes Wort zu seiner Definition. Wörter dürfen sich nicht wiederholen, Definitionen auch nicht.',
       pairLabel: 'Paar {n}',
       termLabel: 'Wort',
       definitionLabel: 'Definition',

@@ -543,7 +543,7 @@ const messages: Messages = {
       titlePlaceholder: 'Par exemple, « Structure de la cellule »',
       pairsHeading: 'Paires',
       pairsCount: '{count} sur {max}',
-      pairsHint: 'Un mot et sa définition. Les élèves verront les mots mélangés. Les mots ne doivent pas se répéter, les définitions non plus.',
+      pairsHint: 'Ajoutez des paires : un mot et sa définition. L’élève voit les définitions dans l’ordre et les mots mélangés dans une barre en haut, puis fait glisser chaque mot vers sa définition. Les mots ne doivent pas se répéter, les définitions non plus.',
       pairLabel: 'Paire {n}',
       termLabel: 'Mot',
       definitionLabel: 'Définition',

@@ -542,7 +542,7 @@ const messages: Messages = {
       titlePlaceholder: 'For example, “Cell structure”',
       pairsHeading: 'Pairs',
       pairsCount: '{count} of {max}',
-      pairsHint: 'A word and its definition. Students will see the words shuffled. Words must not repeat, and neither must definitions.',
+      pairsHint: 'Add pairs: a word and its definition. The student sees the definitions in order and the words shuffled in a bar at the top, and drags each word to its definition. Words must not repeat, and neither must definitions.',
       pairLabel: 'Pair {n}',
       termLabel: 'Word',
       definitionLabel: 'Definition',
