@@ -96,7 +96,6 @@ $nat-viewbox-width: 710;
   background: var(--color-white);
   box-shadow: 0 6px 18px rgb(var(--rgb-night) / 0.08);
   color: var(--color-text);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
 
   // Яркие дорожки платы цвета раздела — плитка без иллюстрации не выглядит пустой. Узор занимает верх до левой
   // рамки и неровным пятном уходит по диагонали в правый угол; к названию гаснет, текст стоит на чистом белом.
@@ -132,17 +131,6 @@ $nat-viewbox-width: 710;
     border-radius: 3px;
     background: var(--tile-color);
   }
-
-  @media (hover: hover) {
-    &:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 10px 24px rgb(var(--rgb-night) / 0.14);
-    }
-  }
-
-  &:active {
-    transform: scale(0.98);
-  }
 }
 
 .library-group-tiles__tile--green {
@@ -169,22 +157,31 @@ $nat-viewbox-width: 710;
   }
 }
 
-// Растянутая ссылка: её ::after накрывает всю плитку, поэтому нажатие в любом месте ведёт в раздел
+// Переход в раздел — только по названию, на всех плитках одинаково. Ссылка — нижняя полоса плитки на всю ширину:
+// так на название легко попасть пальцем (высота ≥ 44px), а узор и Нат не ведут никуда
 .library-group-tiles__link {
   grid-area: name;
+  display: flex;
+  align-items: flex-end;
+  min-height: 44px;
+  margin: 0 -12px -14px;
+  padding: 12px 12px 14px;
   color: inherit;
   text-decoration: none;
   -webkit-tap-highlight-color: transparent;
 
-  &::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-  }
-
   // Рамка фокуса — на всей плитке: у плитки overflow: hidden, рамку ссылки она бы обрезала
   &:focus-visible {
     outline: none;
+  }
+
+  // Название подчёркивается при наведении: видно, что по нему можно нажать
+  @media (hover: hover) {
+    &:hover .library-group-tiles__name {
+      text-decoration: underline;
+      text-decoration-thickness: 2px;
+      text-underline-offset: 4px;
+    }
   }
 }
 
@@ -202,7 +199,7 @@ $nat-viewbox-width: 710;
   overflow-wrap: break-word;
 }
 
-// Позиционирован и стоит после ссылки — рисуется поверх её ::after, нажатие достаётся Нату
+// Нат живёт отдельно от ссылки: нажатие оживляет его, а не уводит со страницы
 .library-group-tiles__nat {
   --nat-unit: calc(118cqi / #{$nat-viewbox-width});
 
@@ -211,16 +208,5 @@ $nat-viewbox-width: 710;
   justify-self: center;
   align-self: center;
   margin: -22px 0 -10px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .library-group-tiles__tile {
-    transition: none;
-
-    &:hover,
-    &:active {
-      transform: none;
-    }
-  }
 }
 </style>
