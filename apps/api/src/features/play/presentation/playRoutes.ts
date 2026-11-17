@@ -4,10 +4,13 @@ import {
   type PlayCheckInput,
   type PlayCheckResponse,
   type PlayFinishInput,
+  type PlayActivityResponse,
   type PlayFinishResponse,
-  type PlayQuizResponse,
+  type PlayMatchingFinishInput,
+  type PlayMatchingFinishResponse,
   playCheckInputSchema,
   playFinishInputSchema,
+  playMatchingFinishInputSchema,
 } from '@nataskium/shared/schemas'
 import { type Context, Hono } from 'hono'
 import type { RateLimiter } from '../../../shared/middleware'
@@ -16,9 +19,10 @@ import { readJsonBody } from '../../../shared/utils'
 export const PLAY_ROUTES_BASE_PATH = '/api/play'
 
 export type PlayRouterDeps = {
-  getPlayQuiz: (shareToken: string) => Promise<PlayQuizResponse>
+  getPlayActivity: (shareToken: string) => Promise<PlayActivityResponse>
   checkAnswer: (shareToken: string, input: PlayCheckInput) => Promise<PlayCheckResponse>
   finishQuiz: (shareToken: string, input: PlayFinishInput) => Promise<PlayFinishResponse>
+  finishMatching: (shareToken: string, input: PlayMatchingFinishInput) => Promise<PlayMatchingFinishResponse>
   clientIp: (c: Context) => string
   limiters: { get: RateLimiter; check: RateLimiter; finish: RateLimiter }
 }
@@ -28,7 +32,7 @@ export function makePlayRouter(deps: PlayRouterDeps) {
   const byIp = deps.clientIp
 
   router.get('/:shareToken', deps.limiters.get.middleware(byIp), async (c) =>
-    c.json(await deps.getPlayQuiz(c.req.param('shareToken'))),
+    c.json(await deps.getPlayActivity(c.req.param('shareToken'))),
   )
 
   router.post('/:shareToken/check', deps.limiters.check.middleware(byIp), async (c) => {
@@ -39,6 +43,13 @@ export function makePlayRouter(deps: PlayRouterDeps) {
   router.post('/:shareToken/finish', deps.limiters.finish.middleware(byIp), async (c) => {
     const input = await readJsonBody(c, playFinishInputSchema)
     return c.json(await deps.finishQuiz(c.req.param('shareToken'), input))
+  })
+
+  // Отдельный путь, а не общий /finish: у викторины [] — валидный ответ, union-тело было бы неоднозначным (ADR-0013).
+  // Тот же лимитер finish: бюджет на IP общий
+  router.post('/:shareToken/matching/finish', deps.limiters.finish.middleware(byIp), async (c) => {
+    const input = await readJsonBody(c, playMatchingFinishInputSchema)
+    return c.json(await deps.finishMatching(c.req.param('shareToken'), input))
   })
 
   return router

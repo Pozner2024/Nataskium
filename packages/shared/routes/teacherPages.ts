@@ -7,4 +7,7 @@ export const TEACHER_PAGE_PATHS = {
   quizNew: '/teacher/quiz/new',
   // К адресу добавляется /<id>
   quizEdit: '/teacher/quiz',
+  matchingNew: '/teacher/matching/new',
+  // К адресу добавляется /<id>
+  matchingEdit: '/teacher/matching',
 } as const

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { MAX_QUIZZES_PER_TEACHER, type QuizInput } from '@nataskium/shared/schemas'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { type LibraryCreateCopy, type LibraryImageCopier, type LibraryQuizCopyRow, type LibraryRepository, makeTakeLibraryQuiz } from '../src/features/library'
+import { type LibraryCreateCopy, type LibraryCreateMatchingCopy, type LibraryImageCopier, type LibraryQuizCopyRow, type LibraryRepository, makeTakeLibraryQuiz } from '../src/features/library'
 import { AppError, ExternalServiceError } from '../src/shared/errors'
 
 const NUMBER = 7
@@ -18,6 +18,7 @@ const IMAGE_B = randomUUID()
 
 function row(overrides: Partial<LibraryQuizCopyRow> = {}): LibraryQuizCopyRow {
   return {
+    type: 'quiz',
     title: 'Столицы',
     showAnswers: true,
     gradingScale: 'five',
@@ -97,13 +98,16 @@ function setup({ source = row(), count = 0, withCopier = true, failCopyOn, teach
     return { id: 'new-quiz-id' }
   })
 
+  const createMatching: LibraryCreateMatchingCopy = vi.fn(async () => ({ id: 'new-matching-id' }))
+
   const take = makeTakeLibraryQuiz({
     library,
     countQuizzes: async () => count,
     imageCopier: withCopier ? imageCopier : null,
     createQuiz,
+    createMatching,
   })
-  return { take, library, createQuiz, copies, rows, removedFiles, deletedRows, created, log, maxActive: () => maxActive }
+  return { take, library, createQuiz, createMatching, copies, rows, removedFiles, deletedRows, created, log, maxActive: () => maxActive }
 }
 
 async function rejection(promise: Promise<unknown>): Promise<unknown> {
@@ -122,7 +126,7 @@ afterEach(() => {
 describe('takeLibraryQuiz (use-case)', () => {
   it('копия создаётся с isPublic=false; ответ — id нового задания', async () => {
     const s = setup()
-    expect(await s.take(TEACHER, NUMBER)).toEqual({ quizId: 'new-quiz-id' })
+    expect(await s.take(TEACHER, NUMBER)).toEqual({ quizId: 'new-quiz-id', type: 'quiz' })
     expect(s.created).toHaveLength(1)
     expect(s.created[0]).toMatchObject({ teacherId: TEACHER, options: { isPublic: false } })
     expect(s.created[0]!.input).toMatchObject({ title: 'Столицы', showAnswers: true, gradingScale: 'five', group: 'other' })
@@ -193,7 +197,7 @@ describe('takeLibraryQuiz (use-case)', () => {
   it('без картинок хранилище не нужно: копия создаётся и при imageCopier = null', async () => {
     const questions = [{ text: 'В?', imageId: null, options: [{ text: 'a', isCorrect: true, imageId: null }, { text: 'b', isCorrect: false, imageId: null }] }]
     const s = setup({ source: row({ questions }), withCopier: false })
-    expect(await s.take(TEACHER, NUMBER)).toEqual({ quizId: 'new-quiz-id' })
+    expect(await s.take(TEACHER, NUMBER)).toEqual({ quizId: 'new-quiz-id', type: 'quiz' })
     expect(s.created).toHaveLength(1)
   })
 
@@ -224,7 +228,7 @@ describe('takeLibraryQuiz (use-case)', () => {
 
   it('99 заданий — ещё можно взять', async () => {
     const s = setup({ count: MAX_QUIZZES_PER_TEACHER - 1 })
-    await expect(s.take(TEACHER, NUMBER)).resolves.toEqual({ quizId: 'new-quiz-id' })
+    await expect(s.take(TEACHER, NUMBER)).resolves.toEqual({ quizId: 'new-quiz-id', type: 'quiz' })
   })
 
   it('сбой копирования файла (ExternalServiceError) → 503; строки удалены раньше файлов; задание не создано', async () => {
@@ -267,6 +271,7 @@ describe('takeLibraryQuiz (use-case)', () => {
         async removeFiles() {},
       },
       createQuiz: s.createQuiz,
+      createMatching: s.createMatching,
     })
     expect(await rejection(s.take(TEACHER, NUMBER))).toBe(crash)
   })
@@ -287,6 +292,7 @@ describe('takeLibraryQuiz (use-case)', () => {
         },
         async removeFiles() {},
       },
+      createMatching: async () => ({ id: 'new-matching-id' }),
       createQuiz: async () => {
         throw failure
       },

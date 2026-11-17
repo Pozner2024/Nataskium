@@ -15,4 +15,6 @@ export type MatchingRepository = {
   create(teacherId: string, input: MatchingInput, shareToken: string, isPublic?: boolean): Promise<StoredMatching | null | 'referenceMissing'>
   updateOwned(id: string, teacherId: string, input: MatchingInput): Promise<boolean>
   softDeleteOwned(id: string, teacherId: string): Promise<boolean>
+  // Для ученика: без владельца, но удалённое и задание другого типа не находятся
+  findByShareToken(token: string): Promise<StoredMatching | null>
 }

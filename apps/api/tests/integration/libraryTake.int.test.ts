@@ -125,7 +125,7 @@ describe('POST /api/library/:number/take', () => {
 
     expect(response.status).toBe(201)
     const body = (await response.json()) as Record<string, unknown>
-    expect(Object.keys(body)).toEqual(['quizId'])
+    expect(Object.keys(body)).toEqual(['quizId', 'type'])
     const copy = await prisma.quiz.findUniqueOrThrow({ where: { id: body.quizId as string } })
     expect(copy).toMatchObject({
       teacherId: taker.id,

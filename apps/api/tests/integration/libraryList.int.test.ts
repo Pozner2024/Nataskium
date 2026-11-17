@@ -7,7 +7,7 @@ import { createTeacher, days, fromNow } from './authFixtures'
 import { createTestPrisma, truncateAll } from './testDatabase'
 
 const LIBRARY = '/api/library'
-const SUMMARY_KEYS = ['createdAt', 'graded', 'groupSlug', 'number', 'questionCount', 'title']
+const SUMMARY_KEYS = ['createdAt', 'graded', 'groupSlug', 'number', 'questionCount', 'title', 'type']
 const QUESTION = {
   text: 'Вопрос',
   imageId: null,
@@ -76,6 +76,7 @@ describe('GET /api/library: список', () => {
     expect(Object.keys(card!).sort()).toEqual(SUMMARY_KEYS)
     expect(card).toEqual({
       number: quiz.publicNumber,
+      type: 'quiz',
       title: 'Столицы',
       groupSlug: 'other',
       questionCount: 3,

@@ -7,6 +7,7 @@ export { LIBRARY_LIMITS } from './limits'
 export { LIBRARY_ROUTES_BASE_PATH, makeLibraryRouter } from './presentation/libraryRoutes'
 export type {
   LibraryCreateCopy,
+  LibraryCreateMatchingCopy,
   LibraryImageCopier,
   LibraryImageUrl,
   LibraryQuizCopyRow,

@@ -1,13 +1,16 @@
 import { randomUUID } from 'node:crypto'
 import {
+  MATCHING_ACTIVITY,
   MAX_QUIZZES_PER_TEACHER,
   type LibraryTakeResponse,
+  type MatchingInput,
   type QuizInput,
+  matchingInputSchema,
   quizInputSchema,
   timerFromColumns,
 } from '@nataskium/shared/schemas'
 import { ExternalServiceError, UnauthorizedError } from '../../../shared/errors'
-import type { LibraryCreateCopy, LibraryImageCopier, LibraryQuizCopyRow, LibraryRepository } from '../types'
+import type { LibraryCreateCopy, LibraryCreateMatchingCopy, LibraryImageCopier, LibraryQuizCopyRow, LibraryRepository } from '../types'
 import { imageStorageUnavailable, libraryNotFound, quizLimitReached } from './libraryErrors'
 
 // Не открываем сотни запросов к хранилищу разом: у задания бывает до ~350 картинок
@@ -19,6 +22,7 @@ export type TakeLibraryQuizDeps = {
   // null — хранилище не настроено
   imageCopier: LibraryImageCopier | null
   createQuiz: LibraryCreateCopy
+  createMatching: LibraryCreateMatchingCopy
   generateId?: () => string
 }
 
@@ -35,6 +39,19 @@ function parseCopySource(number: number, row: LibraryQuizCopyRow): QuizInput {
     questions: row.questions,
   })
   if (!parsed.success) throw new Error(`Library quiz ${number} does not match the quiz schema`)
+  return parsed.data
+}
+
+function parseMatchingCopySource(number: number, row: LibraryQuizCopyRow): MatchingInput {
+  const parsed = matchingInputSchema.safeParse({
+    title: row.title,
+    showAnswers: row.showAnswers,
+    gradingScale: row.gradingScale,
+    group: row.groupSlug,
+    timer: timerFromColumns(row.timerMode, row.timeLimitSeconds),
+    pairs: row.questions,
+  })
+  if (!parsed.success) throw new Error(`Library matching ${number} does not match the matching schema`)
   return parsed.data
 }
 
@@ -112,12 +129,21 @@ export function makeTakeLibraryQuiz(deps: TakeLibraryQuizDeps) {
   // Копия не публикуется в библиотеку: системное исключение из автопубликации (ADR-0005)
   async function createCopy(teacherId: string, input: QuizInput): Promise<LibraryTakeResponse> {
     const quiz = await deps.createQuiz(teacherId, input, { isPublic: false })
-    return { quizId: quiz.id }
+    return { quizId: quiz.id, type: 'quiz' }
+  }
+
+  // Картинок у сопоставления нет: копируется только содержимое. Лимит общий и проверяется ещё раз в createMatching
+  async function takeMatching(teacherId: string, number: number, row: LibraryQuizCopyRow): Promise<LibraryTakeResponse> {
+    const source = parseMatchingCopySource(number, row)
+    if ((await deps.countQuizzes(teacherId)) >= MAX_QUIZZES_PER_TEACHER) throw quizLimitReached()
+    const matching = await deps.createMatching(teacherId, source, { isPublic: false })
+    return { quizId: matching.id, type: MATCHING_ACTIVITY }
   }
 
   return async function takeLibraryQuiz(teacherId: string, number: number): Promise<LibraryTakeResponse> {
     const row = await deps.library.findForCopy(number)
     if (row === null) throw libraryNotFound()
+    if (row.type === MATCHING_ACTIVITY) return takeMatching(teacherId, number, row)
     const source = parseCopySource(number, row)
     // Раньше копирования файлов: сверх лимита копировать незачем. createQuiz проверит лимит ещё раз
     if ((await deps.countQuizzes(teacherId)) >= MAX_QUIZZES_PER_TEACHER) throw quizLimitReached()

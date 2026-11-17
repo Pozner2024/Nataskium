@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { SUPPORTED_LOCALES } from '../locales'
+import { activityKindSchema } from './activity'
 
 // Колонка quizzes.public_number — INT4
 export const MAX_LIBRARY_NUMBER = 2_147_483_647
@@ -8,7 +9,8 @@ export const LIBRARY_PAGE_SIZE = 24
 export const LIBRARY_MAX_PAGE = 200
 export const LIBRARY_SEARCH_MIN_LENGTH = 2
 export const LIBRARY_SEARCH_MAX_LENGTH = 60
-// Сколько вопросов видно на странице задания в библиотеке; остальные учитель получает после «Взять себе»
+// Сколько вопросов викторины видно на странице задания в библиотеке; остальные учитель получает после «Взять себе».
+// У сопоставления видны все пары (ADR-0013)
 export const LIBRARY_PREVIEW_QUESTIONS = 5
 
 // Занят адресом карточки: /library/quiz/<номер>
@@ -42,6 +44,7 @@ export const libraryListQuerySchema = z.object({
 // Публичные данные: ни id, ни shareToken, ни данных автора, ни шкалы оценки (только факт оценивания)
 export const libraryQuizSummarySchema = z.object({
   number: libraryNumberSchema,
+  type: activityKindSchema,
   title: z.string(),
   groupSlug: groupSlugSchema,
   questionCount: z.number().int().min(0),
@@ -58,20 +61,32 @@ export const libraryListResponseSchema = z.object({
 const imageUrlSchema = z.url().nullable()
 
 // Без isCorrect и selectCount: правильные ответы публично не показываются
-export const libraryQuizResponseSchema = z.object({
-  quiz: libraryQuizSummarySchema.extend({
-    questions: z.array(
-      z.object({
-        text: z.string(),
-        imageUrl: imageUrlSchema,
-        options: z.array(z.object({ text: z.string(), imageUrl: imageUrlSchema })),
-      }),
-    ),
-  }),
+const libraryQuizCardSchema = libraryQuizSummarySchema.extend({
+  type: z.literal('quiz'),
+  questions: z.array(
+    z.object({
+      text: z.string(),
+      imageUrl: imageUrlSchema,
+      options: z.array(z.object({ text: z.string(), imageUrl: imageUrlSchema })),
+    }),
+  ),
 })
 
+// Все определения по порядку и все слова, перемешанные сервером: ровно то же, что отдаёт игра (ADR-0013)
+const libraryMatchingCardSchema = libraryQuizSummarySchema.extend({
+  type: z.literal('matching'),
+  definitions: z.array(z.string()),
+  terms: z.array(z.string()),
+})
+
+export const libraryQuizResponseSchema = z.object({
+  quiz: z.discriminatedUnion('type', [libraryQuizCardSchema, libraryMatchingCardSchema]),
+})
+
+// type — какой редактор открыть после копирования
 export const libraryTakeResponseSchema = z.object({
   quizId: z.uuid(),
+  type: activityKindSchema,
 })
 
 export type LibraryGroup = z.infer<typeof libraryGroupSchema>

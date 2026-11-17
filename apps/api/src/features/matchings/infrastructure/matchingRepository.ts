@@ -89,5 +89,10 @@ export function makeMatchingRepository(prisma: Prisma.TransactionClient): Matchi
       })
       return count === 1
     },
+
+    async findByShareToken(token) {
+      const row = await prisma.quiz.findFirst({ where: { shareToken: token, type: MATCHING_ACTIVITY, deletedAt: null }, select: MATCHING_SELECT })
+      return row === null ? null : toStoredMatching(row)
+    },
   }
 }

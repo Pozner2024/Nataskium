@@ -661,6 +661,7 @@ describe('схемы auth: публичный API', () => {
       'meResponseSchema',
       'messageResponseSchema',
       'passwordSchema',
+      'playActivityResponseSchema',
       'playCheckInputSchema',
       'playCheckResponseSchema',
       'playFinishInputSchema',

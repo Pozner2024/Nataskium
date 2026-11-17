@@ -1,5 +1,5 @@
 import type { GradingScaleType } from '@nataskium/shared/grading'
-import type { QuizInput } from '@nataskium/shared/schemas'
+import type { MatchingInput, QuizInput } from '@nataskium/shared/schemas'
 
 // Только то, что нужно игре ученика. Фича не знает о репозитории викторин: связывание в app.ts
 export type PlayableQuiz = Pick<QuizInput, 'title' | 'showAnswers' | 'timer' | 'questions'> & {
@@ -11,6 +11,19 @@ export type PlayQuizSource = {
   // Удалённые викторины не находятся
   findByShareToken(token: string): Promise<PlayableQuiz | null>
 }
+
+export type PlayableMatching = Pick<MatchingInput, 'title' | 'showAnswers' | 'timer' | 'pairs'> & {
+  gradingScale: GradingScaleType | null
+  updatedAt: Date
+}
+
+export type PlayMatchingSource = {
+  // Только type = matching; удалённые не находятся
+  findByShareToken(token: string): Promise<PlayableMatching | null>
+}
+
+// Порядок слов для ученика; в app.ts — secureShuffle, в тестах — детерминированный
+export type PlayShuffle = <T>(items: readonly T[]) => T[]
 
 // Адрес картинки по id; null — хранилище не настроено. Связывание с хранилищем — в app.ts
 export type PlayImageUrl = (imageId: string) => string | null

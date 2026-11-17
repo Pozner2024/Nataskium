@@ -1,17 +1,18 @@
-import type { QuizInput } from '@nataskium/shared/schemas'
+import type { ActivityKind, MatchingInput, QuizInput } from '@nataskium/shared/schemas'
 
 export type LibraryGroupRow = { slug: string; names: unknown }
 
 // Публичные поля задания: только то, что можно показать любому
 export type LibraryQuizMeta = {
   number: number
+  type: ActivityKind
   title: string
   groupSlug: string
   graded: boolean
   createdAt: Date
 }
 
-// Строка карточки задания. Вопросы — сырой jsonb, проверяет use-case
+// Строка карточки задания. Содержимое (вопросы или пары, по type) — сырой jsonb, проверяет use-case
 export type LibraryQuizRow = LibraryQuizMeta & { questions: unknown }
 
 // Строка списка: вопросы не загружаются, их количество считает база
@@ -19,6 +20,7 @@ export type LibraryQuizListRow = LibraryQuizMeta & { questionCount: number }
 
 // Публичное задание целиком, с правильными ответами: только для «Взять себе», в публичные ответы не попадает
 export type LibraryQuizCopyRow = {
+  type: ActivityKind
   title: string
   showAnswers: boolean
   gradingScale: unknown
@@ -56,3 +58,9 @@ export type LibraryImageCopier = {
 
 // Создание задания учителя без публикации в библиотеку; в app.ts — createQuiz из features/quizzes
 export type LibraryCreateCopy = (teacherId: string, input: QuizInput, options: { isPublic: boolean }) => Promise<{ id: string }>
+
+// То же для сопоставления; в app.ts — createMatching из features/matchings
+export type LibraryCreateMatchingCopy = (teacherId: string, input: MatchingInput, options: { isPublic: boolean }) => Promise<{ id: string }>
+
+// Порядок слов сопоставления на карточке; в app.ts — secureShuffle
+export type LibraryShuffle = <T>(items: readonly T[]) => T[]

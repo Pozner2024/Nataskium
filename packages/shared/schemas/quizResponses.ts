@@ -49,6 +49,7 @@ export const quizResponseSchema = z.object({
 
 // Для ученика: без isCorrect, только число верных ответов в вопросе
 export const playQuizResponseSchema = z.object({
+  type: z.literal('quiz'),
   quiz: z.object({
     title: z.string(),
     showAnswers: z.boolean(),

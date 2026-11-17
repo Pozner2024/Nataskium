@@ -1,10 +1,16 @@
 import { shareTokenSchema } from '@nataskium/shared/schemas'
-import type { PlayQuizSource, PlayableQuiz } from '../types'
 import { playQuizNotFound } from './playErrors'
 
-export async function loadPlayableQuiz(source: PlayQuizSource, shareToken: string): Promise<PlayableQuiz> {
+// Источник викторин или сопоставлений: каждый находит только свой тип
+type PlayableSource<T> = { findByShareToken(token: string): Promise<T | null> }
+
+export function isShareTokenFormat(shareToken: string): boolean {
+  return shareTokenSchema.safeParse(shareToken).success
+}
+
+export async function loadPlayableQuiz<T>(source: PlayableSource<T>, shareToken: string): Promise<T> {
   // Невалидный по формату токен — тот же 404, что и отсутствующий, без обращения к БД
-  if (!shareTokenSchema.safeParse(shareToken).success) throw playQuizNotFound()
+  if (!isShareTokenFormat(shareToken)) throw playQuizNotFound()
   const quiz = await source.findByShareToken(shareToken)
   if (quiz === null) throw playQuizNotFound()
   return quiz

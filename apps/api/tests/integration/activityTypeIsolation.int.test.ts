@@ -1,5 +1,11 @@
 import { randomBytes } from 'node:crypto'
-import { MAX_QUIZZES_PER_TEACHER, libraryListResponseSchema, quizListResponseSchema } from '@nataskium/shared/schemas'
+import {
+  MAX_QUIZZES_PER_TEACHER,
+  libraryListResponseSchema,
+  libraryQuizResponseSchema,
+  libraryTakeResponseSchema,
+  quizListResponseSchema,
+} from '@nataskium/shared/schemas'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createQuizCleanup } from '../../src/app'
 import { makeTokenService } from '../../src/features/auth'
@@ -119,27 +125,32 @@ describe('строка matching и маршруты викторин', () => {
     expect(quizzes.map((quiz) => quiz.type)).toEqual(['quiz'])
   })
 
-  it('игра: GET, check и finish по токену — 404', async () => {
+  // GET /api/play/:token отдаёт сопоставление с шага 6a; маршруты викторины по его токену — 404
+  it('игра: check и finish викторины по токену сопоставления — 404', async () => {
     const teacher = await createTeacher(prisma)
     const { shareToken } = await seedMatching(teacher.id)
     const path = `/api/play/${shareToken}`
 
-    expect((await request('GET', path)).status).toBe(404)
     expect((await request('POST', `${path}/check`, { body: { version: 'v1', questionIndex: 0, selected: [0] } })).status).toBe(404)
     expect((await request('POST', `${path}/finish`, { body: { version: 'v1', answers: [[0]] } })).status).toBe(404)
   })
 
-  it('библиотека: карточка и «Взять себе» — 404, копия не создана', async () => {
+  // С шага 7 библиотека показывает оба типа: карточка и «Взять себе» ветвятся по type
+  it('библиотека: карточка matching — 200 с type matching; «Взять себе» — непубличная копия matching', async () => {
     const author = await createTeacher(prisma)
     const taker = await createTeacher(prisma)
     const { publicNumber } = await seedMatching(author.id)
 
-    expect((await request('GET', `/api/library/${publicNumber}`)).status).toBe(404)
-    expect((await request('POST', `/api/library/${publicNumber}/take`, { teacherId: taker.id })).status).toBe(404)
-    expect(await prisma.quiz.count({ where: { teacherId: taker.id } })).toBe(0)
+    const card = libraryQuizResponseSchema.parse(await (await request('GET', `/api/library/${publicNumber}`)).json())
+    expect(card.quiz.type).toBe('matching')
+    const taken = await request('POST', `/api/library/${publicNumber}/take`, { teacherId: taker.id })
+    expect(taken.status).toBe(201)
+    const { quizId, type } = libraryTakeResponseSchema.parse(await taken.json())
+    expect(type).toBe('matching')
+    expect(await prisma.quiz.findUniqueOrThrow({ where: { id: quizId } })).toMatchObject({ teacherId: taker.id, type: 'matching', isPublic: false })
   })
 
-  it('библиотека: строки matching нет в списке до шага 7, список проходит схему', async () => {
+  it('библиотека: список содержит оба типа с type и числом пар, проходит схему', async () => {
     const author = await createTeacher(prisma)
     await seedMatching(author.id)
     await request('POST', '/api/quizzes', { teacherId: author.id, body: QUIZ_INPUT })
@@ -148,7 +159,10 @@ describe('строка matching и маршруты викторин', () => {
 
     expect(response.status).toBe(200)
     const { quizzes } = libraryListResponseSchema.parse(await response.json())
-    expect(quizzes.map((quiz) => quiz.title)).toEqual([QUIZ_INPUT.title])
+    expect(quizzes.map(({ title, type, questionCount }) => ({ title, type, questionCount })).sort((a, b) => a.type.localeCompare(b.type))).toEqual([
+      { title: 'Животные', type: 'matching', questionCount: PAIRS.length },
+      { title: QUIZ_INPUT.title, type: 'quiz', questionCount: 1 },
+    ])
   })
 
   it('кабинет: удалённая строка matching не попадает в список', async () => {
@@ -191,25 +205,27 @@ describe('строка matching и маршруты викторин', () => {
     expect(await real.json()).toEqual(await missing.json())
   })
 
-  it('библиотека: положительный контроль — публичная викторина по тому же номеру открывается, так что 404 у matching из-за типа', async () => {
+  it('библиотека: карточки викторины и matching открываются, у каждой свой type', async () => {
     const author = await createTeacher(prisma)
     const quiz = await prisma.quiz.create({
       data: { teacherId: author.id, title: 'Квиз', shareToken: randomBytes(SHARE_TOKEN_BYTES).toString('base64url'), showAnswers: true, questions: QUIZ_INPUT.questions, isPublic: true },
     })
     const matching = await seedMatching(author.id)
 
-    expect((await request('GET', `/api/library/${quiz.publicNumber}`)).status).toBe(200)
-    expect((await request('GET', `/api/library/${matching.publicNumber}`)).status).toBe(404)
+    const quizCard = libraryQuizResponseSchema.parse(await (await request('GET', `/api/library/${quiz.publicNumber}`)).json())
+    const matchingCard = libraryQuizResponseSchema.parse(await (await request('GET', `/api/library/${matching.publicNumber}`)).json())
+    expect([quizCard.quiz.type, matchingCard.quiz.type]).toEqual(['quiz', 'matching'])
   })
 
-  it('«Взять себе» по номеру matching не тратит лимит: 99 заданий + matching — 201 на викторину, не 409', async () => {
+  it('«Взять себе» matching тратит общий лимит: 99 викторин + копия matching — 201, следующая — 409', async () => {
     const author = await createTeacher(prisma)
     const taker = await createTeacher(prisma)
     const matching = await seedMatching(author.id)
     await fillActivities(taker.id, MAX_QUIZZES_PER_TEACHER - 1, 'quiz')
 
-    expect((await request('POST', `/api/library/${matching.publicNumber}/take`, { teacherId: taker.id })).status).toBe(404)
-    expect(await prisma.quiz.count({ where: { teacherId: taker.id } })).toBe(MAX_QUIZZES_PER_TEACHER - 1)
+    expect((await request('POST', `/api/library/${matching.publicNumber}/take`, { teacherId: taker.id })).status).toBe(201)
+    expect((await request('POST', `/api/library/${matching.publicNumber}/take`, { teacherId: taker.id })).status).toBe(409)
+    expect(await prisma.quiz.count({ where: { teacherId: taker.id, deletedAt: null } })).toBe(MAX_QUIZZES_PER_TEACHER)
   })
 
   it('purge удаляет просроченные строки обоих типов', async () => {

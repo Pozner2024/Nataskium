@@ -45,6 +45,9 @@ export function makeFakeMatchingRepository(options: FakeOptions = {}) {
       record.matching = { ...record.matching, ...input, updatedAt: new Date() }
       return true
     },
+    async findByShareToken(token) {
+      return records.find((r) => r.matching.shareToken === token && r.deletedAt === null)?.matching ?? null
+    },
     async softDeleteOwned(id, teacherId) {
       const record = alive(id, teacherId)
       if (record === undefined) return false

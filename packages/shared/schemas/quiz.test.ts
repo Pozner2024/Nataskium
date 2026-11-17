@@ -291,6 +291,7 @@ describe('картинки в ответах API', () => {
 
   it('playQuizResponseSchema: варианты — объекты с текстом и imageUrl', () => {
     const play = (options: unknown) => ({
+      type: 'quiz',
       quiz: {
         title: 'География',
         showAnswers: true,

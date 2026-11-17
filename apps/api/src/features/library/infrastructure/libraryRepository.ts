@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { QUIZ_ACTIVITY } from '@nataskium/shared/schemas'
+import { activityKindSchema } from '@nataskium/shared/schemas'
 import { Prisma, type PrismaClient } from '../../../generated/prisma/client'
 import type { LibraryQuizListRow, LibraryQuizRow, LibraryRepository } from '../types'
 
@@ -11,6 +11,7 @@ const PUBLIC_SQL = Prisma.sql`is_public AND deleted_at IS NULL AND moderation_hi
 // Строка сырого запроса списка; questionCount NULL (questions не массив) — рассинхрон данных: внутренняя ошибка (500)
 const listRowSchema = z.object({
   number: z.number().int(),
+  type: activityKindSchema,
   title: z.string(),
   groupSlug: z.string(),
   graded: z.boolean(),
@@ -21,6 +22,7 @@ const listRowSchema = z.object({
 // Явный select: id, teacherId, shareToken и updatedAt не должны уйти в публичный ответ ни при каких правках
 const PUBLIC_SELECT = {
   publicNumber: true,
+  type: true,
   title: true,
   groupSlug: true,
   gradingScale: true,
@@ -30,6 +32,7 @@ const PUBLIC_SELECT = {
 
 // Для «Взять себе»: полное содержимое задания. Результат публичным не отдаётся — только копируется учителю
 const COPY_SELECT = {
+  type: true,
   title: true,
   showAnswers: true,
   gradingScale: true,
@@ -53,9 +56,17 @@ function toListRow(row: unknown): LibraryQuizListRow {
   return parsed.data
 }
 
+// Тип вне ACTIVITY_KINDS — рассинхрон данных и кода (CHECK quizzes_type_check): внутренняя ошибка (500)
+function parseType(type: string) {
+  const parsed = activityKindSchema.safeParse(type)
+  if (!parsed.success) throw new Error('Library quiz has an unknown type')
+  return parsed.data
+}
+
 function toLibraryQuizRow(row: PublicRow): LibraryQuizRow {
   return {
     number: row.publicNumber,
+    type: parseType(row.type),
     title: row.title,
     groupSlug: row.groupSlug,
     graded: row.gradingScale !== null,
@@ -64,8 +75,7 @@ function toLibraryQuizRow(row: PublicRow): LibraryQuizRow {
   }
 }
 
-// Карточка, «Взять себе» и список пока показывают только викторины (type = quiz): ветвление по типу и снятие
-// фильтра в list — шаг 7 плана matching
+// Задания всех типов: карточка и «Взять себе» ветвятся по type в use-case
 export function makeLibraryRepository(prisma: PrismaClient): LibraryRepository {
   return {
     async listGroups() {
@@ -83,11 +93,11 @@ export function makeLibraryRepository(prisma: PrismaClient): LibraryRepository {
       const byGroup = group === undefined ? Prisma.empty : Prisma.sql`AND group_slug = ${group}`
       const byTitle = q === undefined ? Prisma.empty : Prisma.sql`AND title ILIKE ${`%${escapeLike(q)}%`}`
       const rows = await prisma.$queryRaw<unknown[]>`
-        SELECT public_number AS number, title, group_slug AS "groupSlug", grading_scale IS NOT NULL AS graded,
+        SELECT public_number AS number, type, title, group_slug AS "groupSlug", grading_scale IS NOT NULL AS graded,
           created_at AS "createdAt",
           CASE WHEN jsonb_typeof(questions) = 'array' THEN jsonb_array_length(questions) END AS "questionCount"
         FROM quizzes
-        WHERE ${PUBLIC_SQL} AND type = ${QUIZ_ACTIVITY} ${byGroup} ${byTitle}
+        WHERE ${PUBLIC_SQL} ${byGroup} ${byTitle}
         ORDER BY created_at DESC, id DESC
         OFFSET ${offset} LIMIT ${limit}
       `
@@ -95,12 +105,13 @@ export function makeLibraryRepository(prisma: PrismaClient): LibraryRepository {
     },
 
     async findByNumber(number) {
-      const row = await prisma.quiz.findFirst({ where: { ...PUBLIC_WHERE, type: QUIZ_ACTIVITY, publicNumber: number }, select: PUBLIC_SELECT })
+      const row = await prisma.quiz.findFirst({ where: { ...PUBLIC_WHERE, publicNumber: number }, select: PUBLIC_SELECT })
       return row === null ? null : toLibraryQuizRow(row)
     },
 
     async findForCopy(number) {
-      return prisma.quiz.findFirst({ where: { ...PUBLIC_WHERE, type: QUIZ_ACTIVITY, publicNumber: number }, select: COPY_SELECT })
+      const row = await prisma.quiz.findFirst({ where: { ...PUBLIC_WHERE, publicNumber: number }, select: COPY_SELECT })
+      return row === null ? null : { ...row, type: parseType(row.type) }
     },
   }
 }
