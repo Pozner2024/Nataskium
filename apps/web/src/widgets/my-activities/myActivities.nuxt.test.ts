@@ -2,6 +2,7 @@ import { mountSuspended, mockNuxtImport } from '@nuxt/test-utils/runtime'
 import { flushPromises } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuthStore } from '@/features/auth'
+import { matchingApi } from '@/entities/matching'
 import { quizApi } from '@/entities/quiz'
 import TeacherActivitiesPage from '@/pages/TeacherActivitiesPage.vue'
 
@@ -123,5 +124,44 @@ describe('Мои задания', () => {
     await flushPromises()
 
     expect(remove).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('Мои задания: сопоставление', () => {
+  const MATCHING = { id: 'm1', type: 'matching' as const, title: 'Животные', questionCount: 4, gradingScale: null, shareToken: 'tok-3' }
+
+  it('карточка подписана типом и числом пар, у викторины — число вопросов', async () => {
+    vi.spyOn(quizApi, 'list').mockResolvedValue({ quizzes: [QUIZZES[0]!, MATCHING] })
+    const wrapper = await mountPage()
+
+    const items = wrapper.findAll('.my-activities__list > li')
+    expect(items[0]?.find('.activity-card__meta').text()).toBe('Викторина · Вопросов: 3')
+    expect(items[1]?.find('.activity-card__meta').text()).toBe('Сопоставление · Пары: 4')
+  })
+
+  it('«Изменить» ведёт на редактор сопоставления', async () => {
+    vi.spyOn(quizApi, 'list').mockResolvedValue({ quizzes: [MATCHING] })
+    const wrapper = await mountPage()
+
+    await wrapper.findComponent({ name: 'MyActivities' }).vm.$emit('edit', MATCHING)
+
+    expect(navigateToMock).toHaveBeenCalledWith('/teacher/matching/m1')
+  })
+
+  it('удаление сопоставления идёт через matchingApi, а не quizApi', async () => {
+    vi.spyOn(quizApi, 'list').mockResolvedValue({ quizzes: [QUIZZES[0]!, MATCHING] })
+    const removeQuiz = vi.spyOn(quizApi, 'remove').mockResolvedValue(undefined)
+    const removeMatching = vi.spyOn(matchingApi, 'remove').mockResolvedValue(undefined)
+    const wrapper = await mountPage()
+
+    await wrapper.findComponent({ name: 'MyActivities' }).vm.$emit('delete', MATCHING)
+    await wrapper.find('.app-confirm-dialog__confirm').trigger('click')
+    await flushPromises()
+
+    expect(removeMatching).toHaveBeenCalledWith('m1', 'access-1')
+    expect(removeQuiz).not.toHaveBeenCalled()
+    const items = wrapper.findAll('.my-activities__list > li')
+    expect(items).toHaveLength(1)
+    expect(items[0]?.text()).toContain('Столицы')
   })
 })

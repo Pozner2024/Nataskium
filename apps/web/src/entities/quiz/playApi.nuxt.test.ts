@@ -17,4 +17,30 @@ describe('playApi', () => {
 
     expect(urls).toEqual(['/api/play/..%2Fauth%2Fme', '/api/play/..%2Fauth%2Fme/check'])
   })
+
+  const MATCHING_BODY = {
+    type: 'matching',
+    matching: { title: 'Т', showAnswers: false, version: 'v1', timer: { mode: 'none' }, definitions: ['A', 'B'], terms: ['b', 'a'] },
+  }
+
+  function stubFetchJson(body: unknown) {
+    vi.stubGlobal('fetch', () => Promise.resolve(new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } })))
+  }
+
+  it('ответ сопоставления разбирается с type matching и без пар', async () => {
+    stubFetchJson({ ...MATCHING_BODY, matching: { ...MATCHING_BODY.matching, pairs: [{ term: 'a', definition: 'A' }] } })
+
+    const response = await playApi.get('token')
+
+    expect(response.type).toBe('matching')
+    if (response.type !== 'matching') throw new Error('expected matching')
+    expect(response.matching).not.toHaveProperty('pairs')
+    expect(response.matching.definitions).toEqual(['A', 'B'])
+  })
+
+  it('неизвестный type в ответе — ошибка, а не данные', async () => {
+    stubFetchJson({ type: 'poll', poll: {} })
+
+    await expect(playApi.get('token')).rejects.toThrow()
+  })
 })

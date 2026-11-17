@@ -14,6 +14,7 @@ const QUIZ_NUMBER = 12
 
 const QUIZ_BODY = {
   quiz: {
+    type: 'quiz' as const,
     number: QUIZ_NUMBER,
     title: 'Столицы',
     groupSlug: 'other',

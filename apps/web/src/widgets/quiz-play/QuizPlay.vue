@@ -30,40 +30,30 @@
 
 <script setup lang="ts">
 import { onMounted, provide } from 'vue'
-import { navigateTo, useI18n, useRoute, useRouter, useSeoMeta, useSwitchLocalePath } from '#imports'
-import { PREVIEW_QUERY, PREVIEW_QUERY_KEY } from '@/entities/quiz'
-import { useCurrentLocale } from '@/shared'
+import { useI18n, useRoute, useRouter, useSeoMeta } from '#imports'
+import { PREVIEW_QUERY_KEY, type PlayQuizResponse } from '@/entities/quiz'
+import { PLAY_TIMER_KEY } from '@/features/play-session'
 import PlayQuestion from './components/PlayQuestion.vue'
 import PlayResult from './components/PlayResult.vue'
-import { pickPlayLocale } from './pickPlayLocale'
 import { usePlayStore } from './store'
-import { QUIZ_TIMER_KEY, useQuizTimer } from './useQuizTimer'
+import { useQuizPlayTimer } from './useQuizPlayTimer'
 
-const props = defineProps<{ token: string }>()
+// initial — ответ GET, уже полученный PlayPage; без него виджет загружает задание сам
+const props = defineProps<{ token: string; initial?: PlayQuizResponse }>()
 
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const store = usePlayStore()
 const isPreview = route.query[PREVIEW_QUERY_KEY] === '1'
-const currentLocale = useCurrentLocale()
-const switchLocalePath = useSwitchLocalePath()
 
-const timer = useQuizTimer()
-provide(QUIZ_TIMER_KEY, timer)
+const timer = useQuizPlayTimer()
+provide(PLAY_TIMER_KEY, timer)
 
 useSeoMeta({ title: () => store.title, robots: 'noindex, nofollow' })
 
-// Язык игры определяет только браузер ученика. Страница отрисовывается только в браузере
-onMounted(async () => {
-  const locale = pickPlayLocale(navigator.languages)
-  const target = switchLocalePath(locale)
-  if (locale !== currentLocale.value && target !== '') {
-    await navigateTo(isPreview ? `${target}?${PREVIEW_QUERY}` : target, { replace: true })
-    return
-  }
-  await store.start(props.token)
-})
+// Язык игры выбирает PlayPage до загрузки (usePlayLocaleRedirect)
+onMounted(() => store.start(props.token, undefined, props.initial))
 </script>
 
 <style scoped lang="scss">

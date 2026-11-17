@@ -1,6 +1,6 @@
 import type { GradingScaleType } from '@nataskium/shared/grading'
 
-export type ActivityType = 'quiz' | 'gaps' | 'pictures'
+export type ActivityType = 'quiz' | 'matching' | 'gaps' | 'pictures'
 
 export interface Activity {
   id: string

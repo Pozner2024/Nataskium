@@ -23,6 +23,7 @@ function options(...texts: string[]) {
 
 function quiz(showAnswers: boolean) {
   return {
+    type: 'quiz' as const,
     quiz: {
       title: 'Столицы',
       showAnswers,
@@ -45,6 +46,16 @@ beforeEach(() => {
 })
 
 describe('usePlayStore', () => {
+  it('ссылка сопоставления до диспетчера PlayPage — «не найдено», а не сбой', async () => {
+    get.mockResolvedValue({
+      type: 'matching',
+      matching: { title: 'Т', showAnswers: false, version: 'v1', timer: { mode: 'none' }, definitions: ['A', 'B'], terms: ['b', 'a'] },
+    })
+    await store.start(TOKEN, NO_SHUFFLE)
+    expect(store.status).toBe('notFound')
+    expect(store.questions).toEqual([])
+  })
+
   it('невалидный токен: «не найдено» без запроса', async () => {
     await store.start('../auth/me')
     expect(store.status).toBe('notFound')
@@ -291,6 +302,7 @@ describe('usePlayStore: картинки', () => {
 
   it('перемешивание не теряет картинку варианта, вариант-картинка уходит исходным индексом', async () => {
     get.mockResolvedValue({
+      type: 'quiz' as const,
       quiz: {
         title: 'Картинки',
         showAnswers: false,
@@ -329,7 +341,7 @@ describe('usePlayStore: таймер', () => {
   const MS = 1000
 
   function timedQuiz(showAnswers: boolean, timer: QuizTimer) {
-    return { quiz: { ...quiz(showAnswers).quiz, timer } }
+    return { type: 'quiz' as const, quiz: { ...quiz(showAnswers).quiz, timer } }
   }
 
   beforeEach(() => {

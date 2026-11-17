@@ -4,7 +4,7 @@
     <div class="activity-card__info">
       <h2 :id="titleId" class="activity-card__title">{{ activity.title }}</h2>
       <p class="activity-card__meta">
-        {{ t(`teacher.activityTypes.${activity.type}.name`) }} · {{ t('teacher.activities.questions', { count: activity.questionCount }) }}
+        {{ t(`teacher.activityTypes.${activity.type}.name`) }} · {{ t(countKey, { count: activity.questionCount }, activity.questionCount) }}
       </p>
       <p class="activity-card__grade" :class="{ 'activity-card__grade--none': !activity.gradingScale }">
         {{ activity.gradingScale ? t('teacher.activities.grade', { scale: t(`teacher.gradingScales.${activity.gradingScale}`) }) : t('teacher.activities.noGrade') }}
@@ -17,17 +17,19 @@
 </template>
 
 <script setup lang="ts">
-import { useId } from 'vue'
+import { computed, useId } from 'vue'
 import { useI18n } from '#imports'
 import ActivityTypeIcon from './ActivityTypeIcon.vue'
 import type { Activity } from './types'
 
-defineProps<{
+const props = defineProps<{
   activity: Activity
 }>()
 
 const { t } = useI18n()
 const titleId = useId()
+// У сопоставления в questionCount — число пар
+const countKey = computed(() => (props.activity.type === 'matching' ? 'teacher.activities.pairs' : 'teacher.activities.questions'))
 </script>
 
 <style scoped lang="scss">

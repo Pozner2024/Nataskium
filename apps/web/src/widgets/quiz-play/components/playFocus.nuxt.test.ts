@@ -16,6 +16,7 @@ const mounted: { unmount: () => void }[] = []
 
 async function startQuiz() {
   vi.mocked(playApi.get).mockResolvedValue({
+    type: 'quiz' as const,
     quiz: {
       title: 'Quiz',
       showAnswers: true,

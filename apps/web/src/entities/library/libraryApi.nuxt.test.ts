@@ -7,6 +7,7 @@ const QUIZ_ID = '0b6a9c1e-7f3d-4a52-9e1b-3c5d7f9a1b2c'
 
 const QUIZ_BODY = {
   quiz: {
+    type: 'quiz',
     number: QUIZ_NUMBER,
     title: 'Столицы',
     groupSlug: 'humanities',
@@ -48,6 +49,7 @@ describe('libraryApi.get', () => {
     expect(calls[0]?.init.method).toBe('GET')
     expect(calls[0]?.init.headers).not.toHaveProperty('Authorization')
     expect(response.quiz.title).toBe('Столицы')
+    if (response.quiz.type !== 'quiz') throw new Error('expected quiz')
     expect(response.quiz.questions).toHaveLength(1)
   })
 
@@ -69,7 +71,7 @@ describe('libraryApi.get', () => {
 
 describe('libraryApi.take', () => {
   it('отправляет POST с токеном учителя и без тела, возвращает id копии', async () => {
-    const calls = stubFetch(json({ quizId: QUIZ_ID }, 201))
+    const calls = stubFetch(json({ quizId: QUIZ_ID, type: 'quiz' }, 201))
 
     const response = await libraryApi.take(QUIZ_NUMBER, 'access-1')
 
@@ -78,12 +80,12 @@ describe('libraryApi.take', () => {
     expect(calls[0]?.init.method).toBe('POST')
     expect(calls[0]?.init.headers).toMatchObject({ Authorization: 'Bearer access-1' })
     expect(calls[0]?.init.body).toBeUndefined()
-    expect(response).toEqual({ quizId: QUIZ_ID })
+    expect(response).toEqual({ quizId: QUIZ_ID, type: 'quiz' })
   })
 
   it('ждёт ответа 60 секунд: копирование картинок идёт дольше обычного запроса', async () => {
     const timeout = vi.spyOn(AbortSignal, 'timeout')
-    stubFetch(json({ quizId: QUIZ_ID }, 201))
+    stubFetch(json({ quizId: QUIZ_ID, type: 'quiz' }, 201))
 
     await libraryApi.take(QUIZ_NUMBER, 'access-1')
 

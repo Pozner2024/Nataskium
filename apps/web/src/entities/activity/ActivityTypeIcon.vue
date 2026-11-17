@@ -44,4 +44,8 @@ defineProps<{
 .activity-type-icon--orange {
   background: var(--color-orange);
 }
+
+.activity-type-icon--night {
+  background: var(--color-night);
+}
 </style>

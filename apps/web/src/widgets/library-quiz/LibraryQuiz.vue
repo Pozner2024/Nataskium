@@ -13,6 +13,7 @@
       </NuxtLink>
 
       <h1 class="library-quiz__title">{{ quiz.title }}</h1>
+      <p class="library-quiz__type">{{ t(`teacher.activityTypes.${quiz.type}.name`) }}</p>
       <p class="library-quiz__meta">{{ meta }}</p>
       <p class="library-quiz__grade" :class="{ 'library-quiz__grade--none': !quiz.graded }">
         {{ quiz.graded ? t('library.graded') : t('library.notGraded') }}
@@ -23,7 +24,7 @@
         <TakeLibraryQuizButton :is-signed-in="auth.isAuthenticated" :is-ready="isSessionChecked" :take="take" @taken="onTaken" @login-required="isLoginOpen = true" />
       </div>
 
-      <section class="library-quiz__preview" aria-labelledby="library-quiz-preview-title">
+      <section v-if="quiz.type === 'quiz'" class="library-quiz__preview" aria-labelledby="library-quiz-preview-title">
         <h2 id="library-quiz-preview-title" class="library-quiz__preview-title">{{ t('library.quiz.previewTitle') }}</h2>
 
         <p v-if="quiz.questions.length === 0" class="library-quiz__note">{{ t('library.quiz.noQuestions') }}</p>
@@ -38,6 +39,10 @@
         </p>
       </section>
 
+      <section v-else class="library-quiz__preview" aria-labelledby="library-quiz-preview-title">
+        <h2 id="library-quiz-preview-title" class="library-quiz__preview-title">{{ t('library.matching.previewTitle') }}</h2>
+        <LibraryMatchingPreview :definitions="quiz.definitions" :terms="quiz.terms" />
+      </section>
     </article>
 
     <LibraryLoginDialog :open="isLoginOpen" :login-to="loginTo" :register-to="localePath(AUTH_PATHS.register)" @close="isLoginOpen = false" />
@@ -51,10 +56,11 @@ import { NuxtLink } from '#components'
 import { navigateTo, useI18n, useLocalePath, useRoute } from '#imports'
 import { libraryApi, useLibraryGroups } from '@/entities/library'
 import { authorizedRequest, restoreSession, useAuthStore } from '@/features/auth'
-import { TakeLibraryQuizButton } from '@/features/take-library-quiz'
-import { AUTH_PATHS, TEACHER_PATHS, useCurrentLocale } from '@/shared'
+import { TakeLibraryQuizButton, type TakenActivity, takenEditPath } from '@/features/take-library-quiz'
+import { AUTH_PATHS, useCurrentLocale } from '@/shared'
 import { formatLibraryDate } from './formatLibraryDate'
 import LibraryLoginDialog from './components/LibraryLoginDialog.vue'
+import LibraryMatchingPreview from './components/LibraryMatchingPreview.vue'
 import LibraryQuizQuestion from './components/LibraryQuizQuestion.vue'
 import { useLibraryQuiz } from './useLibraryQuiz'
 
@@ -72,12 +78,17 @@ const auth = useAuthStore()
 const isSessionChecked = ref(false)
 const isLoginOpen = ref(false)
 
-const take = () => authorizedRequest((token) => libraryApi.take(props.number, token))
+// Тип копии нужен для перехода в её редактор: событие кнопки несёт только id
+let taken: TakenActivity | null = null
+async function take(): Promise<TakenActivity> {
+  taken = await authorizedRequest((token) => libraryApi.take(props.number, token))
+  return taken
+}
 // next проверит safeNextPath на странице входа; регистрация и Google next пока не поддерживают
 const loginTo = computed(() => ({ path: localePath(AUTH_PATHS.login), query: { next: route.fullPath } }))
 
 function onTaken(quizId: string) {
-  void navigateTo(localePath(`${TEACHER_PATHS.quizEdit}/${quizId}`))
+  void navigateTo(localePath(takenEditPath({ quizId, type: taken?.type ?? 'quiz' })))
 }
 
 const meta = computed(() => {
@@ -86,7 +97,9 @@ const meta = computed(() => {
   const date = formatLibraryDate(quiz.value.createdAt, locale.value)
   return [
     groupName,
-    t('library.questions', { count: quiz.value.questionCount }),
+    quiz.value.type === 'matching'
+      ? t('teacher.activities.pairs', { count: quiz.value.questionCount })
+      : t('library.questions', { count: quiz.value.questionCount }),
     date === '' ? undefined : t('library.quiz.addedOn', { date }),
   ]
     .filter((part) => part)
@@ -185,6 +198,14 @@ onMounted(async () => {
   margin: 0;
   color: var(--color-text-muted);
   font-size: 15px;
+  line-height: 1.4;
+}
+
+.library-quiz__type {
+  margin: 0;
+  color: var(--color-blue-dark);
+  font-size: 15px;
+  font-weight: 600;
   line-height: 1.4;
 }
 

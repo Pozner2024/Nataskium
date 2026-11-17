@@ -35,11 +35,11 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useI18n } from '#imports'
-import type { LibraryQuizDetails } from '@/entities/library'
+import type { LibraryQuizCard } from '@/entities/library'
 
 defineProps<{
   number: number
-  question: LibraryQuizDetails['questions'][number]
+  question: LibraryQuizCard['questions'][number]
 }>()
 
 const { t } = useI18n()

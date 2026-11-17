@@ -1,10 +1,11 @@
 import { onMounted, ref } from 'vue'
 import type { Activity } from '@/entities/activity'
+import { matchingApi } from '@/entities/matching'
 import { quizApi } from '@/entities/quiz'
 import { authorizedRequest } from '@/features/auth'
 import type { ActivitiesStatus } from './types'
 
-// Все задания пока — викторины; другие типы добавятся вместе со своими API
+// Список общий для всех типов (GET /api/quizzes), удаление — через API своего типа
 export function useMyActivities() {
   const activities = ref<Activity[]>([])
   const status = ref<ActivitiesStatus>('loading')
@@ -16,7 +17,7 @@ export function useMyActivities() {
     status.value = 'loading'
     try {
       const { quizzes } = await authorizedRequest((accessToken) => quizApi.list(accessToken))
-      activities.value = quizzes.map((quiz) => ({ ...quiz, type: 'quiz' }))
+      activities.value = quizzes
       status.value = 'ready'
     } catch {
       status.value = 'error'
@@ -29,7 +30,8 @@ export function useMyActivities() {
     isRemoving.value = true
     isRemoveFailed.value = false
     try {
-      await authorizedRequest((accessToken) => quizApi.remove(activity.id, accessToken))
+      const api = activity.type === 'matching' ? matchingApi : quizApi
+      await authorizedRequest((accessToken) => api.remove(activity.id, accessToken))
       activities.value = activities.value.filter((item) => item.id !== activity.id)
     } catch {
       isRemoveFailed.value = true

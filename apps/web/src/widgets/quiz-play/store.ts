@@ -1,7 +1,7 @@
 import { shareTokenSchema, type QuizTimer } from '@nataskium/shared/schemas'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { playApi, type QuizResult } from '@/entities/quiz'
+import { playApi, type PlayQuizResponse, type QuizResult } from '@/entities/quiz'
 import { ApiError } from '@/shared'
 import { shuffle } from './shuffle'
 
@@ -129,7 +129,9 @@ export const usePlayStore = defineStore('play', () => {
     retryAction = null
   }
 
-  async function start(newToken?: string, random: () => number = Math.random): Promise<void> {
+  // initial — ответ GET, уже полученный PlayPage: первый показ без второго запроса.
+  // «Пройти ещё раз», повтор и смена версии загружают задание заново (initial не передаётся)
+  async function start(newToken?: string, random: () => number = Math.random, initial?: PlayQuizResponse): Promise<void> {
     if (newToken !== undefined) token.value = newToken
     reset()
     if (!shareTokenSchema.safeParse(token.value).success) {
@@ -138,8 +140,12 @@ export const usePlayStore = defineStore('play', () => {
     }
     const runEpoch = epoch
     await run(async () => {
-      const { quiz } = await playApi.get(token.value)
+      const response = initial ?? (await playApi.get(token.value))
       if (runEpoch !== epoch) return
+      // Тип выбирает PlayPage. Сюда другой тип попадает только при собственном запросе стора: для викторины
+      // такой ссылки нет — как отсутствующее задание
+      if (response.type !== 'quiz') throw new ApiError(NOT_FOUND_STATUS)
+      const { quiz } = response
       title.value = quiz.title
       showAnswers.value = quiz.showAnswers
       version.value = quiz.version

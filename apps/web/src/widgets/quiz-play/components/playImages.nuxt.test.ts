@@ -19,6 +19,7 @@ const mounted: { unmount: () => void }[] = []
 // random = 0 переставляет [a, b, c] в [b, c, a]: на экране «Тигр», картинка без текста, «Кот»
 async function startQuiz(showAnswers = false) {
   vi.mocked(playApi.get).mockResolvedValue({
+    type: 'quiz' as const,
     quiz: {
       title: 'Животные',
       showAnswers,

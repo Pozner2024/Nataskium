@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { computed, ref } from 'vue'
 import { playApi } from '@/entities/quiz'
 import { usePlayStore } from '../store'
-import { QUIZ_TIMER_KEY, type QuizTimerView } from '../useQuizTimer'
+import { PLAY_TIMER_KEY, type PlayTimerView } from '@/features/play-session'
 import PlayResult from './PlayResult.vue'
 import PlayTimer from './PlayTimer.vue'
 
@@ -15,7 +15,7 @@ vi.mock('@/entities/quiz', () => ({
 const TOKEN = 'abcdefghijklmnopqrstuv'
 const mounted: { unmount: () => void }[] = []
 
-function view(partial: { elapsed?: number; remaining?: number | null; low?: boolean }): QuizTimerView {
+function view(partial: { elapsed?: number; remaining?: number | null; low?: boolean }): PlayTimerView {
   return {
     elapsedSeconds: computed(() => partial.elapsed ?? 0),
     remainingSeconds: computed(() => partial.remaining ?? null),
@@ -26,6 +26,7 @@ function view(partial: { elapsed?: number; remaining?: number | null; low?: bool
 
 async function startQuiz(timer: unknown) {
   vi.mocked(playApi.get).mockResolvedValue({
+    type: 'quiz',
     quiz: {
       title: 'Quiz',
       showAnswers: false,
@@ -39,8 +40,8 @@ async function startQuiz(timer: unknown) {
   return store
 }
 
-async function mountTimer(timerView: QuizTimerView | null) {
-  const wrapper = await mountSuspended(PlayTimer, { global: { provide: timerView ? { [QUIZ_TIMER_KEY as symbol]: timerView } : {} } })
+async function mountTimer(timerView: PlayTimerView | null) {
+  const wrapper = await mountSuspended(PlayTimer, { global: { provide: timerView ? { [PLAY_TIMER_KEY as symbol]: timerView } : {} } })
   mounted.push(wrapper)
   await flushPromises()
   return wrapper

@@ -1,0 +1,203 @@
+<template>
+  <section class="matching-play">
+    <button v-if="isPreview" class="matching-play__back" type="button" @click="router.back()">
+      {{ t('play.backToPrevious') }}
+    </button>
+    <p v-if="isPreview" class="matching-play__preview-note">{{ t('play.previewNote') }}</p>
+
+    <p class="matching-play__sr-only" role="status">{{ timer.announcement.value }}</p>
+
+    <p v-if="store.status === 'loading'" class="matching-play__loading" role="status">{{ t('play.loading') }}</p>
+
+    <div v-else-if="store.status === 'notFound'" class="matching-play__status">
+      <p class="matching-play__message" role="alert">{{ t('play.notFound') }}</p>
+    </div>
+
+    <div v-else-if="store.status === 'changed'" class="matching-play__status">
+      <p class="matching-play__message" role="alert">{{ t('play.changed') }}</p>
+      <button class="matching-play__button" type="button" @click="store.start()">{{ t('play.restart') }}</button>
+    </div>
+
+    <div v-else-if="store.status === 'failed'" class="matching-play__status">
+      <p class="matching-play__message" role="alert">{{ t('play.failed') }}</p>
+      <button class="matching-play__button" type="button" @click="store.retry()">{{ t('play.retry') }}</button>
+    </div>
+
+    <MatchingResult v-else-if="store.phase === 'result'" />
+    <MatchingBoard v-else />
+  </section>
+</template>
+
+<script setup lang="ts">
+import { onMounted, provide } from 'vue'
+import { useI18n, useRoute, useRouter, useSeoMeta } from '#imports'
+import type { PlayMatchingResponse } from '@/entities/matching'
+import { PREVIEW_QUERY_KEY } from '@/entities/quiz'
+import { PLAY_TIMER_KEY } from '@/features/play-session'
+import MatchingBoard from './components/MatchingBoard.vue'
+import MatchingResult from './components/MatchingResult.vue'
+import { useMatchingPlayStore } from './store'
+import { useMatchingPlayTimer } from './useMatchingPlayTimer'
+
+// initial — ответ GET, уже полученный PlayPage; без него виджет загружает задание сам
+const props = defineProps<{ token: string; initial?: PlayMatchingResponse }>()
+
+const { t } = useI18n()
+const route = useRoute()
+const router = useRouter()
+const store = useMatchingPlayStore()
+const isPreview = route.query[PREVIEW_QUERY_KEY] === '1'
+
+const timer = useMatchingPlayTimer()
+provide(PLAY_TIMER_KEY, timer)
+
+useSeoMeta({ title: () => store.title, robots: 'noindex, nofollow' })
+
+onMounted(() => store.start(props.token, props.initial))
+</script>
+
+<style scoped lang="scss">
+@use '@/assets/styles/mixins' as *;
+
+.matching-play {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 8px var(--gutter) 24px;
+}
+
+.matching-play__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.matching-play__back {
+  align-self: flex-start;
+  margin: 0 0 12px;
+  padding: 10px 4px;
+  border: 0;
+  background: none;
+  color: var(--color-blue-dark);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.matching-play__preview-note {
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: rgb(var(--rgb-blue) / 0.1);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.matching-play__loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  margin: 48px 0 0;
+  color: var(--color-text-muted);
+  font-weight: 500;
+
+  &::before {
+    content: '';
+    width: 36px;
+    height: 36px;
+    border: 4px solid rgb(var(--rgb-blue) / 0.18);
+    border-top-color: var(--color-blue);
+    border-radius: 50%;
+    animation: matching-play-spin 0.9s linear infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &::before {
+      animation: none;
+    }
+  }
+}
+
+@keyframes matching-play-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+.matching-play__status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  margin-top: 32px;
+  padding: 28px 20px 24px;
+  border-radius: 22px;
+  text-align: center;
+  @include card-surface;
+}
+
+.matching-play__message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+
+  &::before {
+    content: '!';
+    content: '!' / '';
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--color-orange-dark);
+    color: var(--color-white);
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1;
+  }
+}
+
+.matching-play__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 8px 24px;
+  border: 0;
+  border-radius: 14px;
+  background: rgb(var(--rgb-blue) / 0.1);
+  color: var(--color-blue-dark);
+  font: inherit;
+  font-weight: 700;
+  line-height: 1.2;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.2s ease;
+
+  @media (hover: hover) {
+    &:hover {
+      background: rgb(var(--rgb-blue) / 0.16);
+    }
+  }
+
+  &:active {
+    background: rgb(var(--rgb-blue) / 0.24);
+  }
+}
+</style>

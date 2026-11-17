@@ -19,6 +19,7 @@ const mounted: { unmount: () => void }[] = []
 
 function body(timer: unknown) {
   return {
+    type: 'quiz',
     quiz: {
       title: 'Quiz',
       showAnswers: true,

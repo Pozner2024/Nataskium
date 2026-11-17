@@ -47,8 +47,10 @@
   }
 
   --z-pre-footer: 1;
-  --z-header: calc(var(--z-pre-footer) + 1);
+  --z-matching-tray: calc(var(--z-pre-footer) + 1);
+  --z-header: calc(var(--z-matching-tray) + 1);
   --z-language-menu: calc(var(--z-header) + 1);
+  --z-drag-chip: calc(var(--z-language-menu) + 1);
 
   --font-display: 'Unbounded', 'Arial Black', system-ui, sans-serif;
   --font-body: 'Onest', system-ui, -apple-system, 'Segoe UI', sans-serif;

@@ -14,10 +14,16 @@ const localePath = useLocalePath()
 
 useSeoMeta({ title: () => t('teacher.create.title'), robots: 'noindex, nofollow' })
 
-// Пока есть только викторина: остальные типы появятся вместе со своими редакторами
+const NEW_ACTIVITY_PATHS: Partial<Record<ActivityType, string>> = {
+  quiz: TEACHER_PATHS.quizNew,
+  matching: TEACHER_PATHS.matchingNew,
+}
+
+// Пропуски и картинки появятся вместе со своими редакторами
 async function select(type: ActivityType) {
-  if (type !== 'quiz') return
-  await navigateTo(localePath(TEACHER_PATHS.quizNew))
+  const path = NEW_ACTIVITY_PATHS[type]
+  if (!path) return
+  await navigateTo(localePath(path))
 }
 </script>
 

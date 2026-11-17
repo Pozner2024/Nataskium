@@ -2,7 +2,7 @@ import { mountSuspended } from '@nuxt/test-utils/runtime'
 import { flushPromises, type VueWrapper } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearNuxtState, useRouter } from '#imports'
-import { type LibraryQuizDetails, type LibraryQuizResponse, libraryApi } from '@/entities/library'
+import { type LibraryQuizCard, type LibraryQuizResponse, libraryApi } from '@/entities/library'
 import { ApiError } from '@/shared'
 import { formatLibraryDate } from './formatLibraryDate'
 import LibraryQuiz from './LibraryQuiz.vue'
@@ -19,7 +19,7 @@ const GROUPS = {
   ],
 }
 
-type Question = LibraryQuizDetails['questions'][number]
+type Question = LibraryQuizCard['questions'][number]
 
 const QUESTIONS: Question[] = [
   {
@@ -33,9 +33,10 @@ const QUESTIONS: Question[] = [
   { text: 'Сколько будет 2 + 2?', imageUrl: null, options: [{ text: '4', imageUrl: null }] },
 ]
 
-function quizBody(overrides: Partial<LibraryQuizDetails> = {}): LibraryQuizResponse {
+function quizBody(overrides: Partial<LibraryQuizCard> = {}): LibraryQuizResponse {
   return {
     quiz: {
+      type: 'quiz',
       number: NUMBER,
       title: 'Столицы',
       groupSlug: 'geography',

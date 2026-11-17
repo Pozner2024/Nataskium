@@ -25,6 +25,7 @@ const REFRESHED_SESSION = { accessToken: 'access-2', teacher: TEACHER }
 
 const QUIZ_BODY: LibraryQuizResponse = {
   quiz: {
+    type: 'quiz' as const,
     number: NUMBER,
     title: 'Столицы',
     groupSlug: 'geography',
@@ -145,7 +146,7 @@ describe('LibraryQuiz: «Взять себе»', () => {
   describe('вошедший учитель', () => {
     it('libraryApi.take(номер, токен), затем переход в редактор копии', async () => {
       useAuthStore().setSession(SESSION)
-      const take = vi.spyOn(libraryApi, 'take').mockResolvedValue({ quizId: COPY_ID })
+      const take = vi.spyOn(libraryApi, 'take').mockResolvedValue({ quizId: COPY_ID, type: 'quiz' as const })
       await mountQuiz()
 
       await clickTake()
@@ -159,7 +160,7 @@ describe('LibraryQuiz: «Взять себе»', () => {
 
     it('на английском переход с префиксом /en', async () => {
       useAuthStore().setSession(SESSION)
-      vi.spyOn(libraryApi, 'take').mockResolvedValue({ quizId: COPY_ID })
+      vi.spyOn(libraryApi, 'take').mockResolvedValue({ quizId: COPY_ID, type: 'quiz' as const })
       await mountQuiz('/en/library/quiz/12-capitals')
 
       await clickTake()
@@ -169,7 +170,7 @@ describe('LibraryQuiz: «Взять себе»', () => {
 
     it('два быстрых клика: одно копирование и один переход', async () => {
       useAuthStore().setSession(SESSION)
-      const take = vi.spyOn(libraryApi, 'take').mockResolvedValue({ quizId: COPY_ID })
+      const take = vi.spyOn(libraryApi, 'take').mockResolvedValue({ quizId: COPY_ID, type: 'quiz' as const })
       await mountQuiz()
 
       await takeButton().trigger('click')
@@ -184,7 +185,7 @@ describe('LibraryQuiz: «Взять себе»', () => {
       localStorage.setItem(SIGNED_IN_HINT_KEY, '1')
       let finishRefresh: (value: typeof SESSION) => void = () => undefined
       refresh.mockReturnValue(new Promise((resolve) => (finishRefresh = resolve)))
-      const take = vi.spyOn(libraryApi, 'take').mockResolvedValue({ quizId: COPY_ID })
+      const take = vi.spyOn(libraryApi, 'take').mockResolvedValue({ quizId: COPY_ID, type: 'quiz' as const })
       await mountQuiz()
 
       expect(takeButton().attributes('disabled')).toBeDefined()
@@ -262,7 +263,7 @@ describe('LibraryQuiz: «Взять себе»', () => {
       const take = vi
         .spyOn(libraryApi, 'take')
         .mockRejectedValueOnce(new ApiError(401))
-        .mockResolvedValueOnce({ quizId: COPY_ID })
+        .mockResolvedValueOnce({ quizId: COPY_ID, type: 'quiz' as const })
       await mountQuiz()
 
       await clickTake()
@@ -297,7 +298,7 @@ describe('LibraryQuiz: «Взять себе»', () => {
       useAuthStore().setSession(SESSION)
       vi.spyOn(libraryApi, 'take')
         .mockRejectedValueOnce(new ApiError(503))
-        .mockResolvedValueOnce({ quizId: COPY_ID })
+        .mockResolvedValueOnce({ quizId: COPY_ID, type: 'quiz' as const })
       await mountQuiz()
 
       await clickTake()

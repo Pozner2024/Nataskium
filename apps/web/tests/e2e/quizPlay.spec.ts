@@ -9,6 +9,7 @@ function options(...texts: string[]) {
 
 function quizBody(showAnswers: boolean) {
   return {
+    type: 'quiz',
     quiz: {
       title: 'Capitals',
       showAnswers,
@@ -35,6 +36,7 @@ const PIXEL_PNG = Buffer.from(
 // Без текста — «Cat» (0) и битая картинка (2); «Tiger» (1) — картинка и текст
 function imageQuizBody() {
   return {
+    type: 'quiz',
     quiz: {
       title: 'Animals',
       showAnswers: false,
@@ -98,7 +100,12 @@ test.describe('игра ученика', () => {
     const submit = page.getByRole('button', { name: 'Answer' })
     await expect(submit).toBeDisabled()
     await pick(page, 'Paris')
-    await expect(page.getByRole('button', { name: 'Rome' })).toBeDisabled()
+    // Один ответ: клик по другому варианту заменяет выбор, блокировки нет
+    await expect(page.getByRole('button', { name: 'Rome' })).toBeEnabled()
+    await pick(page, 'Rome')
+    await expect(page.getByRole('button', { name: 'Rome' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.getByRole('button', { name: 'Paris', exact: true })).toHaveAttribute('aria-pressed', 'false')
+    await pick(page, 'Paris')
     await submit.click()
     await expect(page.locator('.play-question__option--correct')).toHaveCount(1)
     await page.getByRole('button', { name: 'Next' }).click()
@@ -307,7 +314,7 @@ test.describe('игра ученика: таймер', () => {
           json: { result: { percent: 0, grade: null, correctCount: 0, partialCount: 1, totalCount: 2 } },
         })
       }
-      return route.fulfill({ json: { quiz: { ...quizBody(false).quiz, timer: { mode: 'limit', seconds: 60 } } } })
+      return route.fulfill({ json: { type: 'quiz', quiz: { ...quizBody(false).quiz, timer: { mode: 'limit', seconds: 60 } } } })
     })
 
     await page.goto(`/play/${TOKEN}`)

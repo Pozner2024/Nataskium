@@ -13,6 +13,7 @@ const NETWORK_STATUS = 0
 function quizBody(number: number, title: string): LibraryQuizResponse {
   return {
     quiz: {
+      type: 'quiz' as const,
       number,
       title,
       groupSlug: 'other',

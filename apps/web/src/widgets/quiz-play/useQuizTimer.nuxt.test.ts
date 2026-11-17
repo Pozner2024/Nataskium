@@ -4,7 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { playApi } from '@/entities/quiz'
 import { usePlayStore } from './store'
-import { useQuizTimer, type QuizTimerView } from './useQuizTimer'
+import type { PlayTimerView } from '@/features/play-session'
+import { useQuizPlayTimer } from './useQuizPlayTimer'
 
 vi.mock('@/entities/quiz', () => ({
   playApi: { get: vi.fn(), check: vi.fn(), finish: vi.fn() },
@@ -15,14 +16,14 @@ const START = new Date('2026-01-01T10:00:00Z').getTime()
 const SECOND = 1000
 const RESULT = { percent: 0, grade: null, correctCount: 0, partialCount: 0, totalCount: 1 }
 
-let view: QuizTimerView
+let view: PlayTimerView
 let store: ReturnType<typeof usePlayStore>
 let expire: ReturnType<typeof vi.spyOn>
 const mounted: { unmount: () => void }[] = []
 
 const Harness = defineComponent({
   setup() {
-    view = useQuizTimer()
+    view = useQuizPlayTimer()
     return () => null
   },
 })
@@ -34,6 +35,7 @@ function setVisibility(state: 'visible' | 'hidden'): void {
 
 async function startWith(timer: unknown): Promise<void> {
   vi.mocked(playApi.get).mockResolvedValue({
+    type: 'quiz',
     quiz: {
       title: 'Quiz',
       showAnswers: false,
@@ -223,6 +225,7 @@ describe('useQuizTimer: режимы без лимита', () => {
 describe('useQuizTimer: интервал', () => {
   async function questionsQuiz(): Promise<void> {
     vi.mocked(playApi.get).mockResolvedValue({
+      type: 'quiz',
       quiz: {
         title: 'Quiz',
         showAnswers: true,

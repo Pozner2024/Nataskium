@@ -34,7 +34,8 @@ const isDeleteOpen = ref(false)
 const pendingDelete = ref<Activity | null>(null)
 
 async function edit(activity: Activity) {
-  await navigateTo(localePath(`${TEACHER_PATHS.quizEdit}/${activity.id}`))
+  const editPath = activity.type === 'matching' ? TEACHER_PATHS.matchingEdit : TEACHER_PATHS.quizEdit
+  await navigateTo(localePath(`${editPath}/${activity.id}`))
 }
 
 function askDelete(activity: Activity) {

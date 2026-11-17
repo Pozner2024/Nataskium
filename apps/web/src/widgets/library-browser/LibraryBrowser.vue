@@ -37,8 +37,9 @@
           <h2 class="library-browser__title">
             <NuxtLink class="library-browser__link" :to="localePath(libraryQuizPath(quiz.number, quiz.title))">{{ quiz.title }}</NuxtLink>
           </h2>
+          <p class="library-browser__type">{{ t(`teacher.activityTypes.${quiz.type}.name`) }}</p>
           <p class="library-browser__meta">
-            {{ groupName(quiz.groupSlug) }} · {{ t('library.questions', { count: quiz.questionCount }) }}
+            {{ groupName(quiz.groupSlug) }} · {{ countText(quiz.type, quiz.questionCount) }}
           </p>
           <p class="library-browser__grade" :class="{ 'library-browser__grade--none': !quiz.graded }">
             {{ quiz.graded ? t('library.graded') : t('library.notGraded') }}
@@ -56,7 +57,7 @@
 
 <script setup lang="ts">
 import { libraryQuizPath } from '@nataskium/shared/routes'
-import { LIBRARY_SEARCH_MAX_LENGTH, LIBRARY_SEARCH_MIN_LENGTH } from '@nataskium/shared/schemas'
+import { type ActivityKind, LIBRARY_SEARCH_MAX_LENGTH, LIBRARY_SEARCH_MIN_LENGTH } from '@nataskium/shared/schemas'
 import { onMounted, toRef } from 'vue'
 import { NuxtLink } from '#components'
 import { useI18n, useLocalePath } from '#imports'
@@ -68,6 +69,12 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
+
+// У сопоставления в questionCount — число пар
+function countText(type: ActivityKind, count: number): string {
+  return type === 'matching' ? t('teacher.activities.pairs', { count }) : t('library.questions', { count })
+}
+
 const localePath = useLocalePath()
 const { groups, load: loadGroups } = useLibraryGroups()
 const {
@@ -267,6 +274,14 @@ onMounted(() => {
       text-decoration: underline;
     }
   }
+}
+
+.library-browser__type {
+  margin: 0;
+  color: var(--color-blue-dark);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
 }
 
 .library-browser__meta {

@@ -27,7 +27,7 @@
 <script setup lang="ts">
 import { onMounted, useTemplateRef } from 'vue'
 import { useI18n } from '#imports'
-import { formatClock } from '../formatClock'
+import { formatClock } from '@/features/play-session'
 import { usePlayStore } from '../store'
 
 const { t } = useI18n()

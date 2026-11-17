@@ -28,7 +28,7 @@ const GROUPS = {
   ],
 }
 
-const SUMMARY = { number: NUMBER, title: TITLE, groupSlug: 'geography', questionCount: 2, graded: true, createdAt: CREATED_AT }
+const SUMMARY = { number: NUMBER, type: 'quiz', title: TITLE, groupSlug: 'geography', questionCount: 2, graded: true, createdAt: CREATED_AT }
 
 // Без isCorrect и selectCount: публичная карточка не отдаёт правильные ответы
 const QUIZ = {
@@ -196,7 +196,7 @@ test.describe('библиотека: «Взять себе»', () => {
     await signInOnReload(page)
     await mockLibrary(page)
     await page.route('**/api/quizzes/**', (route) => route.fulfill({ status: 404, json: { error: 'Not found' } }))
-    const calls = await mockTake(page, () => ({ status: 201, json: { quizId: COPY_ID } }))
+    const calls = await mockTake(page, () => ({ status: 201, json: { quizId: COPY_ID, type: 'quiz' } }))
     await openQuiz(page)
     await expect(takeButton(page)).toBeEnabled()
 
@@ -230,7 +230,7 @@ test.describe('библиотека: «Взять себе»', () => {
     await mockLibrary(page)
     await page.route('**/api/quizzes/**', (route) => route.fulfill({ status: 404, json: { error: 'Not found' } }))
     const calls = await mockTake(page, (count) =>
-      count === 1 ? { status: 503, json: { error: 'Storage unavailable' } } : { status: 201, json: { quizId: COPY_ID } },
+      count === 1 ? { status: 503, json: { error: 'Storage unavailable' } } : { status: 201, json: { quizId: COPY_ID, type: 'quiz' } },
     )
     await openQuiz(page)
     await expect(takeButton(page)).toBeEnabled()

@@ -13,7 +13,7 @@ const GROUPS = {
 }
 
 function summary(number: number, title: string, overrides: Partial<LibraryQuizSummary> = {}): LibraryQuizSummary {
-  return { number, title, groupSlug: 'geography', questionCount: 3, graded: false, createdAt: CREATED_AT, ...overrides }
+  return { number, type: 'quiz' as const, title, groupSlug: 'geography', questionCount: 3, graded: false, createdAt: CREATED_AT, ...overrides }
 }
 
 function listBody(quizzes: LibraryQuizSummary[], hasNext = false, page = 1): LibraryListResponse {
@@ -89,6 +89,17 @@ describe('LibraryBrowser', () => {
 
     expect(wrapper.find('.library-browser__meta').text()).toBe('География · Вопросов: 3')
     expect(wrapper.find('.library-browser__grade').text()).toBe('С оценкой')
+  })
+
+  it('в плитке — название типа; у сопоставления «Пары: N» вместо числа вопросов', async () => {
+    vi.spyOn(libraryApi, 'list').mockResolvedValue(
+      listBody([summary(1, 'Столицы'), summary(2, 'Животные', { type: 'matching', questionCount: 8 })]),
+    )
+    await mountBrowser()
+
+    const cards = wrapper.findAll('.library-browser__card')
+    expect(cards.map((card) => card.find('.library-browser__type').text())).toEqual(['Викторина', 'Сопоставление'])
+    expect(cards.map((card) => card.find('.library-browser__meta').text())).toEqual(['География · Вопросов: 3', 'География · Пары: 8'])
   })
 
   it('пустой раздел — сообщение, без списка', async () => {

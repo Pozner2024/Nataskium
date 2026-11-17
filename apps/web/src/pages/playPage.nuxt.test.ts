@@ -1,0 +1,114 @@
+import { mockNuxtImport, mountSuspended } from '@nuxt/test-utils/runtime'
+import { flushPromises, type VueWrapper } from '@vue/test-utils'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { playApi } from '@/entities/quiz'
+import { ApiError } from '@/shared'
+import PlayPage from './PlayPage.vue'
+
+const { navigateToMock } = vi.hoisted(() => ({ navigateToMock: vi.fn() }))
+mockNuxtImport('navigateTo', () => navigateToMock)
+
+vi.mock('@/entities/quiz', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/entities/quiz')>()),
+  playApi: { get: vi.fn(), check: vi.fn(), finish: vi.fn() },
+}))
+
+const TOKEN = 'abcdefghijklmnopqrstuv'
+
+const QUIZ = {
+  type: 'quiz' as const,
+  quiz: {
+    title: 'Столицы',
+    showAnswers: false,
+    timer: { mode: 'none' as const },
+    version: 'v1',
+    questions: [{ text: 'Столица Франции?', imageUrl: null, options: [{ text: 'Париж', imageUrl: null }, { text: 'Рим', imageUrl: null }], selectCount: 1 }],
+  },
+}
+
+const MATCHING = {
+  type: 'matching' as const,
+  matching: { title: 'Животные', showAnswers: false, version: 'v1', timer: { mode: 'none' as const }, definitions: ['мяукает', 'лает'], terms: ['пёс', 'кот'] },
+}
+
+let wrapper: VueWrapper
+
+async function mountPage(token = TOKEN, route = `/play/${token}`) {
+  wrapper = await mountSuspended(PlayPage, { props: { token }, route })
+  await flushPromises()
+}
+
+beforeEach(() => {
+  vi.resetAllMocks()
+  // Язык браузера совпадает с языком сайта в тестах: без перехода на другой адрес
+  vi.spyOn(window.navigator, 'languages', 'get').mockReturnValue(['ru-RU'])
+})
+
+afterEach(() => {
+  wrapper.unmount()
+  vi.restoreAllMocks()
+})
+
+describe('PlayPage: диспетчер по типу задания', () => {
+  it('викторина: один запрос GET, вопрос показан из уже полученного ответа', async () => {
+    vi.mocked(playApi.get).mockResolvedValue(QUIZ)
+    await mountPage()
+
+    expect(playApi.get).toHaveBeenCalledTimes(1)
+    expect(playApi.get).toHaveBeenCalledWith(TOKEN)
+    expect(wrapper.find('h1').text()).toBe('Столица Франции?')
+    expect(wrapper.find('.play-page').exists()).toBe(false)
+  })
+
+  it('сопоставление: показывается игра сопоставления, викторина — нет, GET один', async () => {
+    vi.mocked(playApi.get).mockResolvedValue(MATCHING)
+    await mountPage()
+
+    expect(playApi.get).toHaveBeenCalledTimes(1)
+    expect(wrapper.find('.matching-play').exists()).toBe(true)
+    expect(wrapper.find('.quiz-play').exists()).toBe(false)
+  })
+
+  it('404 при загрузке: «не найдено» от QuizPlay', async () => {
+    vi.mocked(playApi.get).mockRejectedValue(new ApiError(404))
+    await mountPage()
+
+    expect(wrapper.find('[role="alert"]').text()).toBe('Задание не найдено или удалено')
+  })
+
+  it('сбой сети: QuizPlay показывает «повторить», повтор загружает задание', async () => {
+    vi.mocked(playApi.get).mockRejectedValue(new TypeError('Failed to fetch'))
+    await mountPage()
+    expect(wrapper.find('.quiz-play__button').exists()).toBe(true)
+
+    vi.mocked(playApi.get).mockResolvedValue(QUIZ)
+    await wrapper.find('.quiz-play__button').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('h1').text()).toBe('Столица Франции?')
+  })
+
+  it('невалидный токен: «не найдено» без запроса', async () => {
+    await mountPage('../auth/me')
+
+    expect(playApi.get).not.toHaveBeenCalled()
+    expect(wrapper.find('[role="alert"]').text()).toBe('Задание не найдено или удалено')
+  })
+
+  it('язык браузера другой: переход на адрес этого языка до загрузки, задание не запрашивается', async () => {
+    vi.spyOn(window.navigator, 'languages', 'get').mockReturnValue(['de-DE'])
+    await mountPage()
+
+    expect(navigateToMock).toHaveBeenCalledTimes(1)
+    expect(navigateToMock.mock.calls[0]?.[0]).toMatch(/^\/de\//)
+    expect(navigateToMock.mock.calls[0]?.[1]).toEqual({ replace: true })
+    expect(playApi.get).not.toHaveBeenCalled()
+  })
+
+  it('превью: при переходе на другой язык ?preview=1 сохраняется', async () => {
+    vi.spyOn(window.navigator, 'languages', 'get').mockReturnValue(['fr-FR'])
+    await mountPage(TOKEN, `/play/${TOKEN}?preview=1`)
+
+    expect(navigateToMock.mock.calls[0]?.[0]).toMatch(/^\/fr\/.*\?preview=1$/)
+  })
+})
