@@ -176,6 +176,6 @@ describe('константы', () => {
   it('лимит заданий общий, старое имя — алиас', () => {
     expect(MAX_ACTIVITIES_PER_TEACHER).toBe(100)
     expect(MAX_QUIZZES_PER_TEACHER).toBe(MAX_ACTIVITIES_PER_TEACHER)
-    expect(ACTIVITY_KINDS).toEqual(['quiz', 'matching'])
+    expect(ACTIVITY_KINDS).toEqual(['quiz', 'matching', 'truefalse'])
   })
 })

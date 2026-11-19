@@ -63,12 +63,17 @@ const MANUAL_CHECKS = [
     'quizzes_time_limit_check',
     `CHECK ( ("timer_mode" = 'limit' AND "time_limit_seconds" IS NOT NULL AND "time_limit_seconds" BETWEEN 60 AND 10800) OR ("timer_mode" <> 'limit' AND "time_limit_seconds" IS NULL) )`,
   ],
-  ['quizzes', 'quizzes_type_check', `CHECK ("type" IN ('quiz', 'matching'))`],
+  ['quizzes', 'quizzes_type_check', `CHECK ("type" IN ('quiz', 'matching', 'truefalse'))`],
   // CASE обязателен: в AND jsonb_array_length на не-массиве может вычислиться первым и бросить ошибку
   [
     'quizzes',
     'quizzes_matching_pairs_check',
     `CHECK ( "type" <> 'matching' OR CASE WHEN jsonb_typeof("questions") = 'array' THEN jsonb_array_length("questions") BETWEEN 2 AND 10 ELSE false END )`,
+  ],
+  [
+    'quizzes',
+    'quizzes_truefalse_items_check',
+    `CHECK ( "type" <> 'truefalse' OR CASE WHEN jsonb_typeof("questions") = 'array' THEN jsonb_array_length("questions") BETWEEN 2 AND 30 ELSE false END )`,
   ],
   ['library_groups', 'library_groups_slug_format_check', `CHECK ("slug" ~ '^[a-z][a-z0-9-]{1,39}$' AND "slug" <> 'quiz')`],
   [
@@ -109,7 +114,8 @@ describe('миграции', () => {
 
   // Новый CHECK без строки в списке остался бы без защиты от пересоздания миграций
   it('все CHECK из миграций перечислены в списке', () => {
-    const inMigrations = [...readAllMigrations().matchAll(/ADD CONSTRAINT "([^"]+)" CHECK/g)].map((match) => match[1])
+    // Set: quizzes_type_check пересоздаётся последующими миграциями, имя встречается несколько раз
+    const inMigrations = [...new Set([...readAllMigrations().matchAll(/ADD CONSTRAINT "([^"]+)" CHECK/g)].map((match) => match[1]))]
 
     expect(inMigrations.sort()).toEqual(MANUAL_CHECKS.map(([, name]) => name).sort())
   })

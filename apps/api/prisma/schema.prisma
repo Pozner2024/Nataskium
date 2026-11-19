@@ -138,10 +138,11 @@ model Quiz {
   shareToken         String    @unique @map("share_token")
   showAnswers        Boolean   @default(true) @map("show_answers")
   gradingScale       String?   @map("grading_scale")
-  // Тип задания: quiz | matching (ADR-0013). CHECK quizzes_type_check и quizzes_matching_pairs_check добавлены
-  // вручную в миграции add_quiz_type
+  // Тип задания: quiz | matching | truefalse (ADR-0013, ADR-0016). CHECK quizzes_type_check и
+  // quizzes_matching_pairs_check добавлены вручную в миграции add_quiz_type, quizzes_truefalse_items_check — в add_truefalse_type
   type               String    @default("quiz")
-  // Содержимое задания по типу: quiz — массив вопросов, matching — массив пар { term, definition } (2–10).
+  // Содержимое задания по типу: quiz — массив вопросов, matching — массив пар { term, definition } (2–10),
+  // truefalse — массив утверждений { statement, answer } (2–30).
   // Имя колонки историческое, переименование отложено (ADR-0013)
   questions          Json
   createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { quizIdSchema, quizInputSchema, quizTimerSchema, requiredText, shareTokenSchema, versionSchema } from './quiz'
-import { playQuizResponseSchema, quizResultSchema } from './quizResponses'
+import { quizResultSchema } from './quizResponses'
 
 // Дублируются в CHECK quizzes_matching_pairs_check (ADR-0013)
 export const MIN_MATCHING_PAIRS = 2
@@ -60,9 +60,6 @@ export const playMatchingResponseSchema = z.object({
   }),
 })
 
-// Ответ GET /api/play/:token для задания любого типа
-export const playActivityResponseSchema = z.discriminatedUnion('type', [playQuizResponseSchema, playMatchingResponseSchema])
-
 // answers[i] — текст слова для определения i, null — не отвечено. Длину и набор слов проверяет use-case
 export const playMatchingFinishInputSchema = z.object({
   version: versionSchema,
@@ -85,6 +82,5 @@ export type MatchingPair = z.infer<typeof matchingPairSchema>
 export type MatchingInput = z.infer<typeof matchingInputSchema>
 export type MatchingResponse = z.infer<typeof matchingResponseSchema>
 export type PlayMatchingResponse = z.infer<typeof playMatchingResponseSchema>
-export type PlayActivityResponse = z.infer<typeof playActivityResponseSchema>
 export type PlayMatchingFinishInput = z.infer<typeof playMatchingFinishInputSchema>
 export type PlayMatchingFinishResponse = z.infer<typeof playMatchingFinishResponseSchema>

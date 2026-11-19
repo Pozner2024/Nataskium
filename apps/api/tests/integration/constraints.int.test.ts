@@ -421,6 +421,34 @@ describe('quizzes.type', () => {
     expect(await violatedConstraint(insertQuiz({ type }))).toBe('quizzes_type_check')
   })
 
+  describe('truefalse', () => {
+    const statementsJson = (count: number) =>
+      `'${JSON.stringify(Array.from({ length: count }, (_, i) => ({ statement: `s${i}`, answer: true })))}'::jsonb`
+
+    it.each([2, 30])('да/нет с %i утверждениями принимается', async (count) => {
+      await expect(prisma.$executeRawUnsafe(insertQuiz({ type: "'truefalse'", questions: statementsJson(count) }))).resolves.toBe(1)
+    })
+
+    it.each([
+      ['пустой массив', "'[]'::jsonb"],
+      ['1 утверждение', statementsJson(1)],
+      ['31 утверждение', statementsJson(31)],
+      ['пустой объект', "'{}'::jsonb"],
+      ['строка', `'"items"'::jsonb`],
+    ])('%s отклоняется проверкой числа элементов', async (_name, questions) => {
+      expect(await violatedConstraint(insertQuiz({ type: "'truefalse'", questions }))).toBe('quizzes_truefalse_items_check')
+    })
+
+    it('викторина и сопоставление по-прежнему вставляются', async () => {
+      await expect(prisma.$executeRawUnsafe(insertQuiz({ type: "'quiz'" }))).resolves.toBe(1)
+      await expect(prisma.$executeRawUnsafe(insertQuiz({ type: "'matching'", questions: pairsJson(2) }))).resolves.toBe(1)
+    })
+
+    it('неизвестный тип по-прежнему отклоняется', async () => {
+      expect(await violatedConstraint(insertQuiz({ type: "'bogus'" }))).toBe('quizzes_type_check')
+    })
+  })
+
   it('type: NULL отклоняется NOT NULL', async () => {
     const error = await prisma.$executeRawUnsafe(insertQuiz({ type: 'NULL' })).catch((caught: unknown) => caught)
     expect(String(error)).toMatch(/null value in column "type"/)

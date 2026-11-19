@@ -110,7 +110,7 @@ export type {
   LibraryQuizSummary,
   LibraryTakeResponse,
 } from './library'
-export { ACTIVITY_KINDS, MATCHING_ACTIVITY, QUIZ_ACTIVITY, activityKindSchema } from './activity'
+export { ACTIVITY_KINDS, MATCHING_ACTIVITY, QUIZ_ACTIVITY, TRUE_FALSE_ACTIVITY, activityKindSchema } from './activity'
 export type { ActivityKind } from './activity'
 export {
   MATCHING_DEFINITION_MAX_LENGTH,
@@ -121,7 +121,6 @@ export {
   matchingKey,
   matchingPairSchema,
   matchingResponseSchema,
-  playActivityResponseSchema,
   playMatchingFinishInputSchema,
   playMatchingFinishResponseSchema,
   playMatchingResponseSchema,
@@ -130,8 +129,32 @@ export type {
   MatchingInput,
   MatchingPair,
   MatchingResponse,
-  PlayActivityResponse,
   PlayMatchingFinishInput,
   PlayMatchingFinishResponse,
   PlayMatchingResponse,
 } from './matching'
+export { playActivityResponseSchema } from './playActivity'
+export type { PlayActivityResponse } from './playActivity'
+export {
+  MAX_TRUE_FALSE_ITEMS,
+  MIN_TRUE_FALSE_ITEMS,
+  TRUE_FALSE_STATEMENT_MAX_LENGTH,
+  playTrueFalseCheckInputSchema,
+  playTrueFalseCheckResponseSchema,
+  playTrueFalseFinishInputSchema,
+  playTrueFalseFinishResponseSchema,
+  playTrueFalseResponseSchema,
+  trueFalseInputSchema,
+  trueFalseItemSchema,
+  trueFalseResponseSchema,
+} from './trueFalse'
+export type {
+  PlayTrueFalseCheckInput,
+  PlayTrueFalseCheckResponse,
+  PlayTrueFalseFinishInput,
+  PlayTrueFalseFinishResponse,
+  PlayTrueFalseResponse,
+  TrueFalseInput,
+  TrueFalseItem,
+  TrueFalseResponse,
+} from './trueFalse'

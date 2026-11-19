@@ -79,8 +79,14 @@ const libraryMatchingCardSchema = libraryQuizSummarySchema.extend({
   terms: z.array(z.string()),
 })
 
+// Только утверждения: правильные ответы публично не показываются
+const libraryTrueFalseCardSchema = libraryQuizSummarySchema.extend({
+  type: z.literal('truefalse'),
+  statements: z.array(z.string()),
+})
+
 export const libraryQuizResponseSchema = z.object({
-  quiz: z.discriminatedUnion('type', [libraryQuizCardSchema, libraryMatchingCardSchema]),
+  quiz: z.discriminatedUnion('type', [libraryQuizCardSchema, libraryMatchingCardSchema, libraryTrueFalseCardSchema]),
 })
 
 // type — какой редактор открыть после копирования

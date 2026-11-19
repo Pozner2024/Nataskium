@@ -10,4 +10,7 @@ export const TEACHER_PAGE_PATHS = {
   matchingNew: '/teacher/matching/new',
   // К адресу добавляется /<id>
   matchingEdit: '/teacher/matching',
+  trueFalseNew: '/teacher/true-false/new',
+  // К адресу добавляется /<id>
+  trueFalseEdit: '/teacher/true-false',
 } as const

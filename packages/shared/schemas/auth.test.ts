@@ -670,6 +670,11 @@ describe('схемы auth: публичный API', () => {
       'playMatchingFinishResponseSchema',
       'playMatchingResponseSchema',
       'playQuizResponseSchema',
+      'playTrueFalseCheckInputSchema',
+      'playTrueFalseCheckResponseSchema',
+      'playTrueFalseFinishInputSchema',
+      'playTrueFalseFinishResponseSchema',
+      'playTrueFalseResponseSchema',
       'quizIdSchema',
       'quizInputSchema',
       'quizListResponseSchema',
@@ -682,6 +687,9 @@ describe('схемы auth: публичный API', () => {
       'resetPasswordSchema',
       'shareTokenSchema',
       'teacherViewSchema',
+      'trueFalseInputSchema',
+      'trueFalseItemSchema',
+      'trueFalseResponseSchema',
       'verifyEmailSchema',
     ])
   })
