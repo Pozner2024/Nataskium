@@ -9,4 +9,8 @@ describe('takenEditPath', () => {
   it('сопоставление — редактор сопоставления', () => {
     expect(takenEditPath({ quizId: 'm1', type: 'matching' })).toBe('/teacher/matching/m1')
   })
+
+  it('да/нет — редактор да/нет', () => {
+    expect(takenEditPath({ quizId: 't1', type: 'truefalse' })).toBe('/teacher/true-false/t1')
+  })
 })

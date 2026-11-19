@@ -7,7 +7,7 @@ import ActivitySettings from './ActivitySettings.vue'
 const SETTINGS = { group: '', showAnswers: true, gradingScale: null, timer: { mode: 'none' as const } }
 const mounted: { unmount: () => void }[] = []
 
-async function mountKind(kind?: 'quiz' | 'matching') {
+async function mountKind(kind?: 'quiz' | 'matching' | 'truefalse') {
   const wrapper = await mountSuspended(ActivitySettings, {
     props: { settings: SETTINGS, disabled: false, save: async () => true, ...(kind ? { kind } : {}) },
   })
@@ -40,5 +40,14 @@ describe('ActivitySettings: подсказки по типу задания', ()
       'Включено: после проверки ученик видит, какие пары верные, и правильное слово к каждой неверной. Выключено: только процент и оценка.',
     )
     expect(wrapper.get('#quiz-grading-hint').text()).toBe('Оценка считается только по проценту правильных пар. Выберите шкалу.')
+  })
+
+  it('«да/нет» — подсказки про верные ответы, а не про пары', async () => {
+    const wrapper = await mountKind('truefalse')
+
+    expect(wrapper.get('#quiz-show-answers-hint').text()).toBe(
+      'Включено: после проверки ученик видит, какие ответы верные, и правильный ответ к каждому неверному. Выключено: только процент и оценка.',
+    )
+    expect(wrapper.get('#quiz-grading-hint').text()).toBe('Оценка считается только по проценту правильных ответов. Выберите шкалу.')
   })
 })

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuthStore } from '@/features/auth'
 import { matchingApi } from '@/entities/matching'
 import { quizApi } from '@/entities/quiz'
+import { trueFalseApi } from '@/entities/true-false'
 import TeacherActivitiesPage from '@/pages/TeacherActivitiesPage.vue'
 
 const { navigateToMock } = vi.hoisted(() => ({ navigateToMock: vi.fn() }))
@@ -163,5 +164,39 @@ describe('Мои задания: сопоставление', () => {
     const items = wrapper.findAll('.my-activities__list > li')
     expect(items).toHaveLength(1)
     expect(items[0]?.text()).toContain('Столицы')
+  })
+})
+
+describe('Мои задания: да/нет', () => {
+  const TRUE_FALSE = { id: 't1', type: 'truefalse' as const, title: 'Факты', questionCount: 5, gradingScale: null, shareToken: 'tok-4' }
+
+  it('карточка подписана типом и числом утверждений', async () => {
+    vi.spyOn(quizApi, 'list').mockResolvedValue({ quizzes: [TRUE_FALSE] })
+    const wrapper = await mountPage()
+
+    expect(wrapper.find('.activity-card__meta').text()).toBe('Да/нет · Утверждений: 5')
+  })
+
+  it('«Изменить» ведёт на редактор да/нет', async () => {
+    vi.spyOn(quizApi, 'list').mockResolvedValue({ quizzes: [TRUE_FALSE] })
+    const wrapper = await mountPage()
+
+    await wrapper.findComponent({ name: 'MyActivities' }).vm.$emit('edit', TRUE_FALSE)
+
+    expect(navigateToMock).toHaveBeenCalledWith('/teacher/true-false/t1')
+  })
+
+  it('удаление да/нет идёт через trueFalseApi, а не quizApi', async () => {
+    vi.spyOn(quizApi, 'list').mockResolvedValue({ quizzes: [QUIZZES[0]!, TRUE_FALSE] })
+    const removeQuiz = vi.spyOn(quizApi, 'remove').mockResolvedValue(undefined)
+    const removeTrueFalse = vi.spyOn(trueFalseApi, 'remove').mockResolvedValue(undefined)
+    const wrapper = await mountPage()
+
+    await wrapper.findComponent({ name: 'MyActivities' }).vm.$emit('delete', TRUE_FALSE)
+    await wrapper.find('.app-confirm-dialog__confirm').trigger('click')
+    await flushPromises()
+
+    expect(removeTrueFalse).toHaveBeenCalledWith('t1', 'access-1')
+    expect(removeQuiz).not.toHaveBeenCalled()
   })
 })

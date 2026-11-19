@@ -150,10 +150,13 @@ const props = withDefaults(
 
 const { t } = useI18n()
 
-const hintKeys = computed(() =>
-  props.kind === 'matching'
-    ? { showAnswers: 'teacher.matchingSettings.showAnswersHint', grading: 'teacher.matchingSettings.gradingHint' }
-    : { showAnswers: 'teacher.quizEditor.settings.showAnswersHint', grading: 'teacher.quizEditor.settings.gradingHint' },
+const HINT_KEYS: Partial<Record<ActivityKind, { showAnswers: string; grading: string }>> = {
+  matching: { showAnswers: 'teacher.matchingSettings.showAnswersHint', grading: 'teacher.matchingSettings.gradingHint' },
+  truefalse: { showAnswers: 'teacher.trueFalseSettings.showAnswersHint', grading: 'teacher.trueFalseSettings.gradingHint' },
+}
+
+const hintKeys = computed(
+  () => HINT_KEYS[props.kind] ?? { showAnswers: 'teacher.quizEditor.settings.showAnswersHint', grading: 'teacher.quizEditor.settings.gradingHint' },
 )
 const thresholds = computed(() => (props.settings.gradingScale ? GRADING_SCALES[props.settings.gradingScale] : []))
 // Включить оценку без шкалы нельзя: переключатель только открывает выбор, в задании шкала появляется с выбором

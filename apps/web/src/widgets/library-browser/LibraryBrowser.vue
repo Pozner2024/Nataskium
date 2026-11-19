@@ -70,9 +70,15 @@ const props = defineProps<{
 
 const { t } = useI18n()
 
-// У сопоставления в questionCount — число пар
+// У сопоставления в questionCount — число пар, у да/нет — число утверждений
+const COUNT_KEYS: Record<ActivityKind, string> = {
+  quiz: 'library.questions',
+  matching: 'teacher.activities.pairs',
+  truefalse: 'library.statements',
+}
+
 function countText(type: ActivityKind, count: number): string {
-  return type === 'matching' ? t('teacher.activities.pairs', { count }) : t('library.questions', { count })
+  return t(COUNT_KEYS[type], { count })
 }
 
 const localePath = useLocalePath()

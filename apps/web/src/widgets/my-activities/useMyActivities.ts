@@ -1,9 +1,19 @@
 import { onMounted, ref } from 'vue'
-import type { Activity } from '@/entities/activity'
+import type { Activity, ActivityType } from '@/entities/activity'
 import { matchingApi } from '@/entities/matching'
 import { quizApi } from '@/entities/quiz'
+import { trueFalseApi } from '@/entities/true-false'
 import { authorizedRequest } from '@/features/auth'
 import type { ActivitiesStatus } from './types'
+
+// Пропуски и картинки пока лежат в таблице викторин, их удаляет quizApi
+const REMOVE_APIS: Record<ActivityType, { remove: (id: string, accessToken: string) => Promise<void> }> = {
+  quiz: quizApi,
+  matching: matchingApi,
+  truefalse: trueFalseApi,
+  gaps: quizApi,
+  pictures: quizApi,
+}
 
 // Список общий для всех типов (GET /api/quizzes), удаление — через API своего типа
 export function useMyActivities() {
@@ -30,7 +40,7 @@ export function useMyActivities() {
     isRemoving.value = true
     isRemoveFailed.value = false
     try {
-      const api = activity.type === 'matching' ? matchingApi : quizApi
+      const api = REMOVE_APIS[activity.type]
       await authorizedRequest((accessToken) => api.remove(activity.id, accessToken))
       activities.value = activities.value.filter((item) => item.id !== activity.id)
     } catch {

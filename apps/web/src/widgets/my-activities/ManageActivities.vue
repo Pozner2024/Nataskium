@@ -30,12 +30,20 @@ const { t } = useI18n()
 const localePath = useLocalePath()
 const { activities, status, isRemoveFailed, load, remove } = useMyActivities()
 
+// Пропуски и картинки пока открываются в редакторе викторины
+const EDIT_PATHS: Record<Activity['type'], string> = {
+  quiz: TEACHER_PATHS.quizEdit,
+  matching: TEACHER_PATHS.matchingEdit,
+  truefalse: TEACHER_PATHS.trueFalseEdit,
+  gaps: TEACHER_PATHS.quizEdit,
+  pictures: TEACHER_PATHS.quizEdit,
+}
+
 const isDeleteOpen = ref(false)
 const pendingDelete = ref<Activity | null>(null)
 
 async function edit(activity: Activity) {
-  const editPath = activity.type === 'matching' ? TEACHER_PATHS.matchingEdit : TEACHER_PATHS.quizEdit
-  await navigateTo(localePath(`${editPath}/${activity.id}`))
+  await navigateTo(localePath(`${EDIT_PATHS[activity.type]}/${activity.id}`))
 }
 
 function askDelete(activity: Activity) {

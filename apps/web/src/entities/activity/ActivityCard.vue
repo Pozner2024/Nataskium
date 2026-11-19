@@ -20,7 +20,7 @@
 import { computed, useId } from 'vue'
 import { useI18n } from '#imports'
 import ActivityTypeIcon from './ActivityTypeIcon.vue'
-import type { Activity } from './types'
+import type { Activity, ActivityType } from './types'
 
 const props = defineProps<{
   activity: Activity
@@ -28,8 +28,15 @@ const props = defineProps<{
 
 const { t } = useI18n()
 const titleId = useId()
-// У сопоставления в questionCount — число пар
-const countKey = computed(() => (props.activity.type === 'matching' ? 'teacher.activities.pairs' : 'teacher.activities.questions'))
+// У сопоставления в questionCount — число пар, у да/нет — число утверждений
+const COUNT_KEYS: Record<ActivityType, string> = {
+  quiz: 'teacher.activities.questions',
+  matching: 'teacher.activities.pairs',
+  truefalse: 'teacher.activities.statements',
+  gaps: 'teacher.activities.questions',
+  pictures: 'teacher.activities.questions',
+}
+const countKey = computed(() => COUNT_KEYS[props.activity.type])
 </script>
 
 <style scoped lang="scss">

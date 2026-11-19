@@ -39,6 +39,11 @@
         </p>
       </section>
 
+      <section v-else-if="quiz.type === 'truefalse'" class="library-quiz__preview" aria-labelledby="library-quiz-preview-title">
+        <h2 id="library-quiz-preview-title" class="library-quiz__preview-title">{{ t('library.trueFalse.previewTitle') }}</h2>
+        <LibraryTrueFalsePreview :statements="quiz.statements" />
+      </section>
+
       <section v-else class="library-quiz__preview" aria-labelledby="library-quiz-preview-title">
         <h2 id="library-quiz-preview-title" class="library-quiz__preview-title">{{ t('library.matching.previewTitle') }}</h2>
         <LibraryMatchingPreview :definitions="quiz.definitions" :terms="quiz.terms" />
@@ -51,6 +56,7 @@
 
 <script setup lang="ts">
 import { libraryGroupPath } from '@nataskium/shared/routes'
+import type { ActivityKind } from '@nataskium/shared/schemas'
 import { computed, onMounted, ref, toRef, watch } from 'vue'
 import { NuxtLink } from '#components'
 import { navigateTo, useI18n, useLocalePath, useRoute } from '#imports'
@@ -62,6 +68,7 @@ import { formatLibraryDate } from './formatLibraryDate'
 import LibraryLoginDialog from './components/LibraryLoginDialog.vue'
 import LibraryMatchingPreview from './components/LibraryMatchingPreview.vue'
 import LibraryQuizQuestion from './components/LibraryQuizQuestion.vue'
+import LibraryTrueFalsePreview from './components/LibraryTrueFalsePreview.vue'
 import { useLibraryQuiz } from './useLibraryQuiz'
 
 const props = defineProps<{ number: number }>()
@@ -91,15 +98,20 @@ function onTaken(quizId: string) {
   void navigateTo(localePath(takenEditPath({ quizId, type: taken?.type ?? 'quiz' })))
 }
 
+// У сопоставления в questionCount — число пар, у да/нет — число утверждений
+const COUNT_KEYS: Record<ActivityKind, string> = {
+  quiz: 'library.questions',
+  matching: 'teacher.activities.pairs',
+  truefalse: 'library.statements',
+}
+
 const meta = computed(() => {
   if (!quiz.value) return ''
   const groupName = groups.value.find((item) => item.slug === quiz.value?.groupSlug)?.name
   const date = formatLibraryDate(quiz.value.createdAt, locale.value)
   return [
     groupName,
-    quiz.value.type === 'matching'
-      ? t('teacher.activities.pairs', { count: quiz.value.questionCount })
-      : t('library.questions', { count: quiz.value.questionCount }),
+    t(COUNT_KEYS[quiz.value.type], { count: quiz.value.questionCount }),
     date === '' ? undefined : t('library.quiz.addedOn', { date }),
   ]
     .filter((part) => part)

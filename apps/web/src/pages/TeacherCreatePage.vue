@@ -17,6 +17,7 @@ useSeoMeta({ title: () => t('teacher.create.title'), robots: 'noindex, nofollow'
 const NEW_ACTIVITY_PATHS: Partial<Record<ActivityType, string>> = {
   quiz: TEACHER_PATHS.quizNew,
   matching: TEACHER_PATHS.matchingNew,
+  truefalse: TEACHER_PATHS.trueFalseNew,
 }
 
 // Пропуски и картинки появятся вместе со своими редакторами
