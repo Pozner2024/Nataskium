@@ -29,6 +29,23 @@ const QUIZ_INPUT = {
   questions: [{ text: 'Столица Франции?', options: [{ text: 'Париж', isCorrect: true }, { text: 'Рим', isCorrect: false }] }],
 }
 
+const MATCHING_INPUT = {
+  title: 'Животные',
+  showAnswers: true,
+  gradingScale: null,
+  group: 'other',
+  timer: { mode: 'none' },
+  pairs: PAIRS.slice(0, 2),
+}
+const TRUE_FALSE_INPUT = {
+  title: 'Факты',
+  showAnswers: true,
+  gradingScale: null,
+  group: 'other',
+  timer: { mode: 'none' },
+  items: [{ statement: 'Земля круглая', answer: true }, { statement: 'Солнце холодное', answer: false }],
+}
+
 let prisma: PrismaClient
 
 async function seedMatching(teacherId: string, deletedAt: Date | null = null) {
@@ -89,6 +106,53 @@ afterEach(() => {
 afterAll(async () => {
   await truncateAll(prisma)
   await prisma.$disconnect()
+})
+
+async function seedTrueFalse(teacherId: string) {
+  return prisma.quiz.create({
+    data: {
+      teacherId,
+      type: 'truefalse',
+      title: 'Факты',
+      shareToken: randomBytes(SHARE_TOKEN_BYTES).toString('base64url'),
+      questions: [{ statement: 'Земля круглая', answer: true }, { statement: 'Солнце холодное', answer: false }],
+    },
+  })
+}
+
+describe('строка truefalse и маршруты других типов', () => {
+  it('id truefalse на /api/quizzes/:id и /api/matchings/:id — 404, строка не изменена', async () => {
+    const teacher = await createTeacher(prisma)
+    const trueFalse = await seedTrueFalse(teacher.id)
+
+    const routes = [
+      ['/api/quizzes', QUIZ_INPUT],
+      ['/api/matchings', MATCHING_INPUT],
+    ] as const
+    for (const [base, input] of routes) {
+      for (const [method, body] of [['GET', undefined], ['PATCH', input], ['DELETE', undefined]] as const) {
+        expect((await request(method, `${base}/${trueFalse.id}`, { teacherId: teacher.id, body })).status, `${method} ${base}`).toBe(404)
+      }
+    }
+    expect(await prisma.quiz.findUniqueOrThrow({ where: { id: trueFalse.id } })).toMatchObject({ type: 'truefalse', title: 'Факты', deletedAt: null })
+  })
+
+  it('id викторины и сопоставления на /api/true-false/:id — 404, строки не изменены', async () => {
+    const teacher = await createTeacher(prisma)
+    const quiz = await seedQuiz(teacher.id, null)
+    const matching = await seedMatching(teacher.id)
+    const select = { title: true, questions: true } as const
+    const before = [await prisma.quiz.findUniqueOrThrow({ where: { id: quiz.id }, select }), await prisma.quiz.findUniqueOrThrow({ where: { id: matching.id }, select })]
+
+    for (const id of [quiz.id, matching.id]) {
+      for (const [method, body] of [['GET', undefined], ['PATCH', TRUE_FALSE_INPUT], ['DELETE', undefined]] as const) {
+        expect((await request(method, `/api/true-false/${id}`, { teacherId: teacher.id, body })).status, `${method} ${id}`).toBe(404)
+      }
+    }
+    expect(await prisma.quiz.count({ where: { teacherId: teacher.id, deletedAt: null } })).toBe(2)
+    const after = [await prisma.quiz.findUniqueOrThrow({ where: { id: quiz.id }, select }), await prisma.quiz.findUniqueOrThrow({ where: { id: matching.id }, select })]
+    expect(after).toEqual(before)
+  })
 })
 
 describe('строка matching и маршруты викторин', () => {

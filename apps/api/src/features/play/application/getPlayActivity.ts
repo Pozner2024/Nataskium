@@ -1,5 +1,5 @@
-import type { PlayActivityResponse, PlayMatchingResponse } from '@nataskium/shared/schemas'
-import type { PlayImageUrl, PlayMatchingSource, PlayQuizSource, PlayShuffle, PlayableMatching } from '../types'
+import type { PlayActivityResponse, PlayMatchingResponse, PlayTrueFalseResponse } from '@nataskium/shared/schemas'
+import type { PlayImageUrl, PlayMatchingSource, PlayQuizSource, PlayShuffle, PlayTrueFalseSource, PlayableMatching, PlayableTrueFalse } from '../types'
 import { toPlayQuizResponse } from './getPlayQuiz'
 import { isShareTokenFormat } from './loadPlayableQuiz'
 import { playQuizNotFound } from './playErrors'
@@ -20,15 +20,30 @@ export function toPlayMatchingResponse(matching: PlayableMatching, shuffle: Play
   }
 }
 
+// Правильных ответов в ответе нет: ученик видит только утверждения в порядке учителя
+export function toPlayTrueFalseResponse(trueFalse: PlayableTrueFalse): PlayTrueFalseResponse {
+  return {
+    type: 'truefalse',
+    trueFalse: {
+      title: trueFalse.title,
+      showAnswers: trueFalse.showAnswers,
+      timer: trueFalse.timer,
+      version: quizVersion(trueFalse),
+      statements: trueFalse.items.map((item) => item.statement),
+    },
+  }
+}
+
 type GetPlayActivityDeps = {
   quizzes: PlayQuizSource
   matchings: PlayMatchingSource
+  trueFalses: PlayTrueFalseSource
   imageUrl: PlayImageUrl
   shuffle: PlayShuffle
 }
 
 // Одна ссылка /play/<shareToken> для любого типа: токены уникальны на всю таблицу, источники не пересекаются.
-// Для токена сопоставления — один лишний индексный запрос
+// Для токена сопоставления — один лишний индексный запрос, для «да/нет» — два
 export function makeGetPlayActivity(deps: GetPlayActivityDeps) {
   return async function getPlayActivity(shareToken: string): Promise<PlayActivityResponse> {
     if (!isShareTokenFormat(shareToken)) throw playQuizNotFound()
@@ -36,6 +51,8 @@ export function makeGetPlayActivity(deps: GetPlayActivityDeps) {
     if (quiz !== null) return toPlayQuizResponse(quiz, deps.imageUrl)
     const matching = await deps.matchings.findByShareToken(shareToken)
     if (matching !== null) return toPlayMatchingResponse(matching, deps.shuffle)
+    const trueFalse = await deps.trueFalses.findByShareToken(shareToken)
+    if (trueFalse !== null) return toPlayTrueFalseResponse(trueFalse)
     throw playQuizNotFound()
   }
 }

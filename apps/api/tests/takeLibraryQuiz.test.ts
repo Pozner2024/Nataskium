@@ -106,6 +106,7 @@ function setup({ source = row(), count = 0, withCopier = true, failCopyOn, teach
     imageCopier: withCopier ? imageCopier : null,
     createQuiz,
     createMatching,
+    createTrueFalse: async () => ({ id: 'new-truefalse-id' }),
   })
   return { take, library, createQuiz, createMatching, copies, rows, removedFiles, deletedRows, created, log, maxActive: () => maxActive }
 }
@@ -272,6 +273,7 @@ describe('takeLibraryQuiz (use-case)', () => {
       },
       createQuiz: s.createQuiz,
       createMatching: s.createMatching,
+      createTrueFalse: async () => ({ id: 'new-truefalse-id' }),
     })
     expect(await rejection(s.take(TEACHER, NUMBER))).toBe(crash)
   })
@@ -293,6 +295,7 @@ describe('takeLibraryQuiz (use-case)', () => {
         async removeFiles() {},
       },
       createMatching: async () => ({ id: 'new-matching-id' }),
+      createTrueFalse: async () => ({ id: 'new-truefalse-id' }),
       createQuiz: async () => {
         throw failure
       },

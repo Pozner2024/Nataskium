@@ -66,12 +66,14 @@ describe('библиотека: строка с неизвестным type', ()
     const library = { findForCopy: vi.fn(async () => copySourceRow()) } as unknown as LibraryRepository
     const createQuiz = vi.fn(async () => ({ id: 'copy-id' }))
     const createMatching: LibraryCreateMatchingCopy = vi.fn(async () => ({ id: 'copy-matching-id' }))
+    const createTrueFalse = vi.fn(async () => ({ id: 'new-truefalse-id' }))
     const take = makeTakeLibraryQuiz({
       library,
       countQuizzes: async () => 0,
       imageCopier: null,
       createQuiz,
       createMatching,
+      createTrueFalse,
     })
 
     const error = await errorOf(take('teacher-a', NUMBER))
@@ -81,5 +83,6 @@ describe('библиотека: строка с неизвестным type', ()
     expect((error as Error).message).not.toContain(SECRET_TITLE)
     expect(createQuiz).not.toHaveBeenCalled()
     expect(createMatching).not.toHaveBeenCalled()
+    expect(createTrueFalse).not.toHaveBeenCalled()
   })
 })

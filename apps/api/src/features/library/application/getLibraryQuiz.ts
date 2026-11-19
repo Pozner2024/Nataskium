@@ -1,7 +1,7 @@
-import { LIBRARY_PREVIEW_QUESTIONS, MATCHING_ACTIVITY, type LibraryQuizResponse } from '@nataskium/shared/schemas'
+import { LIBRARY_PREVIEW_QUESTIONS, MATCHING_ACTIVITY, TRUE_FALSE_ACTIVITY, type LibraryQuizResponse } from '@nataskium/shared/schemas'
 import type { LibraryImageUrl, LibraryQuizRow, LibraryRepository, LibraryShuffle } from '../types'
 import { libraryNotFound } from './libraryErrors'
-import { parsePairs, parseQuestions, toLibrarySummary } from './toLibrarySummary'
+import { parsePairs, parseQuestions, parseTrueFalseItems, toLibrarySummary } from './toLibrarySummary'
 
 type GetLibraryQuizDeps = { library: LibraryRepository; imageUrl: LibraryImageUrl; shuffle: LibraryShuffle }
 
@@ -19,6 +19,18 @@ function toMatchingCard(row: LibraryQuizRow, shuffle: LibraryShuffle): LibraryQu
   }
 }
 
+// Только тексты утверждений: правильные ответы публично не показываются
+function toTrueFalseCard(row: LibraryQuizRow): LibraryQuizResponse {
+  const items = parseTrueFalseItems(row)
+  return {
+    quiz: {
+      ...toLibrarySummary(row, items.length),
+      type: TRUE_FALSE_ACTIVITY,
+      statements: items.map((item) => item.statement),
+    },
+  }
+}
+
 export function makeGetLibraryQuiz(deps: GetLibraryQuizDeps) {
   const urlOf = (imageId: string | null) => (imageId === null ? null : deps.imageUrl(imageId))
 
@@ -26,6 +38,7 @@ export function makeGetLibraryQuiz(deps: GetLibraryQuizDeps) {
     const row = await deps.library.findByNumber(number)
     if (row === null) throw libraryNotFound()
     if (row.type === MATCHING_ACTIVITY) return toMatchingCard(row, deps.shuffle)
+    if (row.type === TRUE_FALSE_ACTIVITY) return toTrueFalseCard(row)
     const questions = parseQuestions(row)
     // Поля собираются явно: isCorrect и число верных не должны попасть в публичный ответ ни при каких правках модели
     return {

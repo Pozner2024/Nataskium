@@ -53,7 +53,9 @@ import {
   PLAY_LIMITS,
   PLAY_ROUTES_BASE_PATH,
   makeCheckAnswer,
+  makeCheckTrueFalse,
   makeFinishMatching,
+  makeFinishTrueFalse,
   makeFinishQuiz,
   makeGetPlayActivity,
   makePlayRouter,
@@ -92,6 +94,15 @@ import {
   makeMatchingRouter,
   makeUpdateMatching,
 } from './features/matchings'
+import {
+  TRUE_FALSE_ROUTES_BASE_PATH,
+  makeCreateTrueFalse,
+  makeDeleteTrueFalse,
+  makeGetTrueFalse,
+  makeTrueFalseRepository,
+  makeTrueFalseRouter,
+  makeUpdateTrueFalse,
+} from './features/trueFalse'
 import type { Env } from './shared/config'
 import { AppError } from './shared/errors'
 import type { ImageStorage } from './shared/infrastructure'
@@ -318,7 +329,7 @@ export function createApp({ env, prisma, limits, passwordHasher, emailSender, go
   const quizWriteDeps = { quizzes, transaction: quizTransaction, imageFiles }
   const quizLimiter = (limit: { max: number; windowMs: number }) =>
     createRateLimiter({ ...limit, maxTrackedKeys: QUIZ_LIMITS.maxTrackedKeys })
-  // Одни экземпляры на викторины и сопоставления: квота учителя общая на все типы заданий (ADR-0013)
+  // Одни экземпляры на викторины и сопоставления: квота учителя общая на все типы заданий (ADR-0013, ADR-0016)
   const teacherActivityLimiters = {
     read: quizLimiter(QUIZ_LIMITS.read),
     write: quizLimiter(QUIZ_LIMITS.write),
@@ -347,6 +358,20 @@ export function createApp({ env, prisma, limits, passwordHasher, emailSender, go
       createMatching: makeCreateMatching({ matchings }),
       updateMatching: makeUpdateMatching({ matchings }),
       deleteMatching: makeDeleteMatching({ matchings }),
+      requireAuth: makeRequireAuth(tokens.verifyAccessToken),
+      limiters: teacherActivityLimiters,
+    }),
+  )
+
+  // Да/нет: тот же кабинет, лимит 100 заданий и лимитеры общие с викторинами
+  const trueFalse = makeTrueFalseRepository(prisma)
+  app.route(
+    TRUE_FALSE_ROUTES_BASE_PATH,
+    makeTrueFalseRouter({
+      getTrueFalse: makeGetTrueFalse({ trueFalse }),
+      createTrueFalse: makeCreateTrueFalse({ trueFalse }),
+      updateTrueFalse: makeUpdateTrueFalse({ trueFalse }),
+      deleteTrueFalse: makeDeleteTrueFalse({ trueFalse }),
       requireAuth: makeRequireAuth(tokens.verifyAccessToken),
       limiters: teacherActivityLimiters,
     }),
@@ -381,10 +406,12 @@ export function createApp({ env, prisma, limits, passwordHasher, emailSender, go
   app.route(
     PLAY_ROUTES_BASE_PATH,
     makePlayRouter({
-      getPlayActivity: makeGetPlayActivity({ quizzes, matchings, imageUrl, shuffle: secureShuffle }),
+      getPlayActivity: makeGetPlayActivity({ quizzes, matchings, trueFalses: trueFalse, imageUrl, shuffle: secureShuffle }),
       checkAnswer: makeCheckAnswer({ quizzes }),
       finishQuiz: makeFinishQuiz({ quizzes }),
       finishMatching: makeFinishMatching({ matchings }),
+      checkTrueFalse: makeCheckTrueFalse({ trueFalses: trueFalse }),
+      finishTrueFalse: makeFinishTrueFalse({ trueFalses: trueFalse }),
       clientIp: makeClientIpResolver(env.TRUSTED_PROXY_IPS),
       limiters: {
         get: playLimiter(PLAY_LIMITS.get),
@@ -419,6 +446,7 @@ export function createApp({ env, prisma, limits, passwordHasher, emailSender, go
         imageCopier: libraryImageCopier,
         createQuiz: makeCreateQuiz(quizWriteDeps),
         createMatching: makeCreateMatching({ matchings }),
+        createTrueFalse: makeCreateTrueFalse({ trueFalse }),
       }),
       requireAuth: makeRequireAuth(tokens.verifyAccessToken),
       clientIp: makeClientIpResolver(env.TRUSTED_PROXY_IPS),

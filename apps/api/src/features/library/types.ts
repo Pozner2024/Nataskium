@@ -1,4 +1,4 @@
-import type { ActivityKind, MatchingInput, QuizInput } from '@nataskium/shared/schemas'
+import type { ActivityKind, MatchingInput, QuizInput, TrueFalseInput } from '@nataskium/shared/schemas'
 
 export type LibraryGroupRow = { slug: string; names: unknown }
 
@@ -61,6 +61,9 @@ export type LibraryCreateCopy = (teacherId: string, input: QuizInput, options: {
 
 // То же для сопоставления; в app.ts — createMatching из features/matchings
 export type LibraryCreateMatchingCopy = (teacherId: string, input: MatchingInput, options: { isPublic: boolean }) => Promise<{ id: string }>
+
+// То же для «да/нет»; в app.ts — createTrueFalse из features/trueFalse
+export type LibraryCreateTrueFalseCopy = (teacherId: string, input: TrueFalseInput, options: { isPublic: boolean }) => Promise<{ id: string }>
 
 // Порядок слов сопоставления на карточке; в app.ts — secureShuffle
 export type LibraryShuffle = <T>(items: readonly T[]) => T[]

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { makeFinishMatching, makeGetPlayActivity } from '../src/features/play'
-import type { PlayMatchingSource, PlayQuizSource, PlayShuffle, PlayableMatching } from '../src/features/play'
+import type { PlayMatchingSource, PlayQuizSource, PlayShuffle, PlayTrueFalseSource, PlayableMatching } from '../src/features/play'
 import { AppError } from '../src/shared/errors'
 import { secureShuffle } from '../src/shared/utils'
 
@@ -23,6 +23,8 @@ const MATCHING: PlayableMatching = {
   pairs: PAIRS,
 }
 
+const NO_TRUE_FALSES: PlayTrueFalseSource = { findByShareToken: async () => null }
+
 const reverse: PlayShuffle = (items) => [...items].reverse()
 
 function setup(shuffle: PlayShuffle = reverse) {
@@ -43,7 +45,7 @@ function setup(shuffle: PlayShuffle = reverse) {
   const matchings: PlayMatchingSource = {
     findByShareToken: vi.fn(async (token: string) => (token === MATCHING_TOKEN ? MATCHING : null)),
   }
-  return { quizzes, matchings, get: makeGetPlayActivity({ quizzes, matchings, imageUrl: () => null, shuffle }) }
+  return { quizzes, matchings, get: makeGetPlayActivity({ quizzes, matchings, trueFalses: NO_TRUE_FALSES, imageUrl: () => null, shuffle }) }
 }
 
 async function rejection(promise: Promise<unknown>): Promise<unknown> {
@@ -100,7 +102,7 @@ describe('getPlayActivity', () => {
       const pairs = Array.from({ length: count }, (_, i) => ({ term: 'слово ' + i, definition: 'определение ' + i }))
       const matchings: PlayMatchingSource = { findByShareToken: vi.fn(async () => ({ ...MATCHING, pairs })) }
       const quizzes: PlayQuizSource = { findByShareToken: vi.fn(async () => null) }
-      const response = await makeGetPlayActivity({ quizzes, matchings, imageUrl: () => null, shuffle: reverse })(MATCHING_TOKEN)
+      const response = await makeGetPlayActivity({ quizzes, matchings, trueFalses: NO_TRUE_FALSES, imageUrl: () => null, shuffle: reverse })(MATCHING_TOKEN)
 
       if (response.type !== 'matching') throw new Error('expected matching')
       expect(response.matching.definitions).toEqual(pairs.map((pair) => pair.definition))
@@ -117,7 +119,7 @@ describe('getPlayActivity', () => {
     }
     const matchings: PlayMatchingSource = { findByShareToken: vi.fn(async (token: string) => byToken[token] ?? null) }
     const quizzes: PlayQuizSource = { findByShareToken: vi.fn(async () => null) }
-    const get = makeGetPlayActivity({ quizzes, matchings, imageUrl: () => null, shuffle: reverse })
+    const get = makeGetPlayActivity({ quizzes, matchings, trueFalses: NO_TRUE_FALSES, imageUrl: () => null, shuffle: reverse })
 
     const a = await get('a'.repeat(22))
     const b = await get('b'.repeat(22))
@@ -133,7 +135,7 @@ describe('getPlayActivity', () => {
     const timer = { mode: 'limit' as const, seconds: 600 }
     const matchings: PlayMatchingSource = { findByShareToken: vi.fn(async () => ({ ...MATCHING, timer })) }
     const quizzes: PlayQuizSource = { findByShareToken: vi.fn(async () => null) }
-    const response = await makeGetPlayActivity({ quizzes, matchings, imageUrl: () => null, shuffle: reverse })(MATCHING_TOKEN)
+    const response = await makeGetPlayActivity({ quizzes, matchings, trueFalses: NO_TRUE_FALSES, imageUrl: () => null, shuffle: reverse })(MATCHING_TOKEN)
 
     if (response.type !== 'matching') throw new Error('expected matching')
     expect(response.matching.timer).toEqual({ mode: 'limit', seconds: 600 })
@@ -143,7 +145,7 @@ describe('getPlayActivity', () => {
     const leaky = { ...MATCHING, id: 'row-id', teacherId: 'teacher-secret', shareToken: MATCHING_TOKEN, isPublic: true }
     const matchings: PlayMatchingSource = { findByShareToken: vi.fn(async () => leaky as PlayableMatching) }
     const quizzes: PlayQuizSource = { findByShareToken: vi.fn(async () => null) }
-    const response = await makeGetPlayActivity({ quizzes, matchings, imageUrl: () => null, shuffle: reverse })(MATCHING_TOKEN)
+    const response = await makeGetPlayActivity({ quizzes, matchings, trueFalses: NO_TRUE_FALSES, imageUrl: () => null, shuffle: reverse })(MATCHING_TOKEN)
 
     const body = JSON.stringify(response)
     for (const leak of ['row-id', 'teacher-secret', 'isPublic', 'shareToken', 'updatedAt']) expect(body).not.toContain(leak)

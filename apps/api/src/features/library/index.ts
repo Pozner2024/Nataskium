@@ -8,6 +8,7 @@ export { LIBRARY_ROUTES_BASE_PATH, makeLibraryRouter } from './presentation/libr
 export type {
   LibraryCreateCopy,
   LibraryCreateMatchingCopy,
+  LibraryCreateTrueFalseCopy,
   LibraryImageCopier,
   LibraryImageUrl,
   LibraryQuizCopyRow,

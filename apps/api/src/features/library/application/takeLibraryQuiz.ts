@@ -2,15 +2,18 @@ import { randomUUID } from 'node:crypto'
 import {
   MATCHING_ACTIVITY,
   MAX_QUIZZES_PER_TEACHER,
+  TRUE_FALSE_ACTIVITY,
   type LibraryTakeResponse,
   type MatchingInput,
   type QuizInput,
+  type TrueFalseInput,
   matchingInputSchema,
   quizInputSchema,
   timerFromColumns,
+  trueFalseInputSchema,
 } from '@nataskium/shared/schemas'
 import { ExternalServiceError, UnauthorizedError } from '../../../shared/errors'
-import type { LibraryCreateCopy, LibraryCreateMatchingCopy, LibraryImageCopier, LibraryQuizCopyRow, LibraryRepository } from '../types'
+import type { LibraryCreateCopy, LibraryCreateMatchingCopy, LibraryCreateTrueFalseCopy, LibraryImageCopier, LibraryQuizCopyRow, LibraryRepository } from '../types'
 import { imageStorageUnavailable, libraryNotFound, quizLimitReached } from './libraryErrors'
 
 // Не открываем сотни запросов к хранилищу разом: у задания бывает до ~350 картинок
@@ -23,6 +26,7 @@ export type TakeLibraryQuizDeps = {
   imageCopier: LibraryImageCopier | null
   createQuiz: LibraryCreateCopy
   createMatching: LibraryCreateMatchingCopy
+  createTrueFalse: LibraryCreateTrueFalseCopy
   generateId?: () => string
 }
 
@@ -52,6 +56,19 @@ function parseMatchingCopySource(number: number, row: LibraryQuizCopyRow): Match
     pairs: row.questions,
   })
   if (!parsed.success) throw new Error(`Library matching ${number} does not match the matching schema`)
+  return parsed.data
+}
+
+function parseTrueFalseCopySource(number: number, row: LibraryQuizCopyRow): TrueFalseInput {
+  const parsed = trueFalseInputSchema.safeParse({
+    title: row.title,
+    showAnswers: row.showAnswers,
+    gradingScale: row.gradingScale,
+    group: row.groupSlug,
+    timer: timerFromColumns(row.timerMode, row.timeLimitSeconds),
+    items: row.questions,
+  })
+  if (!parsed.success) throw new Error(`Library true-false ${number} does not match the true-false schema`)
   return parsed.data
 }
 
@@ -140,10 +157,19 @@ export function makeTakeLibraryQuiz(deps: TakeLibraryQuizDeps) {
     return { quizId: matching.id, type: MATCHING_ACTIVITY }
   }
 
+  // Картинок нет, ответы копируются в непубличную копию учителя. Лимит общий и проверяется ещё раз в createTrueFalse
+  async function takeTrueFalse(teacherId: string, number: number, row: LibraryQuizCopyRow): Promise<LibraryTakeResponse> {
+    const source = parseTrueFalseCopySource(number, row)
+    if ((await deps.countQuizzes(teacherId)) >= MAX_QUIZZES_PER_TEACHER) throw quizLimitReached()
+    const trueFalse = await deps.createTrueFalse(teacherId, source, { isPublic: false })
+    return { quizId: trueFalse.id, type: TRUE_FALSE_ACTIVITY }
+  }
+
   return async function takeLibraryQuiz(teacherId: string, number: number): Promise<LibraryTakeResponse> {
     const row = await deps.library.findForCopy(number)
     if (row === null) throw libraryNotFound()
     if (row.type === MATCHING_ACTIVITY) return takeMatching(teacherId, number, row)
+    if (row.type === TRUE_FALSE_ACTIVITY) return takeTrueFalse(teacherId, number, row)
     const source = parseCopySource(number, row)
     // Раньше копирования файлов: сверх лимита копировать незачем. createQuiz проверит лимит ещё раз
     if ((await deps.countQuizzes(teacherId)) >= MAX_QUIZZES_PER_TEACHER) throw quizLimitReached()

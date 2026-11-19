@@ -41,7 +41,7 @@ function setupTake(options: { row?: LibraryQuizCopyRow | null; count?: number } 
   const library = { findForCopy: vi.fn(async () => (options.row === undefined ? copyRow() : options.row)) } as unknown as LibraryRepository
   const createQuiz = vi.fn(async () => ({ id: 'new-quiz-id' }))
   const createMatching: LibraryCreateMatchingCopy = vi.fn(async () => ({ id: 'new-matching-id' }))
-  const take = makeTakeLibraryQuiz({ library, countQuizzes: async () => options.count ?? 0, imageCopier: null, createQuiz, createMatching })
+  const take = makeTakeLibraryQuiz({ library, countQuizzes: async () => options.count ?? 0, imageCopier: null, createQuiz, createMatching, createTrueFalse: async () => ({ id: 'new-truefalse-id' }) })
   return { take, createQuiz, createMatching }
 }
 
