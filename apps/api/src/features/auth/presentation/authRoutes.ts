@@ -29,6 +29,7 @@ import { readJsonBody } from '../../../shared/utils'
 import { z } from 'zod'
 import type { DeleteAccountWithGoogleInput, GoogleReauthFailure } from '../application/deleteAccountWithGoogle'
 import type { GoogleSignInInput, GoogleSignInOutcome } from '../application/googleAuth'
+import type { LoginResult } from '../application/login'
 import type { AuthSession, GoogleAuthorizationRequest, TeacherView } from '../types'
 import { ACCOUNT_DELETED_PATH, GOOGLE_SIGN_IN_DONE_PATH, LINK_GOOGLE_PATH, SIGN_IN_PATH, webPageUrl } from '../webPaths'
 
@@ -44,6 +45,19 @@ const REFRESH_COOKIE_BASE_OPTIONS = {
   sameSite: 'Strict',
   // Только маршрутам auth: cookie не уходит с запросами страниц и остального API
   path: AUTH_ROUTES_BASE_PATH,
+  prefix: REFRESH_COOKIE_PREFIX,
+} as const
+
+// «Знакомое устройство»: подпись выдаётся после успешного входа по паролю и переживает выход. Путь — только вход:
+// cookie не уходит с остальными запросами. Strict: вход идёт со своей страницы
+const DEVICE_COOKIE_NAME = 'device'
+const DEVICE_COOKIE_MAX_AGE_DAYS = 180
+const SECONDS_PER_DAY = 24 * 60 * 60
+const DEVICE_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: true,
+  sameSite: 'Strict',
+  path: `${AUTH_ROUTES_BASE_PATH}/login`,
   prefix: REFRESH_COOKIE_PREFIX,
 } as const
 
@@ -124,7 +138,7 @@ type IpLimiter = Pick<RateLimiter, 'middleware' | 'hit'>
 export type AuthRouterDeps = {
   register: (input: RegisterInput) => Promise<void>
   verifyEmail: (input: VerifyEmailInput) => Promise<AuthSession>
-  login: (input: LoginInput) => Promise<AuthSession>
+  login: (input: LoginInput, deviceToken: string | undefined) => Promise<LoginResult>
   refreshSession: (rawRefreshToken: string) => Promise<AuthSession>
   logout: (rawRefreshToken: string | undefined) => Promise<void>
   logoutAll: (teacherId: string) => Promise<void>
@@ -187,6 +201,15 @@ function clearRefreshCookie(c: Context): void {
   deleteCookie(c, REFRESH_COOKIE_NAME, REFRESH_COOKIE_BASE_OPTIONS)
 }
 
+function setDeviceCookie(c: Context, deviceToken: string): void {
+  setCookie(c, DEVICE_COOKIE_NAME, deviceToken, { ...DEVICE_COOKIE_OPTIONS, maxAge: DEVICE_COOKIE_MAX_AGE_DAYS * SECONDS_PER_DAY })
+}
+
+// Те же path, secure и prefix: иначе браузер не удалит
+function clearDeviceCookie(c: Context): void {
+  deleteCookie(c, DEVICE_COOKIE_NAME, DEVICE_COOKIE_OPTIONS)
+}
+
 function readRefreshCookie(c: Context): string | undefined {
   return getCookie(c, REFRESH_COOKIE_NAME, REFRESH_COOKIE_PREFIX)
 }
@@ -224,8 +247,9 @@ export function makeAuthRouter(deps: AuthRouterDeps) {
     const decision = deps.limiters.loginPerIpEmail.hit(`${byIp(c)}${IP_EMAIL_KEY_SEPARATOR}${input.email}`)
     if (!decision.allowed) throw new RateLimitedError(decision.retryAfterSeconds)
 
-    const session = await deps.login(input)
+    const session = await deps.login(input, getCookie(c, DEVICE_COOKIE_NAME, REFRESH_COOKIE_PREFIX))
     setRefreshCookie(c, session)
+    setDeviceCookie(c, session.deviceToken)
     return c.json(sessionBody(session))
   })
 
@@ -287,6 +311,7 @@ export function makeAuthRouter(deps: AuthRouterDeps) {
     const input = await readJsonBody(c, deleteAccountSchema)
     await deps.deleteAccount(c.get('teacherId'), input)
     clearRefreshCookie(c)
+    clearDeviceCookie(c)
     deleteCookie(c, GOOGLE_LINK_COOKIE_NAME, GOOGLE_LINK_COOKIE_OPTIONS)
     return c.body(null, NO_CONTENT_STATUS)
   })
@@ -355,6 +380,7 @@ export function makeAuthRouter(deps: AuthRouterDeps) {
 
         // Сессий учителя больше нет: стираем cookie этого браузера, как при удалении по паролю
         clearRefreshCookie(c)
+        clearDeviceCookie(c)
         deleteCookie(c, GOOGLE_LINK_COOKIE_NAME, GOOGLE_LINK_COOKIE_OPTIONS)
         return deleteResult(c, locale)
       } catch (error) {

@@ -201,7 +201,7 @@ describe('POST /api/auth/change-password', () => {
     expect((await client.post('/login', { email: EMAIL, password: PASSWORD })).status).toBe(200)
   })
 
-  it('неверный текущий пароль засчитывается в общий лимит неудач по email: после 10 — 429 и на входе', async () => {
+  it('неверный текущий пароль засчитывается в лимит неудач по id учителя: после 10 — 429 на смене, вход по email не затронут', async () => {
     const client = makeClient()
     const { accessToken } = await client.signUp()
     for (let attempt = 0; attempt < 10; attempt++) {
@@ -209,6 +209,6 @@ describe('POST /api/auth/change-password', () => {
     }
 
     expect((await client.changePassword(accessToken, PASSWORD, NEW_PASSWORD, '198.51.100.200')).status).toBe(429)
-    expect((await client.post('/login', { email: EMAIL, password: PASSWORD }, {}, '198.51.100.201')).status).toBe(429)
+    expect((await client.post('/login', { email: EMAIL, password: PASSWORD }, {}, '198.51.100.201')).status).toBe(200)
   })
 })

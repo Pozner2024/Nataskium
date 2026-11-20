@@ -63,7 +63,9 @@ onBeforeUnmount(() => {
   z-index: var(--z-header);
 }
 
+// Узор платы изолирует слой main: без z-index выпадающие меню внутри уходят под футер
 .teacher-layout__main {
+  z-index: var(--z-teacher-main);
   display: flex;
   flex: 1;
   flex-direction: column;

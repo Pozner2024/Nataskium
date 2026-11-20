@@ -23,11 +23,15 @@ export const usePlayStore = defineStore('play', () => {
   const showAnswers = ref(false)
   const version = ref('')
   const questions = ref<PlayQuestionView[]>([])
+  // current — первый неотвеченный вопрос, viewing — просматриваемый (может быть раньше current)
   const current = ref(0)
+  const viewing = ref(0)
   const selected = ref<number[]>([])
   // Индекс — номер вопроса у учителя, значение — исходные номера отмеченных вариантов
   const answers = ref<number[][]>([])
   const correct = ref<number[]>([])
+  // Правильные варианты, уже полученные от сервера через check; null — check не было
+  const checked = ref<(number[] | null)[]>([])
   const phase = ref<PlayPhase>('question')
   const result = ref<QuizResult | null>(null)
   const status = ref<PlayStatus>('loading')
@@ -45,26 +49,38 @@ export const usePlayStore = defineStore('play', () => {
   // Обычный finish уже идёт: истечение времени его не заменяет и «Время вышло» не ставит
   let finishing = false
 
-  const question = computed(() => questions.value[current.value] ?? null)
+  const question = computed(() => questions.value[viewing.value] ?? null)
+  const reviewing = computed(() => viewing.value !== current.value)
   const isLast = computed(() => current.value === questions.value.length - 1)
-  const canSubmit = computed(() => question.value !== null && !timedOut.value && selected.value.length === question.value.selectCount && !busy.value)
+  const canSubmit = computed(() => question.value !== null && !reviewing.value && !timedOut.value && selected.value.length === question.value.selectCount && !busy.value)
 
   // Только в фазе feedback, когда check уже вернул правильные варианты
   const feedback = computed<'correct' | 'partial' | 'wrong' | null>(() => {
-    if (phase.value !== 'feedback' || question.value === null) return null
+    if (phase.value !== 'feedback' || reviewing.value || question.value === null) return null
     const hits = selected.value.filter((index) => correct.value.includes(index)).length
     if (hits === 0) return 'wrong'
     return hits === correct.value.length && selected.value.length === correct.value.length ? 'correct' : 'partial'
   })
 
+  // Правильные варианты просматриваемого вопроса: те, что ученик уже видел, без новых запросов
+  const viewCorrect = computed<number[] | null>(() => {
+    if (reviewing.value) return checked.value[viewing.value] ?? null
+    return phase.value === 'feedback' ? correct.value : null
+  })
+
+  const canNavigate = computed(() => phase.value !== 'result' && status.value === 'ready' && !busy.value && !timedOut.value)
+  const canPrev = computed(() => canNavigate.value && viewing.value > 0)
+  const canForward = computed(() => canNavigate.value && viewing.value < current.value)
+
   function isSelected(index: number): boolean {
+    if (reviewing.value) return answers.value[viewing.value]?.includes(index) ?? false
     return selected.value.includes(index)
   }
 
   // Полный выбор блокирует остальные варианты, снять отметку можно всегда.
   // При одном ответе блокировки нет: клик по другому варианту заменяет выбор, как у радиокнопок
   function isDisabled(index: number): boolean {
-    if (phase.value !== 'question' || busy.value || timedOut.value) return true
+    if (reviewing.value || phase.value !== 'question' || busy.value || timedOut.value) return true
     if (question.value === null || isSelected(index) || question.value.selectCount === 1) return false
     return selected.value.length >= question.value.selectCount
   }
@@ -115,9 +131,11 @@ export const usePlayStore = defineStore('play', () => {
   function reset(): void {
     epoch += 1
     current.value = 0
+    viewing.value = 0
     selected.value = []
     answers.value = []
     correct.value = []
+    checked.value = []
     phase.value = 'question'
     result.value = null
     questions.value = []
@@ -157,6 +175,7 @@ export const usePlayStore = defineStore('play', () => {
         options: shuffle(item.options, random).map(({ item: option, index }) => ({ text: option.text, imageUrl: option.imageUrl, index })),
       }))
       answers.value = quiz.questions.map(() => [])
+      checked.value = quiz.questions.map(() => null)
       startedAt.value = Date.now()
     }, 'loading')
   }
@@ -178,6 +197,7 @@ export const usePlayStore = defineStore('play', () => {
   function goNext(): Promise<void> {
     if (isLast.value) return finish()
     current.value += 1
+    viewing.value = current.value
     selected.value = []
     correct.value = []
     phase.value = 'question'
@@ -199,13 +219,22 @@ export const usePlayStore = defineStore('play', () => {
       if (runEpoch !== epoch) return
       if (timedOut.value) return
       correct.value = response.correct
+      checked.value[index] = response.correct
       phase.value = 'feedback'
     })
   }
 
   async function next(): Promise<void> {
-    if (busy.value || phase.value !== 'feedback') return
+    if (busy.value || reviewing.value || phase.value !== 'feedback') return
     await run(goNext)
+  }
+
+  function prev(): void {
+    if (canPrev.value) viewing.value -= 1
+  }
+
+  function forward(): void {
+    if (canForward.value) viewing.value += 1
   }
 
   // Выбор, не отправленный к концу времени, не засчитывается: в answers он так и остаётся пустым
@@ -230,8 +259,8 @@ export const usePlayStore = defineStore('play', () => {
 
   return {
     timer, startedAt, timedOut, elapsedSeconds,
-    title, showAnswers, questions, current, selected, answers, correct, phase, result, status, busy,
-    question, isLast, canSubmit, feedback,
-    isSelected, isDisabled, toggle, start, submit, next, retry, expire,
+    title, showAnswers, questions, current, viewing, selected, answers, correct, phase, result, status, busy,
+    question, isLast, canSubmit, feedback, reviewing, viewCorrect, canPrev, canForward,
+    isSelected, isDisabled, toggle, start, submit, next, prev, forward, retry, expire,
   }
 })

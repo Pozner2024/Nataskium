@@ -1,7 +1,7 @@
 import { changePasswordSchema } from '@nataskium/shared/schemas'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { makeChangePassword, makeTokenService } from '../src/features/auth'
-import type { TeacherAccount } from '../src/features/auth/types'
+import { PRODUCTION_LIMITS, makeAuthLimiters, makeChangePassword, makeTokenService } from '../src/features/auth'
+import type { FailureLimiter, TeacherAccount } from '../src/features/auth/types'
 import { RateLimitedError, ServiceBusyError } from '../src/shared/errors'
 import {
   type CallLog,
@@ -30,7 +30,7 @@ const tokens = makeTokenService({
 
 let calls: CallLog
 
-function setup(options: { teacher?: Partial<TeacherAccount> | null } = {}) {
+function setup(options: { failureLimiter?: FailureLimiter; teacher?: Partial<TeacherAccount> | null } = {}) {
   const hasher = makeFakeHasher(calls)
   const limiter = makeFakeLimiter(calls)
   const refresh = makeFakeRefreshTokens(calls)
@@ -48,7 +48,7 @@ function setup(options: { teacher?: Partial<TeacherAccount> | null } = {}) {
   const changePassword = makeChangePassword({
     teachers: fake.teachers,
     hasher: hasher.hasher,
-    failureLimiter: limiter.limiter,
+    failureLimiter: options.failureLimiter ?? limiter.limiter,
     emailSender: email.sender,
     refreshTokens: refresh.repository,
     tokens,
@@ -186,5 +186,33 @@ describe('changePasswordSchema', () => {
 
   it('текущий пароль — без минимума и блок-листа', () => {
     expect(changePasswordSchema.safeParse({ currentPassword: 'abc', newPassword: NEW_PASSWORD }).success).toBe(true)
+  })
+})
+
+describe('changePassword: лимит по id учителя', () => {
+  const MAX_FAILURES = 10
+
+  function realLimiters() {
+    return makeAuthLimiters(PRODUCTION_LIMITS)
+  }
+
+  it('исчерпанный чужими входами счётчик email не блокирует действие', async () => {
+    const limiters = realLimiters()
+    for (let attempt = 0; attempt < MAX_FAILURES; attempt++) limiters.failureLimiter.reserve(EMAIL)
+    expect(limiters.failureLimiter.reserve(EMAIL).allowed).toBe(false)
+    const { changePassword } = setup({ failureLimiter: limiters.teacherFailureLimiter })
+
+    await expect(changePassword(TEACHER_ID, input())).resolves.not.toThrow()
+  })
+
+  it(`свои неудачи ограничены ${MAX_FAILURES}`, async () => {
+    const limiters = realLimiters()
+    const { changePassword } = setup({ failureLimiter: limiters.teacherFailureLimiter })
+
+    for (let attempt = 0; attempt < MAX_FAILURES; attempt++) {
+      expect(await rejectionOf(changePassword(TEACHER_ID, input('qa-wrong-password')))).toMatchObject({ status: 400 })
+    }
+
+    expect(await rejectionOf(changePassword(TEACHER_ID, input()))).toBeInstanceOf(RateLimitedError)
   })
 })

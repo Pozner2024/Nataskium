@@ -1,4 +1,8 @@
 export { default as PlayTimer } from './PlayTimer.vue'
+export { default as PlayTimerPortal } from './PlayTimerPortal.vue'
 export { formatClock } from './formatClock'
+export { PLAYER_SCROLL_KEY, PLAYER_SCROLL_RELEASE_KEY, PLAYER_TIMER_SLOT_KEY } from './playerKeys'
+export type { PlayerTimerSlot } from './playerKeys'
 export { PLAY_TIMER_KEY, usePlayTimer } from './usePlayTimer'
 export type { PlayTimerSource, PlayTimerView } from './usePlayTimer'
+export { usePlayerScrollRelease } from './usePlayerScrollRelease'

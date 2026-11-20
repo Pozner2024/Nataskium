@@ -2,13 +2,16 @@
   <IntroPlayer
     :key="runKey"
     :src="videoSrc"
+    :style="{ '--header-height': '0px' }"
     :type-label="intro.typeLabel"
     title="Математика цивилизаций"
     :hint="intro.hint"
     start-label="Начать"
-    skip-label="Пропустить"
+    skip-label="Пропустить заставку"
     enter-fullscreen-label="На весь экран"
     exit-fullscreen-label="Выйти из полноэкранного режима"
+    collapse-label="Свернуть"
+    scroll-down-label="Прокрутить вниз"
     unmute-label="Включить звук"
     mute-label="Выключить звук"
   >
@@ -71,7 +74,7 @@ const videoSrc = computed(() => {
   flex: 1;
   flex-direction: column;
   gap: 24px;
-  padding: 96px 16px 104px;
+  padding: 16px 12px 24px;
 
   &__banner {
     padding: 22px 20px;

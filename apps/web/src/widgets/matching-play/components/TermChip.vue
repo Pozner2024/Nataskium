@@ -40,6 +40,7 @@ defineProps<{
 </script>
 
 <style scoped lang="scss">
+// «Физическая» плитка с ребром снизу и точками-ручкой: видно, что её можно взять. Цвета — тема проигрывателя
 .term-chip {
   position: relative;
   display: inline-flex;
@@ -50,12 +51,11 @@ defineProps<{
   min-height: 64px;
   margin: 0;
   padding: 10px 18px 10px 10px;
-  border: 2px solid rgb(var(--rgb-blue) / 0.45);
+  border: 2px solid var(--g-line);
   border-bottom-width: 5px;
   border-radius: 18px;
-  background: var(--color-white);
-  box-shadow: 0 4px 12px rgb(var(--rgb-night) / 0.08);
-  color: var(--color-text);
+  background: var(--g-chip);
+  color: var(--g-text);
   font: inherit;
   font-size: 19px;
   font-weight: 700;
@@ -74,13 +74,12 @@ defineProps<{
 
   @media (hover: hover) {
     &:hover:not(:disabled) {
-      border-color: var(--color-blue);
-      box-shadow: 0 8px 18px rgb(var(--rgb-blue) / 0.18);
+      border-color: var(--g-accent);
     }
   }
 
   &:focus-visible {
-    outline: 3px solid var(--focus-color);
+    outline: 3px solid var(--g-focus);
     outline-offset: 2px;
   }
 
@@ -94,7 +93,7 @@ defineProps<{
   flex: none;
   place-items: center;
   width: 20px;
-  color: var(--color-blue-light);
+  color: var(--g-accent);
 
   svg {
     width: 14px;
@@ -106,27 +105,25 @@ defineProps<{
 .term-chip__text {
   min-width: 0;
   overflow-wrap: break-word;
+  hyphens: auto;
 }
 
 .term-chip--placed {
-  flex: 0 1 auto;
-  width: auto;
-  min-height: 60px;
-  box-shadow: none;
+  min-height: 64px;
+  padding: 8px 10px 8px 6px;
+  font-size: 16px;
   touch-action: none;
 }
 
 .term-chip--picked {
-  border-color: var(--color-blue-dark);
-  background: rgb(var(--rgb-blue) / 0.12);
-  box-shadow: 0 0 0 3px rgb(var(--rgb-blue) / 0.35);
-  color: var(--color-blue-dark);
+  border-color: var(--g-accent);
+  background: var(--g-accent-soft);
+  box-shadow: 0 0 0 3px var(--g-accent-soft);
 }
 
 .term-chip--ghost {
-  border: 3px dashed rgb(var(--rgb-blue) / 0.35);
-  background: rgb(var(--rgb-blue) / 0.04);
-  box-shadow: none;
+  border: 3px dashed var(--g-line);
+  background: none;
   color: transparent;
 
   .term-chip__grip {
@@ -134,14 +131,19 @@ defineProps<{
   }
 }
 
+// Копия в руке — position: fixed у родителя; transform здесь на самой плитке, а не на её предках
 .term-chip--lifted {
-  border-color: var(--color-blue-dark);
-  background: var(--color-blue-dark);
-  box-shadow: 0 22px 40px rgb(var(--rgb-night) / 0.35);
-  color: var(--color-white);
+  border-color: #ffffff;
+  background: var(--g-hand);
+  box-shadow: 0 22px 40px rgb(0 0 0 / 0.45);
+  color: #ffffff;
   transform: rotate(-3deg) scale(1.06);
   cursor: grabbing;
   pointer-events: none;
+
+  .term-chip__grip {
+    color: #cfdcff;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

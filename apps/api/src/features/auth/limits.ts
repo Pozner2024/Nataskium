@@ -11,6 +11,11 @@ export type AuthLimits = {
   loginPerIpEmail: RateLimit
   // Только неудачные попытки по email, общий для входа и подтверждения email: против распределённого перебора
   loginFailuresPerEmail: RateLimit
+  // Неудачи входа с «знакомого устройства» (cookie выдана после успешного входа): отдельный счётчик, чужие неверные
+  // пароли по email такому учителю вход не блокируют
+  loginFailuresPerDevice: RateLimit
+  // Неудачи вошедшего учителя при смене пароля и удалении аккаунта; ключ — id учителя, а не email
+  accountFailuresPerTeacher: RateLimit
   registerPerIp: RateLimit
   verifyEmailPerIp: RateLimit
   // Письма регистрации на адрес: подтверждение и «аккаунт уже есть»
@@ -45,6 +50,8 @@ const MAX_TRACKED_KEYS = 100_000
 const LOGIN_PER_IP = 100
 const LOGIN_PER_IP_EMAIL = 10
 const LOGIN_FAILURES_PER_EMAIL = 10
+const LOGIN_FAILURES_PER_DEVICE = 10
+const ACCOUNT_FAILURES_PER_TEACHER = 10
 const REGISTER_PER_IP = 30
 const VERIFY_EMAIL_PER_IP = 30
 const REGISTRATION_EMAILS_PER_HOUR = 3
@@ -67,6 +74,8 @@ export const PRODUCTION_LIMITS: AuthLimits = {
   loginPerIp: { max: LOGIN_PER_IP, windowMs: FIFTEEN_MINUTES_MS },
   loginPerIpEmail: { max: LOGIN_PER_IP_EMAIL, windowMs: FIFTEEN_MINUTES_MS },
   loginFailuresPerEmail: { max: LOGIN_FAILURES_PER_EMAIL, windowMs: FIFTEEN_MINUTES_MS },
+  loginFailuresPerDevice: { max: LOGIN_FAILURES_PER_DEVICE, windowMs: FIFTEEN_MINUTES_MS },
+  accountFailuresPerTeacher: { max: ACCOUNT_FAILURES_PER_TEACHER, windowMs: FIFTEEN_MINUTES_MS },
   registerPerIp: { max: REGISTER_PER_IP, windowMs: MS_PER_HOUR },
   verifyEmailPerIp: { max: VERIFY_EMAIL_PER_IP, windowMs: FIFTEEN_MINUTES_MS },
   registrationEmailsPerHour: { max: REGISTRATION_EMAILS_PER_HOUR, windowMs: MS_PER_HOUR },

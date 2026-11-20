@@ -36,12 +36,29 @@ const MATCHING = {
   matching: { title: 'Животные', showAnswers: false, version: 'v1', timer: { mode: 'none' as const }, definitions: ['мяукает', 'лает'], terms: ['пёс', 'кот'] },
 }
 
+const TRUE_FALSE = {
+  type: 'truefalse' as const,
+  trueFalse: {
+    title: 'Факты',
+    showAnswers: false,
+    version: 'v1',
+    timer: { mode: 'none' as const },
+    statements: ['Земля круглая', 'Солнце холодное'],
+  },
+}
+
 let wrapper: VueWrapper | undefined
 
 async function mountPage(route = `/play/${TOKEN}`) {
   wrapper = await mountSuspended(PlayPage, { props: { token: TOKEN }, route })
   await flushPromises()
   return wrapper
+}
+
+// Перед загруженным заданием — стартовый экран интро; игра монтируется после «Начать»
+async function pressStart(page: VueWrapper) {
+  await page.get('.intro-player__start-button').trigger('click')
+  await flushPromises()
 }
 
 function lastSeoRobots(): string | undefined {
@@ -61,15 +78,40 @@ afterEach(() => {
 })
 
 describe('PlayPage: превью', () => {
-  it('?preview=1 на языке по умолчанию: без редиректа, задание загружается, пометка превью видна', async () => {
+  it('?preview=1 на языке по умолчанию: без редиректа, задание загружается, панели превью нет', async () => {
     vi.mocked(playApi.get).mockResolvedValue(QUIZ)
 
     const page = await mountPage(`/play/${TOKEN}?preview=1`)
 
     expect(navigateToMock).not.toHaveBeenCalled()
     expect(playApi.get).toHaveBeenCalledTimes(1)
-    expect(page.find('.quiz-play__preview-note').exists()).toBe(true)
+    expect(page.find('.play-page__preview').exists()).toBe(false)
+    await pressStart(page)
+    expect(page.find('.play-page__preview').exists()).toBe(false)
     expect(page.find('h1').text()).toBe('Столица Франции?')
+  })
+})
+
+describe('PlayPage: да/нет', () => {
+  it('стартовый экран интро: подписи типа, название и подсказка «да/нет»', async () => {
+    vi.mocked(playApi.get).mockResolvedValue(TRUE_FALSE)
+    const page = await mountPage()
+
+    expect(page.find('.intro-player__type').text()).toBe('Да/нет')
+    expect(page.find('.intro-player__title').text()).toBe('Факты')
+    expect(page.find('.intro-player__hint').text()).toBe('Решите, верно ли каждое утверждение')
+  })
+
+  it('после «Начать» игра показывает первое утверждение из полученного ответа, GET один', async () => {
+    vi.mocked(playApi.get).mockResolvedValue(TRUE_FALSE)
+    const page = await mountPage()
+    await pressStart(page)
+
+    expect(playApi.get).toHaveBeenCalledTimes(1)
+    expect(page.find('.true-false-play').exists()).toBe(true)
+    expect(page.find('.quiz-play').exists()).toBe(false)
+    expect(page.find('.matching-play').exists()).toBe(false)
+    expect(page.find('h1').text()).toBe('Земля круглая')
   })
 })
 
@@ -93,6 +135,7 @@ describe('PlayPage: повтор задания', () => {
     vi.mocked(playApi.get).mockResolvedValue(QUIZ)
     vi.mocked(playApi.finish).mockResolvedValue({ result: RESULT })
     const page = await mountPage()
+    await pressStart(page)
     expect(playApi.get).toHaveBeenCalledTimes(1)
 
     await page.find('.play-question__option').trigger('click')
@@ -112,6 +155,7 @@ describe('PlayPage: повтор задания', () => {
     vi.mocked(playApi.get).mockResolvedValue(QUIZ)
     vi.mocked(playApi.finish).mockRejectedValueOnce(new ApiError(409))
     const page = await mountPage()
+    await pressStart(page)
 
     await page.find('.play-question__option').trigger('click')
     await page.find('.play-question__action').trigger('click')

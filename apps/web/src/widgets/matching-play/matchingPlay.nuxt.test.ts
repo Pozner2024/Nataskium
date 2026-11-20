@@ -58,12 +58,12 @@ afterEach(() => {
 })
 
 describe('MatchingPlay: доска', () => {
-  it('определения в порядке учителя с номерами, слова — в лотке в порядке сервера, «Проверить» нет', async () => {
+  it('определения в порядке учителя с номерами, слова — в лотке в порядке сервера, «Проверить» неактивна', async () => {
     const wrapper = await mountPlay()
 
     expect(wrapper.findAll('.definition-card__text').map((item) => item.text())).toEqual(['Определение 1: Мяукает', 'Определение 2: Лает'])
     expect(wrapper.findAll('.matching-board__pool .term-chip').map((chip) => chip.text())).toEqual(['собака', 'кошка'])
-    expect(wrapper.find('.matching-board__check').exists()).toBe(false)
+    expect(wrapper.get('.matching-board__check').attributes('disabled')).toBeDefined()
     expect(wrapper.get('.matching-board__progress').text()).toBe('0 / 2')
   })
 
@@ -137,14 +137,28 @@ describe('MatchingPlay: тап-путь', () => {
     expect(live(wrapper)).toBe('Все слова на местах. Можно проверять.')
   })
 
-  it('✕ возвращает слово к словам, объявление «возвращено»', async () => {
+  it('слово в клетке выбрано → «Вернуть слово» возвращает его к словам, объявление «возвращено»', async () => {
+    const wrapper = await mountPlay()
+    await poolChip(wrapper, 'кошка').trigger('click')
+    await card(wrapper, 0).get('.definition-card__drop').trigger('click')
+    await card(wrapper, 0).get('.term-chip').trigger('click')
+
+    const remove = wrapper.get('.matching-board__return')
+    expect(remove.text()).toBe('Вернуть слово «кошка» к словам')
+    await remove.trigger('click')
+    await flushPromises()
+
+    expect(card(wrapper, 0).find('.term-chip').exists()).toBe(false)
+    expect(wrapper.findAll('.matching-board__pool .term-chip')).toHaveLength(2)
+    expect(live(wrapper)).toBe('Слово «кошка» возвращено к словам.')
+  })
+
+  it('Delete на слове в клетке возвращает его к словам', async () => {
     const wrapper = await mountPlay()
     await poolChip(wrapper, 'кошка').trigger('click')
     await card(wrapper, 0).get('.definition-card__drop').trigger('click')
 
-    const remove = card(wrapper, 0).get('.definition-card__remove')
-    expect(remove.attributes('aria-label')).toBe('Вернуть слово «кошка» к словам')
-    await remove.trigger('click')
+    await card(wrapper, 0).get('.term-chip').trigger('keydown', { key: 'Delete' })
     await flushPromises()
 
     expect(card(wrapper, 0).find('.term-chip').exists()).toBe(false)

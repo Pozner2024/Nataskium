@@ -31,10 +31,21 @@ const MATCHING = {
   matching: { title: 'Животные', showAnswers: false, version: 'v1', timer: { mode: 'none' as const }, definitions: ['мяукает', 'лает'], terms: ['пёс', 'кот'] },
 }
 
+const TRUE_FALSE = {
+  type: 'truefalse' as const,
+  trueFalse: { title: 'Факты', showAnswers: false, version: 'v1', timer: { mode: 'none' as const }, statements: ['Земля круглая', 'Солнце холодное'] },
+}
+
 let wrapper: VueWrapper
 
 async function mountPage(token = TOKEN, route = `/play/${token}`) {
   wrapper = await mountSuspended(PlayPage, { props: { token }, route })
+  await flushPromises()
+}
+
+// Перед загруженным заданием — стартовый экран интро; игра монтируется после «Начать»
+async function pressStart() {
+  await wrapper.get('.intro-player__start-button').trigger('click')
   await flushPromises()
 }
 
@@ -53,6 +64,7 @@ describe('PlayPage: диспетчер по типу задания', () => {
   it('викторина: один запрос GET, вопрос показан из уже полученного ответа', async () => {
     vi.mocked(playApi.get).mockResolvedValue(QUIZ)
     await mountPage()
+    await pressStart()
 
     expect(playApi.get).toHaveBeenCalledTimes(1)
     expect(playApi.get).toHaveBeenCalledWith(TOKEN)
@@ -63,10 +75,22 @@ describe('PlayPage: диспетчер по типу задания', () => {
   it('сопоставление: показывается игра сопоставления, викторина — нет, GET один', async () => {
     vi.mocked(playApi.get).mockResolvedValue(MATCHING)
     await mountPage()
+    await pressStart()
 
     expect(playApi.get).toHaveBeenCalledTimes(1)
     expect(wrapper.find('.matching-play').exists()).toBe(true)
     expect(wrapper.find('.quiz-play').exists()).toBe(false)
+  })
+
+  it('да/нет: показывается игра да/нет, остальные — нет, GET один', async () => {
+    vi.mocked(playApi.get).mockResolvedValue(TRUE_FALSE)
+    await mountPage()
+    await pressStart()
+
+    expect(playApi.get).toHaveBeenCalledTimes(1)
+    expect(wrapper.find('.true-false-play').exists()).toBe(true)
+    expect(wrapper.find('.quiz-play').exists()).toBe(false)
+    expect(wrapper.find('.matching-play').exists()).toBe(false)
   })
 
   it('404 при загрузке: «не найдено» от QuizPlay', async () => {

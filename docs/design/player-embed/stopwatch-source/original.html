@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Секундомер: исходник пользователя (не менять)</title>
+<style>
+.action {
+  --size: 50vmin;
+  --color: 67 240 255;
+  --duration: 0;
+  --offset: 0;
+  --r: 0;
+  --length: calc(2 * pi * var(--r));
+
+  display: grid;
+  width: var(--size);
+  height: var(--size);
+  border: none;
+  padding: 0;
+  border-radius: 50%;
+  background: none;
+  text-align: center;
+  font-weight: bold;
+  color: rgb(var(--color));
+  font-size: calc(var(--size) * 0.25);
+  transition: background 0.2s ease, filter 0.2s ease;
+
+  &:not(.action_active):hover {
+    background: rgb(var(--color) / .1);
+    filter: drop-shadow(0 0 22px rgb(var(--color) / .6));
+  }
+
+  &.action_active {
+    animation: pulse 1s infinite linear, wave 1s infinite ease-out;
+  }
+
+  &:not(.action_active) .action__content_stop {
+    display: none;
+  }
+
+  .action__progress {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+    grid-area: 1 / 1 / -1 / -1;
+    border-radius: inherit;
+  }
+
+  .action__progress-background,
+  .action__progress-foreground {
+    fill: none;
+    stroke-width: calc(100px - var(--r) * 2px);
+  }
+
+  .action__progress-background {
+    stroke: rgb(var(--color) / .05);
+  }
+
+  .action__progress-foreground {
+    stroke: rgb(var(--color) / 1);
+    stroke-dasharray: calc(var(--length) * 1px);
+    stroke-dashoffset: var(--offset);
+  }
+
+  .action__progress-graduation {
+    --width: 0.5;
+    --gap: calc(var(--length) / var(--duration) - var(--width));
+
+    fill: none;
+    stroke: rgb(255 255 255 / 1);
+    stroke-width: 3px;
+    stroke-dasharray: calc(var(--width) * 1px) calc(var(--gap) * 1px);
+    rotate: calc(var(--width) * -90deg / var(--r) / pi);
+    transform-origin: center center;
+    mix-blend-mode: difference;
+  }
+
+  .action__content {
+    align-content: center;
+    grid-area: 1 / 1 / -1 / -1;
+  }
+}
+
+@keyframes wave {
+  0% { box-shadow: 0 0 0 0 rgb(var(--color) / .6); }
+  70% { box-shadow: 0 0 0 calc(var(--size) * 0.1) rgb(var(--color) / 0); }
+}
+
+@keyframes pulse {
+  5% { scale: 1.01; }
+  20% { scale: 1; }
+}
+
+body {
+  background: linear-gradient(135deg, #7f7bff 0%, #ae5fff 45%, #ffba5a 100%);
+  display: grid;
+  height: 100vh;
+  margin: 0;
+
+  * { margin: auto; }
+}
+</style>
+</head>
+<body>
+<button id="go" class="action">
+  <svg class="action__progress" viewBox="0 0 100 100">
+    <circle class="action__progress-background" cx="50" cy="50" />
+    <circle class="action__progress-foreground" cx="50" cy="50" />
+    <circle class="action__progress-graduation" cx="50" cy="50" />
+  </svg>
+  <span class="action__content action__content_stop">■</span>
+  <span class="action__content action__content_play">▶︎</span>
+</button>
+<script>
+class CircleProgress {
+  startTime = 0
+  tickerId = null
+
+  constructor(root, duration) {
+    const radius = 45
+    const graduation = root.querySelector('.action__progress-graduation')
+    const background = root.querySelector('.action__progress-background')
+    this.foreground = root.querySelector('.action__progress-foreground')
+    this.root = root
+    this.length = 2 * Math.PI * radius
+    this.duration = duration
+    this.root.style.setProperty('--r', radius)
+    this.root.style.setProperty('--duration', this.duration / 1000)
+    this.foreground.style.setProperty('--offset', this.length)
+    this.foreground.setAttribute('r', radius)
+    background.setAttribute('r', radius)
+    graduation.setAttribute('r', radius)
+  }
+
+  start() {
+    this.startTime = performance.now()
+    this.root.classList.toggle('action_active', true)
+    requestAnimationFrame(this.tick)
+  }
+
+  stop() {
+    cancelAnimationFrame(this.tickerId)
+    this.root.classList.toggle('action_active', false)
+    this.foreground.style.setProperty('--offset', this.length)
+    this.tickerId = null
+  }
+
+  toggle() {
+    const action = this.tickerId === null ? "start" : "stop"
+    this[action]()
+  }
+
+  tick = (currentTime) => {
+    const progress = (currentTime - this.startTime) / this.duration
+    const offset = this.length * (1 - progress)
+
+    if (progress < 1) {
+      this.foreground.style.setProperty('--offset', offset)
+      this.tickerId = requestAnimationFrame(this.tick)
+    } else {
+      this.stop()
+    }
+  }
+}
+
+const GoElement = document.querySelector('#go')
+const Go = new CircleProgress(GoElement, 30000)
+GoElement.addEventListener('click', () => Go.toggle())
+setTimeout(() => Go.toggle(), 500)
+</script>
+</body>
+</html>

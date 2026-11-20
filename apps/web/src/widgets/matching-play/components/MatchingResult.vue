@@ -11,9 +11,12 @@
       <p v-if="store.timer.mode === 'stopwatch' && store.elapsedSeconds !== null" class="matching-result__stat">
         {{ t('play.timer.elapsed', { time: formatClock(store.elapsedSeconds) }) }}
       </p>
+      <button class="matching-result__again" type="button" :disabled="store.busy" @click="store.start()">
+        {{ t('play.again') }}
+      </button>
     </div>
 
-    <template v-if="store.review">
+    <div v-if="store.review" class="matching-result__review">
       <h2 class="matching-result__review-title">{{ t('matchingPlay.result.reviewTitle') }}</h2>
       <p class="matching-result__legend">{{ t('matchingPlay.result.legend') }}</p>
       <ol class="matching-result__list">
@@ -27,12 +30,8 @@
           :right="item.term"
         />
       </ol>
-    </template>
+    </div>
     <p v-else class="matching-result__hidden">{{ t('matchingPlay.result.hidden') }}</p>
-
-    <button class="matching-result__again" type="button" :disabled="store.busy" @click="store.start()">
-      {{ t('play.again') }}
-    </button>
   </div>
 </template>
 
@@ -40,6 +39,7 @@
 import { onMounted, useTemplateRef } from 'vue'
 import { useI18n } from '#imports'
 import { formatClock } from '@/features/play-session'
+import { focusInPlace } from '@/shared'
 import { useMatchingPlayStore } from '../store'
 import ReviewRow from './ReviewRow.vue'
 
@@ -52,26 +52,55 @@ function answerAt(index: number): string | null {
   return term === null ? null : (store.terms[term] ?? null)
 }
 
-onMounted(() => heading.value?.focus())
+onMounted(() => focusInPlace(heading.value))
 </script>
 
 <style scoped lang="scss">
 @use '@/assets/styles/mixins' as *;
+@use '@/assets/styles/breakpoints.module' as *;
 
+// Итог лежит на фоне проигрывателя. Десктоп: сводка слева (липнет), пары справа
 .matching-result {
   display: flex;
   flex-direction: column;
+  padding-top: 8px;
+  color: var(--g-text);
+
+  @include tablet {
+    padding: 24px 24px 28px;
+  }
+
+  @include desktop {
+    display: grid;
+    grid-template-columns: 300px minmax(0, 1fr);
+    gap: 32px;
+    align-items: start;
+    padding: 32px 24px;
+  }
 }
 
 .matching-result__summary {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-top: 16px;
-  padding: 28px 20px 24px;
-  border-radius: 22px;
   text-align: center;
-  @include card-surface;
+
+  @include tablet {
+    width: 100%;
+    max-width: 520px;
+    margin: 0 auto 8px;
+  }
+
+  @include desktop {
+    position: sticky;
+    top: 16px;
+    max-width: none;
+    margin: 0;
+    padding: 24px 16px;
+    border-radius: 20px;
+    background: var(--g-surface);
+    box-shadow: inset 0 0 0 1px var(--g-divider);
+  }
 }
 
 .matching-result__title {
@@ -85,7 +114,7 @@ onMounted(() => heading.value?.focus())
 
 .matching-result__note {
   margin: 12px 0 0;
-  color: var(--color-text-muted);
+  color: var(--g-muted);
   font-size: 17px;
   font-weight: 500;
   line-height: 1.4;
@@ -93,19 +122,24 @@ onMounted(() => heading.value?.focus())
 
 .matching-result__percent {
   margin: 12px 0 0;
-  color: var(--color-blue);
+  color: var(--g-accent);
   font-family: var(--font-display);
   font-size: 68px;
   font-weight: 700;
   line-height: 1.1;
   white-space: nowrap;
+
+  @include tablet {
+    font-size: 60px;
+  }
 }
 
 .matching-result__grade {
   margin: 16px 0 0;
   padding: 10px 24px;
   border-radius: 999px;
-  background: rgb(var(--rgb-green) / 0.14);
+  background: var(--g-ok-soft);
+  box-shadow: inset 0 0 0 2px var(--g-ok);
   font-size: 24px;
   font-weight: 700;
   line-height: 1.3;
@@ -119,13 +153,25 @@ onMounted(() => heading.value?.focus())
 
   & + & {
     margin-top: 4px;
-    color: var(--color-text-muted);
+    color: var(--g-muted);
+  }
+}
+
+.matching-result__again {
+  @include play-action;
+
+  min-height: 60px;
+  margin-top: 28px;
+  font-size: 20px;
+
+  &:disabled {
+    cursor: progress;
   }
 }
 
 .matching-result__hidden {
   margin: 16px 0 0;
-  color: var(--color-text-muted);
+  color: var(--g-muted);
   font-size: 16px;
   line-height: 1.4;
   text-align: center;
@@ -136,11 +182,15 @@ onMounted(() => heading.value?.focus())
   font-size: 22px;
   font-weight: 700;
   line-height: 1.3;
+
+  @include desktop {
+    margin-top: 0;
+  }
 }
 
 .matching-result__legend {
   margin: 0 0 14px;
-  color: var(--color-text-muted);
+  color: var(--g-muted);
   font-size: 16px;
   line-height: 1.4;
 }
@@ -148,57 +198,8 @@ onMounted(() => heading.value?.focus())
 .matching-result__list {
   display: flex;
   flex-direction: column;
-  gap: 14px;
   margin: 0;
   padding: 0;
   list-style: none;
-}
-
-.matching-result__again {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  min-height: 60px;
-  margin-top: 28px;
-  padding: 8px 20px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--color-orange);
-  box-shadow: 0 10px 24px rgb(var(--rgb-orange) / 0.4);
-  color: var(--color-white);
-  font: inherit;
-  font-size: 20px;
-  font-weight: 700;
-  line-height: 1.25;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition:
-    box-shadow 0.2s ease,
-    transform 0.2s ease;
-
-  @media (hover: hover) {
-    &:hover:not(:disabled) {
-      box-shadow: 0 14px 28px rgb(var(--rgb-orange) / 0.45);
-    }
-  }
-
-  &:active:not(:disabled) {
-    transform: scale(0.98);
-  }
-
-  &:disabled {
-    cursor: progress;
-    opacity: 0.7;
-    box-shadow: none;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    transition: none;
-
-    &:active:not(:disabled) {
-      transform: none;
-    }
-  }
 }
 </style>

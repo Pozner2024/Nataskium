@@ -16,7 +16,7 @@ const GOOGLE_ONLY_MESSAGE = 'This account signs in with Google and has no passwo
 export type ChangePasswordDeps = IssueSessionDeps & {
   teachers: TeacherRepository
   hasher: PasswordHasher
-  // Общий с входом лимит неудач по email: смена пароля не даёт второго канала перебора текущего пароля
+  // По id учителя, не по email: чужие неверные входы по email не блокируют вошедшему учителю эти действия
   failureLimiter: FailureLimiter
   emailSender: EmailSender
 }
@@ -32,7 +32,7 @@ export function makeChangePassword(deps: ChangePasswordDeps) {
 
     // Перегрузка — до резерва: 503 не должен тратить лимит неудач учителя
     deps.hasher.assertCapacity()
-    const reservation = deps.failureLimiter.reserve(teacher.email)
+    const reservation = deps.failureLimiter.reserve(teacher.id)
     if (!reservation.allowed) throw new RateLimitedError(reservation.retryAfterSeconds)
 
     let isPasswordValid: boolean

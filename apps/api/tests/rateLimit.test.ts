@@ -38,6 +38,8 @@ describe('PRODUCTION_LIMITS', () => {
       loginPerIp: { max: 100, windowMs: WINDOW_MS },
       loginPerIpEmail: { max: 10, windowMs: WINDOW_MS },
       loginFailuresPerEmail: { max: 10, windowMs: WINDOW_MS },
+      loginFailuresPerDevice: { max: 10, windowMs: WINDOW_MS },
+      accountFailuresPerTeacher: { max: 10, windowMs: WINDOW_MS },
       registerPerIp: { max: 30, windowMs: 60 * MS_PER_MINUTE },
       verifyEmailPerIp: { max: 30, windowMs: WINDOW_MS },
       registrationEmailsPerHour: { max: 3, windowMs: 60 * MS_PER_MINUTE },

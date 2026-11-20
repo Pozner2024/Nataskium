@@ -1,15 +1,16 @@
 <template>
   <li class="review-row" :class="`review-row--${state}`">
-    <span class="review-row__number" aria-hidden="true">{{ number }}</span>
-    <span class="review-row__text">
+    <p class="review-row__text">
       <span class="review-row__sr-only">{{ t('matchingPlay.definitionNumber', { number }) }}</span>{{ definition }}
-    </span>
-    <div class="review-row__answer">
-      <span v-if="answer !== null">{{ t('matchingPlay.result.yourAnswer') }} <b>{{ answer }}</b></span>
-      <span v-else>{{ t('matchingPlay.result.noAnswer') }}</span>
+      <span v-if="state !== 'correct'" class="review-row__right">{{ t('matchingPlay.result.rightAnswer') }} <b>{{ right }}</b></span>
+    </p>
+    <div class="review-row__cell">
       <span class="review-row__mark"><i aria-hidden="true">{{ MARKS[state] }}</i>{{ t(`matchingPlay.result.${state}`) }}</span>
+      <span v-if="answer !== null" class="review-row__answer">
+        <span class="review-row__sr-only">{{ t('matchingPlay.result.yourAnswer') }}</span> {{ answer }}
+      </span>
+      <span v-else class="review-row__answer review-row__answer--none">{{ t('matchingPlay.result.noAnswer') }}</span>
     </div>
-    <p v-if="state !== 'correct'" class="review-row__right">{{ t('matchingPlay.result.rightAnswer') }} <b>{{ right }}</b></p>
   </li>
 </template>
 
@@ -38,48 +39,40 @@ const state = computed(() => {
 </script>
 
 <style scoped lang="scss">
+@use '@/assets/styles/breakpoints.module' as *;
+
+// Тот же ряд, что в игре: клетка со словом ученика и пометкой, справа определение
 .review-row {
-  --rgb-wrong: 199 58 58;
-  --color-wrong: #c73a3a;
-
   display: grid;
-  grid-template-columns: 40px minmax(0, 1fr);
-  gap: 12px 14px;
-  padding: 16px;
-  border: 3px solid var(--color-green-dark);
-  border-radius: 22px;
-  background: rgb(var(--rgb-green) / 0.08);
-}
+  grid-template-columns: clamp(132px, 38%, 164px) minmax(0, 1fr);
+  grid-template-areas: 'cell text';
+  gap: 10px;
+  align-items: center;
+  padding: 12px 0;
+  border-top: 1px solid var(--g-divider);
 
-.review-row--wrong {
-  border-color: var(--color-wrong);
-  background: rgb(var(--rgb-wrong) / 0.06);
-}
+  &:first-child {
+    border-top-color: transparent;
+  }
 
-.review-row--empty {
-  border-style: dashed;
-  border-color: var(--color-text-muted);
-  background: #f4f5f9;
-}
-
-.review-row__number {
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 13px;
-  background: rgb(var(--rgb-blue) / 0.12);
-  color: var(--color-blue-dark);
-  font-family: var(--font-display);
-  font-size: 17px;
-  font-weight: 700;
+  @include tablet {
+    grid-template-columns: 220px minmax(0, 1fr);
+    gap: 0 16px;
+  }
 }
 
 .review-row__text {
-  align-self: center;
-  font-size: 18px;
+  grid-area: text;
+  margin: 0;
+  color: var(--g-text);
+  font-size: 15px;
+  font-weight: 500;
   line-height: 1.4;
   overflow-wrap: anywhere;
+
+  @include tablet {
+    font-size: 16px;
+  }
 }
 
 .review-row__sr-only {
@@ -91,77 +84,85 @@ const state = computed(() => {
   white-space: nowrap;
 }
 
-.review-row__answer {
-  display: flex;
-  flex-wrap: wrap;
-  grid-column: 1 / -1;
-  align-items: center;
-  gap: 8px 12px;
-  font-size: 18px;
-  line-height: 1.35;
+.review-row__right {
+  display: block;
+  margin-top: 6px;
+  font-weight: 500;
 
   b {
-    overflow-wrap: anywhere;
+    padding: 1px 6px;
+    border-radius: 6px;
+    background: var(--g-ok-soft);
   }
 }
 
-// Текст пометки тёмный: белый на зелёном — 4.4:1, мало для 16px. Цвет несут кружок со значком и рамка
+.review-row__cell {
+  display: flex;
+  flex-direction: column;
+  grid-area: cell;
+  gap: 6px;
+  min-height: 64px;
+  padding: 8px 10px;
+  border: 3px solid var(--g-ok);
+  border-radius: 16px;
+  background: var(--g-ok-soft);
+  color: var(--g-text);
+
+  .review-row--wrong & {
+    border-color: var(--g-bad);
+    background: var(--g-bad-soft);
+  }
+
+  .review-row--empty & {
+    border-style: dashed;
+    border-color: var(--g-line);
+    background: var(--g-surface);
+  }
+}
+
+// Верность пары — значок, слово и рамка, не только цвет
 .review-row__mark {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 36px;
-  padding: 3px 14px 3px 4px;
-  border: 2px solid var(--color-green-dark);
-  border-radius: 999px;
-  background: var(--color-white);
-  color: var(--color-text);
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 700;
 
   i {
     display: grid;
+    flex: none;
     place-items: center;
-    width: 26px;
-    height: 26px;
+    width: 22px;
+    height: 22px;
     border-radius: 50%;
-    background: var(--color-green-dark);
-    color: var(--color-white);
-    font-size: 15px;
+    background: var(--g-ok);
+    color: var(--g-on-ok);
+    font-size: 13px;
     font-style: normal;
     font-weight: 800;
-  }
 
-  .review-row--wrong & {
-    border-color: var(--color-wrong);
-
-    i {
-      background: var(--color-wrong);
+    .review-row--wrong & {
+      background: var(--g-bad);
+      color: var(--g-on-bad);
     }
-  }
 
-  .review-row--empty & {
-    border-color: var(--color-text-muted);
-
-    i {
-      background: var(--color-text-muted);
+    .review-row--empty & {
+      background: var(--g-muted);
+      color: var(--g-sticky);
     }
   }
 }
 
-.review-row__right {
-  grid-column: 1 / -1;
-  margin: 0;
-  padding-top: 10px;
-  border-top: 1px solid rgb(var(--rgb-night) / 0.1);
-  font-size: 18px;
-  line-height: 1.35;
+.review-row__answer {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.3;
   overflow-wrap: anywhere;
 
-  b {
-    padding: 2px 8px;
-    border-radius: 6px;
-    background: rgb(var(--rgb-green) / 0.16);
+  &--none {
+    color: var(--g-muted);
+    font-size: 14px;
+    font-weight: 600;
   }
 }
 </style>

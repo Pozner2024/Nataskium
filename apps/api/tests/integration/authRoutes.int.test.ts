@@ -258,6 +258,120 @@ describe('POST /api/auth/login', () => {
   })
 })
 
+describe('POST /api/auth/login: знакомое устройство', () => {
+  const DEVICE_COOKIE = '__Secure-device'
+  const DEVICE_TTL_SECONDS = 180 * 24 * 60 * 60
+
+  function deviceCookieOf(response: Response): string {
+    const header = response.headers.getSetCookie().find((cookie) => cookie.startsWith(`${DEVICE_COOKIE}=`))
+    if (header === undefined) throw new Error('no device cookie')
+    return header
+  }
+
+  async function loginFrom(client: ReturnType<typeof makeClient>, password: string, ip: string, cookie?: string) {
+    return client.post('/login', { email: EMAIL, password }, { ip, headers: cookie ? { cookie } : {} })
+  }
+
+  it('успешный вход ставит cookie устройства с нужными атрибутами и без email', async () => {
+    const client = makeClient()
+    await client.signUp()
+
+    const response = await loginFrom(client, PASSWORD, '192.0.2.70')
+    const header = deviceCookieOf(response)
+    const attributes = header.split(';').map((part) => part.trim())
+
+    expect(attributes[0]).toMatch(/^__Secure-device=v1\.[A-Za-z0-9_-]+\.[0-9a-f]{64}$/)
+    expect(attributes).toEqual(expect.arrayContaining(['HttpOnly', 'Secure', 'SameSite=Strict', 'Path=/api/auth/login']))
+    expect(attributes).toContain(`Max-Age=${DEVICE_TTL_SECONDS}`)
+    expect(header).not.toContain('example.test')
+  })
+
+  it('неудачный вход cookie устройства не ставит', async () => {
+    const client = makeClient()
+    await client.signUp()
+
+    const response = await loginFrom(client, WRONG_PASSWORD, '192.0.2.71')
+
+    expect(response.headers.getSetCookie().some((cookie) => cookie.startsWith(`${DEVICE_COOKIE}=`))).toBe(false)
+  })
+
+  it('атакующий заблокировал email — учитель с cookie устройства входит, без неё 429', async () => {
+    const client = makeClient()
+    await client.signUp()
+    const teacherCookie = deviceCookieOf(await loginFrom(client, PASSWORD, '192.0.2.72')).split(';')[0] ?? ''
+    for (let attempt = 0; attempt < LOGIN_FAILURES_PER_EMAIL; attempt++) {
+      expect((await loginFrom(client, WRONG_PASSWORD, `198.51.100.${attempt}`)).status).toBe(401)
+    }
+
+    expect((await loginFrom(client, PASSWORD, '192.0.2.73')).status).toBe(429)
+    expect((await loginFrom(client, PASSWORD, '192.0.2.72', teacherCookie)).status).toBe(200)
+  })
+
+  it('cookie другого учителя не даёт обойти лимит email', async () => {
+    const client = makeClient()
+    await client.signUp()
+    await client.signUp('qa-boris@example.test')
+    const other = await client.post('/login', { email: 'qa-boris@example.test', password: PASSWORD }, { ip: '192.0.2.74' })
+    const foreignCookie = deviceCookieOf(other).split(';')[0] ?? ''
+    for (let attempt = 0; attempt < LOGIN_FAILURES_PER_EMAIL; attempt++) await loginFrom(client, WRONG_PASSWORD, `198.51.100.${attempt}`)
+
+    expect((await loginFrom(client, PASSWORD, '192.0.2.75', foreignCookie)).status).toBe(429)
+  })
+
+  it('удаление аккаунта паролем стирает cookie устройства', async () => {
+    const client = makeClient()
+    await client.signUp()
+    const login = await loginFrom(client, PASSWORD, '192.0.2.76')
+    const { accessToken } = (await login.json()) as { accessToken: string }
+
+    const response = await client.app.request(
+      '/api/auth/delete-account',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ password: PASSWORD }),
+      },
+      fromIp('192.0.2.77'),
+    )
+
+    expect(response.status).toBe(204)
+    const cleared = deviceCookieOf(response)
+    expect(cleared).toContain('Max-Age=0')
+    expect(cleared).toContain('Path=/api/auth/login')
+  })
+
+  it('смена пароля отзывает cookie устройства: резерв снова по email', async () => {
+    const client = makeClient()
+    await client.signUp()
+    const login = await loginFrom(client, PASSWORD, '192.0.2.79')
+    const oldCookie = deviceCookieOf(login).split(';')[0] ?? ''
+    const { accessToken } = (await login.json()) as { accessToken: string }
+    const changed = await client.app.request(
+      '/api/auth/change-password',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ currentPassword: PASSWORD, newPassword: 'qa-battery-staple-2031' }),
+      },
+      fromIp('192.0.2.80'),
+    )
+    expect(changed.status).toBe(200)
+    for (let attempt = 0; attempt < LOGIN_FAILURES_PER_EMAIL; attempt++) await loginFrom(client, WRONG_PASSWORD, `198.51.100.${attempt}`)
+
+    expect((await loginFrom(client, 'qa-battery-staple-2031', '192.0.2.81', oldCookie)).status).toBe(429)
+  })
+
+  it('выход cookie устройства не стирает', async () => {
+    const client = makeClient()
+    await client.signUp()
+    const login = await loginFrom(client, PASSWORD, '192.0.2.78')
+
+    const response = await client.withCookie('/logout', cookieOf(login))
+
+    expect(response.headers.getSetCookie().some((cookie) => cookie.startsWith(`${DEVICE_COOKIE}=`))).toBe(false)
+  })
+})
+
 describe('X-Real-IP', () => {
   it('подделанный заголовок от клиента не обходит лимит по IP + email', async () => {
     const client = makeClient({ trustedProxies: TRUSTED_PROXY, limits: { loginPerIpEmail: STRICT_IP_EMAIL_LIMIT } })

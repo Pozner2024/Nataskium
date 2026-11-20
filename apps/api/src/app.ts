@@ -17,6 +17,7 @@ import {
   makeChangePassword,
   makeDeleteAccount,
   makeDeleteAccountWithGoogle,
+  makeDeviceTrust,
   makeGetMe,
   GOOGLE_LINK_TTL_MS,
   makeGoogleLink,
@@ -221,6 +222,7 @@ export function createApp({ env, prisma, limits, passwordHasher, emailSender, go
   const pendingGoogleLinks = makePendingGoogleLinkRepository(prisma)
   const pendingGoogleReauths = makePendingGoogleReauthRepository(prisma)
   const tokens = makeTokenService({ jwtSecret: env.JWT_SECRET, hmacSecret: env.HMAC_SECRET })
+  const deviceTrust = makeDeviceTrust(env.HMAC_SECRET)
   const limiters = makeAuthLimiters(limits)
   const now = () => new Date()
   const sessionDeps = { refreshTokens, tokens, now }
@@ -251,7 +253,14 @@ export function createApp({ env, prisma, limits, passwordHasher, emailSender, go
         hasher: passwordHasher,
         failureLimiter: limiters.failureLimiter,
       }),
-      login: makeLogin({ ...sessionDeps, teachers, hasher: passwordHasher, failureLimiter: limiters.failureLimiter }),
+      login: makeLogin({
+        ...sessionDeps,
+        teachers,
+        hasher: passwordHasher,
+        failureLimiter: limiters.failureLimiter,
+        deviceTrust,
+        deviceFailureLimiter: limiters.deviceFailureLimiter,
+      }),
       refreshSession: makeRefreshSession({ ...sessionDeps, teachers }),
       logout: makeLogout({ refreshTokens, tokens }),
       logoutAll: makeLogoutAll({ refreshTokens }),
@@ -268,7 +277,7 @@ export function createApp({ env, prisma, limits, passwordHasher, emailSender, go
       deleteAccount: makeDeleteAccount({
         teachers,
         hasher: passwordHasher,
-        failureLimiter: limiters.failureLimiter,
+        failureLimiter: limiters.teacherFailureLimiter,
         emailSender,
         imageFiles: teacherImageFiles,
       }),
@@ -276,7 +285,7 @@ export function createApp({ env, prisma, limits, passwordHasher, emailSender, go
         ...sessionDeps,
         teachers,
         hasher: passwordHasher,
-        failureLimiter: limiters.failureLimiter,
+        failureLimiter: limiters.teacherFailureLimiter,
         emailSender,
       }),
       google:

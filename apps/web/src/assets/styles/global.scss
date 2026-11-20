@@ -47,8 +47,13 @@
   }
 
   --z-pre-footer: 1;
-  --z-matching-tray: calc(var(--z-pre-footer) + 1);
-  --z-header: calc(var(--z-matching-tray) + 1);
+  --z-teacher-main: calc(var(--z-pre-footer) + 1);
+  --z-activity-menu: calc(var(--z-teacher-main) + 1);
+  --z-player-more: calc(var(--z-activity-menu) + 1);
+  --z-matching-tray: calc(var(--z-player-more) + 1);
+  --z-player-rail: calc(var(--z-matching-tray) + 1);
+  --z-player-controls: calc(var(--z-player-rail) + 1);
+  --z-header: calc(var(--z-player-controls) + 1);
   --z-language-menu: calc(var(--z-header) + 1);
   --z-drag-chip: calc(var(--z-language-menu) + 1);
 

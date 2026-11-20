@@ -1,6 +1,7 @@
 import { loginSchema, registerSchema } from '@nataskium/shared/schemas'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  makeDeviceTrust,
   makeGetMe,
   makeLogin,
   makeLogoutAll,
@@ -42,6 +43,8 @@ function makeAuth() {
     hasher,
     tokens,
     failureLimiter: makeFakeLimiter(calls).limiter,
+    deviceTrust: makeDeviceTrust('qa-fake-hmac-secret-0123456789abcdef'),
+    deviceFailureLimiter: makeFakeLimiter(calls).limiter,
     now: () => new Date(),
   }
   return {

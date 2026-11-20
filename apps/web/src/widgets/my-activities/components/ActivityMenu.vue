@@ -92,6 +92,7 @@ function choose(action: 'edit' | 'delete') {
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
+  z-index: var(--z-activity-menu);
   display: grid;
   min-width: 160px;
   margin: 0;

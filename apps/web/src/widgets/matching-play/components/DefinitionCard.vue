@@ -4,16 +4,16 @@
     class="definition-card"
     :class="{
       'definition-card--armed': armed,
+      'definition-card--target': picked !== null && !armed,
       'definition-card--over': over,
       'definition-card--filled': placed !== null && !ghost,
     }"
   >
-    <span class="definition-card__number" aria-hidden="true">{{ number }}</span>
-    <span class="definition-card__text">
+    <p class="definition-card__text">
       <span class="definition-card__sr-only">{{ t('matchingPlay.definitionNumber', { number }) }}</span>{{ text }}
-    </span>
+    </p>
 
-    <div v-if="placed !== null && !ghost" class="definition-card__drop">
+    <div v-if="placed !== null && !ghost" class="definition-card__cell">
       <span v-if="over && overTerm" class="definition-card__replace">
         {{ t('matchingPlay.replaceTitle') }}<br>{{ t('matchingPlay.replaceHint', { term: placed }) }}
       </span>
@@ -27,31 +27,21 @@
         :aria-label="placedLabel"
         @pointerdown="emit('chipPress', $event)"
         @click="emit('chipClick')"
+        @keydown.delete.prevent="emit('remove')"
       />
-      <button
-        class="definition-card__remove"
-        type="button"
-        :disabled="disabled"
-        :aria-label="t('matchingPlay.removeLabel', { term: placed })"
-        @click="emit('remove')"
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
-      </button>
     </div>
 
     <button
       v-else
       ref="drop"
-      class="definition-card__drop"
+      class="definition-card__cell definition-card__drop"
       type="button"
       :disabled="disabled"
       :aria-label="picked ? t('matchingPlay.placeLabel', { number, text, term: picked }) : t('matchingPlay.emptyLabel', { number, text })"
       @click="emit('place')"
     >
-      <span class="definition-card__drop-empty">
-        <svg v-if="!over" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11M7.5 9.5 12 14l4.5-4.5M4 15v4h16v-4" /></svg>
-        {{ dropText }}
-      </span>
+      <svg v-if="!over" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11M7.5 9.5 12 14l4.5-4.5M4 15v4h16v-4" /></svg>
+      {{ dropText }}
     </button>
   </li>
 </template>
@@ -59,6 +49,7 @@
 <script setup lang="ts">
 import { computed, useTemplateRef } from 'vue'
 import { useI18n } from '#imports'
+import { focusInPlace } from '@/shared'
 import TermChip from './TermChip.vue'
 
 const props = defineProps<{
@@ -69,12 +60,12 @@ const props = defineProps<{
   // Слово, выбранное тапом (запасной путь)
   picked: string | null
   placedPicked: boolean
-  // Слово в руке: все карточки — цели
+  // Слово в руке: все клетки — цели
   armed: boolean
-  // Слово в руке над этой карточкой
+  // Слово в руке над этим рядом
   over: boolean
   overTerm: string | null
-  // Слово этой карточки сейчас в руке
+  // Слово этого ряда сейчас в руке
   ghost: boolean
   disabled: boolean
 }>()
@@ -83,6 +74,7 @@ const emit = defineEmits<{
   place: []
   chipPress: [event: PointerEvent]
   chipClick: []
+  // Delete или Backspace на поставленном слове: слово возвращается к словам
   remove: []
 }>()
 
@@ -104,54 +96,75 @@ const placedLabel = computed(() => {
 })
 
 function focus(): void {
-  ;(drop.value ?? chip.value?.$el)?.focus()
+  focusInPlace(drop.value ?? chip.value?.$el)
 }
 
 defineExpose({ root, focus })
 </script>
 
 <style scoped lang="scss">
-// Запас под липкий лоток (шапка учтена в scroll-padding-top страницы): фокус с клавиатуры не прячет поле под словами
+@use '@/assets/styles/breakpoints.module' as *;
+
+// Запас под липкий лоток: фокус с клавиатуры не прячет клетку под словами
 $tray-clearance: 200px;
 
+// Ряд: клетка для слова слева, определение справа, без карточки — как у Wordwall
 .definition-card {
+  position: relative;
   display: grid;
-  grid-template-columns: 40px minmax(0, 1fr);
-  gap: 12px 14px;
-  padding: 16px;
-  border: 2px solid rgb(var(--rgb-blue) / 0.2);
-  border-radius: 22px;
-  background: var(--color-white);
-  box-shadow: 0 6px 16px rgb(var(--rgb-night) / 0.07);
+  grid-template-columns: clamp(132px, 38%, 164px) minmax(0, 1fr);
+  grid-template-areas: 'cell text';
+  gap: 10px;
+  align-items: center;
+  padding: 12px 0;
+  border-top: 1px solid var(--g-divider);
   transition:
-    border-color 0.2s ease,
+    background-color 0.2s ease,
     box-shadow 0.2s ease;
+
+  &:first-child {
+    border-top-color: transparent;
+  }
+
+  @include tablet {
+    grid-template-columns: 150px minmax(0, 1fr);
+    gap: 0 16px;
+    padding: 14px 0;
+  }
+
+  @include desktop {
+    grid-template-columns: 236px minmax(0, 1fr);
+    gap: 0 20px;
+  }
 }
 
 // Корень TermChip получает scope родителя, поэтому правило действует и на поставленное слово
 .definition-card button {
   scroll-margin-top: $tray-clearance;
-}
 
-.definition-card__number {
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 13px;
-  background: rgb(var(--rgb-blue) / 0.12);
-  color: var(--color-blue-dark);
-  font-family: var(--font-display);
-  font-size: 17px;
-  font-weight: 700;
+  @include tablet {
+    scroll-margin-top: 16px;
+  }
 }
 
 .definition-card__text {
-  align-self: center;
-  font-size: 18px;
+  grid-area: text;
+  margin: 0;
+  color: var(--g-text);
+  font-size: 15px;
   font-weight: 500;
   line-height: 1.4;
   overflow-wrap: break-word;
+
+  @include tablet {
+    max-width: 62ch;
+    font-size: 16px;
+    line-height: 1.45;
+  }
+
+  @include desktop {
+    font-size: 18px;
+  }
 }
 
 .definition-card__sr-only {
@@ -163,49 +176,49 @@ $tray-clearance: 200px;
   white-space: nowrap;
 }
 
-.definition-card__drop {
+.definition-card__cell {
   display: flex;
-  grid-column: 1 / -1;
+  grid-area: cell;
   align-items: center;
-  gap: 10px;
+  justify-content: center;
+  min-width: 0;
+}
+
+// Пустая клетка: пунктир «Перетащите слово сюда»
+.definition-card__drop {
+  gap: 6px;
   width: 100%;
-  min-height: 76px;
+  min-height: 64px;
   margin: 0;
-  padding: 6px;
-  border: 3px dashed rgb(var(--rgb-blue) / 0.4);
-  border-radius: 18px;
-  background: rgb(var(--rgb-blue) / 0.04);
-  color: var(--color-text-muted);
+  padding: 6px 8px;
+  border: 3px dashed var(--g-accent);
+  border-radius: 16px;
+  background: var(--g-surface);
+  color: var(--g-muted);
   font: inherit;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
-  line-height: 1.3;
-  text-align: start;
+  line-height: 1.25;
+  text-align: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
   transition:
     border-color 0.2s ease,
     background-color 0.2s ease;
 
-  &:is(button) {
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-  }
-
   &:focus-visible {
-    outline: 3px solid var(--focus-color);
+    outline: 3px solid var(--g-focus);
     outline-offset: 2px;
   }
-}
 
-.definition-card__drop-empty {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 0 10px;
+  &:disabled {
+    cursor: default;
+  }
 
   svg {
     flex: none;
-    width: 26px;
-    height: 26px;
+    width: 20px;
+    height: 20px;
     fill: none;
     stroke: currentcolor;
     stroke-width: 2.2;
@@ -214,76 +227,40 @@ $tray-clearance: 200px;
   }
 }
 
-.definition-card--armed .definition-card__drop {
-  border-color: var(--color-blue);
-  background: rgb(var(--rgb-blue) / 0.08);
-  color: var(--color-blue-dark);
+.definition-card--armed .definition-card__drop,
+.definition-card--target .definition-card__drop {
+  background: var(--g-accent-soft);
+  color: var(--g-text);
 }
 
-.definition-card--filled .definition-card__drop {
-  border-style: solid;
-  border-color: rgb(var(--rgb-blue) / 0.3);
-  background: rgb(var(--rgb-blue) / 0.06);
-}
-
+// Под пальцем подсвечивается весь ряд: видно, к какому определению встанет слово
 .definition-card--over {
-  border-color: var(--color-blue-dark);
-  box-shadow:
-    0 0 0 4px rgb(var(--rgb-blue) / 0.25),
-    0 10px 24px rgb(var(--rgb-blue) / 0.25);
+  margin-inline: -8px;
+  border-radius: 16px;
+  padding-inline: 8px;
+  background: var(--g-accent-soft);
+  box-shadow: inset 0 0 0 2px var(--g-accent);
 
   .definition-card__drop {
     border-style: solid;
-    border-color: var(--color-blue-dark);
-    background: rgb(var(--rgb-blue) / 0.14);
-    color: var(--color-blue-dark);
+    color: var(--g-text);
     font-weight: 700;
   }
 }
 
 .definition-card__replace {
-  flex: 1;
-  padding: 0 6px;
-  color: var(--color-blue-dark);
-  font-size: 15px;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 64px;
+  padding: 6px 10px;
+  border: 3px solid var(--g-accent);
+  border-radius: 16px;
+  background: var(--g-accent-soft);
+  color: var(--g-text);
+  font-size: 14px;
   font-weight: 700;
   line-height: 1.3;
-}
-
-// ✕ — запасной путь «вернуть слово», нарочно неброский
-.definition-card__remove {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 48px;
-  height: 48px;
-  margin-left: auto;
-  border: 0;
-  border-radius: 14px;
-  background: none;
-  color: var(--color-text-muted);
-  cursor: pointer;
-
-  @media (hover: hover) {
-    &:hover:not(:disabled) {
-      background: rgb(var(--rgb-blue) / 0.1);
-      color: var(--color-blue-dark);
-    }
-  }
-
-  &:focus-visible {
-    outline: 3px solid var(--focus-color);
-    outline-offset: 2px;
-  }
-
-  svg {
-    width: 20px;
-    height: 20px;
-    fill: none;
-    stroke: currentcolor;
-    stroke-width: 2.4;
-    stroke-linecap: round;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

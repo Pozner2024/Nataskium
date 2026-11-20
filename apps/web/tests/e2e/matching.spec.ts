@@ -8,6 +8,13 @@ const DEFINITIONS = ['Meows', 'Barks']
 const TERMS = ['Dog', 'Cat']
 const EXPECTED_ANSWERS = ['Cat', 'Dog']
 
+// Перед загруженным заданием — стартовый экран интро: игра появляется после «Начать».
+// «Начать» разворачивает проигрыватель на весь экран: ждём, пока раскладка встанет, иначе координаты устареют
+async function startIntro(page: Page) {
+  await page.locator('.intro-player__start-button').click()
+  await page.waitForFunction(() => !document.fullscreenEnabled || document.fullscreenElement !== null)
+}
+
 function matchingBody() {
   return {
     type: 'matching',
@@ -57,6 +64,7 @@ test.describe('игра сопоставления', () => {
     const calls = await mockApi(page)
 
     await page.goto(`/play/${TOKEN}`)
+    await startIntro(page)
     await expect(page.getByRole('heading', { name: 'Match the words with their definitions' })).toBeVisible()
     await expect(page.locator('.definition-card__text').first()).toContainText('Meows')
 
@@ -82,6 +90,7 @@ test.describe('игра сопоставления', () => {
     const calls = await mockApi(page)
 
     await page.goto(`/play/${TOKEN}`)
+    await startIntro(page)
     await expect(page.getByRole('heading', { name: 'Match the words with their definitions' })).toBeVisible()
 
     // Ведём «Cat» к первому определению, потом «Dog» ко второму: шаги дают pointermove сверх порога

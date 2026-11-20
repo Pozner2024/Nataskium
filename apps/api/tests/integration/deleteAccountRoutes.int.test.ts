@@ -176,7 +176,7 @@ describe('POST /api/auth/delete-account', () => {
     expect(await prisma.teacher.count()).toBe(1)
   })
 
-  it('неверный пароль засчитывается в общий лимит неудач по email: после 10 — 429 и на входе', async () => {
+  it('неверный пароль засчитывается в лимит неудач по id учителя: после 10 — 429 на удалении, вход по email не затронут', async () => {
     const client = makeClient()
     const { accessToken } = await client.signUp()
     for (let attempt = 0; attempt < 10; attempt++) {
@@ -188,7 +188,8 @@ describe('POST /api/auth/delete-account', () => {
       { method: 'POST', headers: { 'content-type': 'application/json', origin: TEST_WEB_ORIGIN }, body: JSON.stringify({ email: EMAIL, password: PASSWORD }) },
       fromIp('198.51.100.200'),
     )
-    expect(login.status).toBe(429)
+    expect(login.status).toBe(200)
+    expect((await client.deleteAccount(accessToken, PASSWORD, '198.51.100.201')).status).toBe(429)
   })
 })
 

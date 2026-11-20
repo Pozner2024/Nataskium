@@ -1,9 +1,9 @@
 import { inspect } from 'node:util'
 import { deleteAccountSchema } from '@nataskium/shared/schemas'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { makeTeacherRepository } from '../src/features/auth'
+import { PRODUCTION_LIMITS, makeAuthLimiters, makeTeacherRepository } from '../src/features/auth'
 import { makeDeleteAccount } from '../src/features/auth/application/deleteAccount'
-import type { TeacherAccount, TeacherRepository } from '../src/features/auth/types'
+import type { FailureLimiter, TeacherAccount, TeacherRepository } from '../src/features/auth/types'
 import { Prisma, type PrismaClient } from '../src/generated/prisma/client'
 import { AppError, RateLimitedError, ServiceBusyError } from '../src/shared/errors'
 import { type CallLog, flushBackground, makeFakeHasher, makeFakeLimiter, makeFakeTeachers } from './fakes/authFakes'
@@ -21,7 +21,7 @@ const GOOGLE_ONLY = { status: 409, message: 'Accounts without a password are del
 
 let calls: CallLog
 
-function setup(options: { teacher?: Partial<TeacherAccount> | null; teachers?: TeacherRepository } = {}) {
+function setup(options: { failureLimiter?: FailureLimiter; teacher?: Partial<TeacherAccount> | null; teachers?: TeacherRepository } = {}) {
   const hasher = makeFakeHasher(calls)
   const limiter = makeFakeLimiter(calls)
   const account: TeacherAccount = {
@@ -38,7 +38,7 @@ function setup(options: { teacher?: Partial<TeacherAccount> | null; teachers?: T
   const deleteAccount = makeDeleteAccount({
     teachers: options.teachers ?? fake.teachers,
     hasher: hasher.hasher,
-    failureLimiter: limiter.limiter,
+    failureLimiter: options.failureLimiter ?? limiter.limiter,
     emailSender: emails.sender,
   })
   return { deleteAccount, accounts: fake.accounts, hasher, limiter, emails }
@@ -104,13 +104,13 @@ describe('deleteAccount: отказы до сверки пароля', () => {
 })
 
 describe('deleteAccount: пароль', () => {
-  it('резерв берётся по email учителя до сверки пароля', async () => {
+  it('резерв берётся по id учителя до сверки пароля', async () => {
     const { deleteAccount } = setup()
 
     await deleteAccount(TEACHER_ID, input())
 
-    expect(calls.indexOf(`limiter.reserve:${EMAIL}`)).toBeLessThan(calls.indexOf('hasher.verify'))
-    expect(calls.indexOf('hasher.assertCapacity')).toBeLessThan(calls.indexOf(`limiter.reserve:${EMAIL}`))
+    expect(calls.indexOf(`limiter.reserve:${TEACHER_ID}`)).toBeLessThan(calls.indexOf('hasher.verify'))
+    expect(calls.indexOf('hasher.assertCapacity')).toBeLessThan(calls.indexOf(`limiter.reserve:${TEACHER_ID}`))
   })
 
   it('неверный пароль — 400, неудача засчитана, аккаунт цел', async () => {
@@ -420,5 +420,33 @@ describe('deleteAccount: файлы картинок учителя (GDPR)', () 
     await deleteAccount(TEACHER_ID, input())
 
     expect(accounts).toEqual([])
+  })
+})
+
+describe('deleteAccount: лимит по id учителя', () => {
+  const MAX_FAILURES = 10
+
+  function realLimiters() {
+    return makeAuthLimiters(PRODUCTION_LIMITS)
+  }
+
+  it('исчерпанный чужими входами счётчик email не блокирует действие', async () => {
+    const limiters = realLimiters()
+    for (let attempt = 0; attempt < MAX_FAILURES; attempt++) limiters.failureLimiter.reserve(EMAIL)
+    expect(limiters.failureLimiter.reserve(EMAIL).allowed).toBe(false)
+    const { deleteAccount } = setup({ failureLimiter: limiters.teacherFailureLimiter })
+
+    await expect(deleteAccount(TEACHER_ID, input())).resolves.not.toThrow()
+  })
+
+  it(`свои неудачи ограничены ${MAX_FAILURES}`, async () => {
+    const limiters = realLimiters()
+    const { deleteAccount } = setup({ failureLimiter: limiters.teacherFailureLimiter })
+
+    for (let attempt = 0; attempt < MAX_FAILURES; attempt++) {
+      expect(await rejectionOf(deleteAccount(TEACHER_ID, input('qa-wrong-password')))).toMatchObject({ status: 400 })
+    }
+
+    expect(await rejectionOf(deleteAccount(TEACHER_ID, input()))).toBeInstanceOf(RateLimitedError)
   })
 })

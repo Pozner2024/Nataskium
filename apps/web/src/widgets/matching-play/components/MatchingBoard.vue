@@ -12,68 +12,100 @@
         :aria-label="t('matchingPlay.progress', { placed: store.placedCount, total })"
       />
       <h1 ref="heading" class="matching-board__task" tabindex="-1">{{ t('matchingPlay.task') }}</h1>
-      <p class="matching-board__hint">{{ t('matchingPlay.hint') }}</p>
+      <p class="matching-board__hint matching-board__hint--tray">{{ t('matchingPlay.hint') }}</p>
+      <p class="matching-board__hint matching-board__hint--column">{{ t('matchingPlay.hintWide') }}</p>
       <p class="matching-board__alt">{{ t('matchingPlay.alt') }}</p>
     </div>
 
     <p class="matching-board__sr-only" aria-live="polite">{{ announcement }}</p>
 
-    <div ref="tray" class="matching-board__tray" :class="{ 'matching-board__tray--over': isReturning }">
-      <div class="matching-board__tray-head">
-        <p v-if="isReturning" class="matching-board__tray-title">{{ t('matchingPlay.returnHere') }}</p>
-        <template v-else-if="store.isComplete">
-          <p class="matching-board__done">{{ t('matchingPlay.allPlaced') }}</p>
-        </template>
-        <template v-else>
-          <p id="matching-tray-title" class="matching-board__tray-title">{{ t('matchingPlay.trayTitle') }}</p>
-          <p class="matching-board__tray-count">
-            {{ t('matchingPlay.left', store.pool.length) }}<template v-if="canScrollPool"> · {{ t('matchingPlay.scrollHint') }}</template>
-          </p>
-        </template>
-        <PlayTimer class="matching-board__timer" :mode="store.timer.mode" />
-      </div>
+    <div class="matching-board__layout">
+      <div
+        ref="tray"
+        class="matching-board__tray"
+        :class="{ 'matching-board__tray--over': isReturning, 'matching-board__tray--empty': store.pool.length === 0 }"
+      >
+        <div class="matching-board__tray-head">
+          <p v-if="isReturning" class="matching-board__tray-title matching-board__tray-title--return">{{ t('matchingPlay.returnHere') }}</p>
+          <p v-else-if="store.isComplete" class="matching-board__done">{{ t('matchingPlay.allPlaced') }}</p>
+          <template v-else>
+            <p id="matching-tray-title" class="matching-board__tray-title">{{ t('matchingPlay.trayTitle') }}</p>
+            <p class="matching-board__tray-count">
+              {{ t('matchingPlay.leftToPlace', { count: store.pool.length }) }}<template v-if="canScrollPool"> · {{ t('matchingPlay.scrollHint') }}</template>
+            </p>
+          </template>
+          <PlayTimerPortal>
+            <PlayTimer class="matching-board__timer" :mode="store.timer.mode" />
+          </PlayTimerPortal>
+        </div>
 
-      <template v-if="store.isComplete && !isReturning">
-        <button ref="checkButton" class="matching-board__check" type="button" :disabled="!store.canCheck" @click="store.check()">
+        <!-- Запасной путь без перетаскивания: выбранное в клетке слово возвращается к словам -->
+        <button v-if="pickedPlacement !== null" class="matching-board__return" type="button" @click="removeAt(pickedPlacement)">
+          {{ t('matchingPlay.removeLabel', { term: termText(store.picked) ?? '' }) }}
+        </button>
+        <ul v-if="store.pool.length > 0" ref="pool" class="matching-board__pool" aria-labelledby="matching-tray-title">
+          <li v-for="term in store.pool" :key="term" class="matching-board__pool-item">
+            <TermChip
+              :text="store.terms[term] ?? ''"
+              :picked="store.picked === term"
+              :ghost="drag.dragged.value?.term === term"
+              :disabled="store.isLocked"
+              @pointerdown="drag.startPress($event, { term, from: null })"
+              @click="tapTerm(term)"
+            />
+          </li>
+        </ul>
+
+        <button
+          ref="trayCheck"
+          class="matching-board__check matching-board__check--tray"
+          type="button"
+          :disabled="!store.canCheck"
+          @click="store.check()"
+        >
           {{ t('matchingPlay.check') }}
         </button>
-        <p class="matching-board__done-hint">{{ t('matchingPlay.changeHint') }}</p>
-      </template>
-      <ul v-else-if="!store.isComplete" ref="pool" class="matching-board__pool" aria-labelledby="matching-tray-title">
-        <li v-for="term in store.pool" :key="term" class="matching-board__pool-item">
-          <TermChip
-            :text="store.terms[term] ?? ''"
-            :picked="store.picked === term"
-            :ghost="drag.dragged.value?.term === term"
-            :disabled="store.isLocked"
-            @pointerdown="drag.startPress($event, { term, from: null })"
-            @click="tapTerm(term)"
-          />
-        </li>
-      </ul>
+      </div>
+
+      <ol class="matching-board__definitions" :aria-label="t('matchingPlay.definitionsLabel')">
+        <DefinitionCard
+          v-for="(text, index) in store.definitions"
+          :key="index"
+          :ref="(card) => setCard(index, card)"
+          :number="index + 1"
+          :text="text"
+          :placed="termText(store.placements[index] ?? null)"
+          :picked="termText(store.picked)"
+          :placed-picked="store.picked !== null && store.placements[index] === store.picked"
+          :armed="drag.dragged.value !== null"
+          :over="isOver(index)"
+          :over-term="drag.dragged.value ? termText(drag.dragged.value.term) : null"
+          :ghost="drag.dragged.value?.from === index"
+          :disabled="store.isLocked"
+          @place="tapDefinition(index)"
+          @chip-press="pressPlaced($event, index)"
+          @chip-click="tapPlaced(index)"
+          @remove="removeAt(index)"
+        />
+      </ol>
     </div>
 
-    <ol class="matching-board__definitions" :aria-label="t('matchingPlay.definitionsLabel')">
-      <DefinitionCard
-        v-for="(text, index) in store.definitions"
-        :key="index"
-        :ref="(card) => setCard(index, card)"
-        :number="index + 1"
-        :text="text"
-        :placed="termText(store.placements[index] ?? null)"
-        :picked="termText(store.picked)"
-        :placed-picked="store.picked !== null && store.placements[index] === store.picked"
-        :armed="drag.dragged.value !== null"
-        :over="isOver(index)"
-        :over-term="drag.dragged.value ? termText(drag.dragged.value.term) : null"
-        :ghost="drag.dragged.value?.from === index"
-        :disabled="store.isLocked"
-        @place="tapDefinition(index)"
-        @chip-press="pressPlaced($event, index)"
-        @chip-click="tapPlaced(index)"
-        @remove="removeAt(index)"
-      />
-    </ol>
+    <!-- Широкий экран: «Проверить» в нижней полосе, как «Отправить ответы» у Wordwall -->
+    <div ref="footer" class="matching-board__footer">
+      <div class="matching-board__footer-inner">
+        <p v-if="store.isComplete" class="matching-board__done">{{ t('matchingPlay.allPlaced') }}</p>
+        <p v-else class="matching-board__footer-status">{{ t('matchingPlay.leftToPlace', { count: store.pool.length }) }}</p>
+        <button
+          ref="footerCheck"
+          class="matching-board__check matching-board__check--footer"
+          type="button"
+          :disabled="!store.canCheck"
+          @click="store.check()"
+        >
+          {{ t('matchingPlay.check') }}
+        </button>
+      </div>
+    </div>
 
     <TermChip
       v-if="drag.dragged.value"
@@ -86,9 +118,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch, type ComponentPublicInstance } from 'vue'
+import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch, type ComponentPublicInstance } from 'vue'
 import { useI18n } from '#imports'
-import { PlayTimer } from '@/features/play-session'
+import { PLAYER_SCROLL_KEY, PlayTimer, PlayTimerPortal } from '@/features/play-session'
+import { focusInPlace } from '@/shared'
 import { useMatchingPlayStore } from '../store'
 import type { DropTarget, PlaceOutcome } from '../types'
 import { useMatchingDrag, type DragSource } from '../useMatchingDrag'
@@ -102,7 +135,10 @@ const store = useMatchingPlayStore()
 const heading = useTemplateRef<HTMLElement>('heading')
 const tray = useTemplateRef<HTMLElement>('tray')
 const pool = useTemplateRef<HTMLElement>('pool')
-const checkButton = useTemplateRef<HTMLButtonElement>('checkButton')
+const trayCheck = useTemplateRef<HTMLButtonElement>('trayCheck')
+const footerCheck = useTemplateRef<HTMLButtonElement>('footerCheck')
+const footer = useTemplateRef<HTMLElement>('footer')
+const scrollContainer = inject(PLAYER_SCROLL_KEY, null)
 const cards = ref<(CardInstance | null)[]>([])
 const announcement = ref('')
 const canScrollPool = ref(false)
@@ -111,6 +147,8 @@ const total = computed(() => store.definitions.length)
 
 const drag = useMatchingDrag({
   tray,
+  scrollContainer,
+  scrollZone,
   definitions: () => store.definitions.map((_, index) => cards.value[index]?.root ?? null),
   isLocked: computed(() => store.isLocked),
   onLift: (source) => {
@@ -130,6 +168,28 @@ const liftedStyle = computed(() => {
     width: `${chip.width}px`,
   }
 })
+
+// Выбранное слово уже стоит в клетке: его можно вернуть к словам кнопкой в лотке
+const pickedPlacement = computed(() => {
+  if (store.picked === null) return null
+  const index = store.placements.indexOf(store.picked)
+  return index === -1 ? null : index
+})
+
+// «Проверить» две: в лотке (телефон) и в нижней полосе (широкий экран); видна одна из них
+function focusCheck(): void {
+  const visible = [trayCheck.value, footerCheck.value].find((button) => button && button.getClientRects().length > 0)
+  ;(visible ?? trayCheck.value)?.focus({ preventScroll: true })
+}
+
+// Широкий экран: слова слева, поэтому полоса автопрокрутки — от верха слота до нижней полосы «Проверить».
+// Телефон: от низа липкого лотка до низа области прокрутки
+function scrollZone(): { top: number; bottom: number } {
+  const area = scrollContainer?.value?.getBoundingClientRect() ?? { top: 0, bottom: window.innerHeight }
+  const footerRect = footer.value?.getBoundingClientRect()
+  if (footerRect && footerRect.height > 0) return { top: area.top, bottom: footerRect.top }
+  return { top: tray.value?.getBoundingClientRect().bottom ?? 0, bottom: area.bottom }
+}
 
 function termText(term: number | null): string | null {
   return term === null ? null : (store.terms[term] ?? null)
@@ -171,7 +231,7 @@ function nextFocusTarget(after: number): (() => void) | null {
     const index = (after + step) % count
     if (store.placements[index] === null) return () => cards.value[index]?.focus()
   }
-  return () => checkButton.value?.focus({ preventScroll: true })
+  return focusCheck
 }
 
 async function placeByTap(term: number, definition: number): Promise<void> {
@@ -227,7 +287,7 @@ async function dropTerm(source: DragSource, target: DropTarget | null): Promise<
     announcePlaced(source.term, target.index, outcome)
     if (!store.isComplete) return
     await nextTick()
-    checkButton.value?.focus({ preventScroll: true })
+    focusCheck()
     return
   }
   if (target?.kind === 'tray' && source.from !== null && store.unplace(source.from) !== null) {
@@ -255,7 +315,7 @@ watch(
 )
 
 onMounted(() => {
-  heading.value?.focus()
+  focusInPlace(heading.value)
   measurePool()
   document.addEventListener('keydown', onKeydown)
   window.addEventListener('resize', measurePool)
@@ -268,9 +328,39 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped lang="scss">
+@use '@/assets/styles/mixins' as *;
+@use '@/assets/styles/breakpoints.module' as *;
+
+// Высота нижней полосы «Проверить» и поля над колонкой слов: колонка не уходит под полосу
+$footer-height: 88px;
+$words-top: 16px;
+// На большом экране доска не растягивается на всё окно, а стоит по центру
+$board-max-width: 1080px;
+
+// Доска заполняет слот по высоте: нижняя полоса стоит у низа окна и при коротком задании
 .matching-board {
   display: flex;
+  flex: 1;
   flex-direction: column;
+  color: var(--g-text);
+}
+
+.matching-board__intro,
+.matching-board__layout,
+.matching-board__footer-inner {
+  @include desktop {
+    width: 100%;
+    max-width: $board-max-width;
+    margin-inline: auto;
+  }
+}
+
+.matching-board__intro {
+  @include tablet {
+    // Короткое задание стоит по центру между верхом и нижней полосой; длинное листается сверху
+    margin-top: auto;
+    padding-top: 14px;
+  }
 }
 
 .matching-board__top {
@@ -284,7 +374,7 @@ onBeforeUnmount(() => {
   display: -webkit-box;
   min-width: 0;
   overflow: hidden;
-  color: var(--color-text-muted);
+  color: var(--g-muted);
   font-size: 15px;
   font-weight: 600;
   line-height: 1.3;
@@ -297,8 +387,9 @@ onBeforeUnmount(() => {
   flex: none;
   padding: 4px 10px;
   border-radius: 999px;
-  background: rgb(var(--rgb-blue) / 0.12);
-  color: var(--color-blue-dark);
+  background: var(--g-surface);
+  box-shadow: inset 0 0 0 1px var(--g-line);
+  color: var(--g-text);
   font-family: var(--font-display);
   font-size: 14px;
   font-weight: 700;
@@ -314,23 +405,24 @@ onBeforeUnmount(() => {
   border: 0;
   border-radius: 999px;
   overflow: hidden;
-  background: rgb(var(--rgb-blue) / 0.14);
-  color: var(--color-blue);
+  background: var(--g-surface);
+  box-shadow: inset 0 0 0 1px var(--g-divider);
+  color: var(--g-accent);
   appearance: none;
 
   &::-webkit-progress-bar {
     border-radius: 999px;
-    background: rgb(var(--rgb-blue) / 0.14);
+    background: var(--g-surface);
   }
 
   &::-webkit-progress-value {
     border-radius: 999px;
-    background: var(--color-blue);
+    background: var(--g-accent);
   }
 
   &::-moz-progress-bar {
     border-radius: 999px;
-    background: var(--color-blue);
+    background: var(--g-accent);
   }
 }
 
@@ -340,6 +432,11 @@ onBeforeUnmount(() => {
   font-size: 24px;
   font-weight: 700;
   line-height: 1.25;
+
+  @include tablet {
+    margin-top: 10px;
+    font-size: 22px;
+  }
 }
 
 .matching-board__hint {
@@ -347,14 +444,38 @@ onBeforeUnmount(() => {
   font-size: 17px;
   font-weight: 500;
   line-height: 1.4;
+
+  @include tablet {
+    margin-top: 4px;
+    font-size: 16px;
+  }
 }
 
-// Запасной путь — мелко и серым, не конкурирует с перетаскиванием
+// Слова на телефоне сверху, на широком экране — слева
+.matching-board__hint--tray {
+  @include tablet {
+    display: none;
+  }
+}
+
+.matching-board__hint--column {
+  display: none;
+
+  @include tablet {
+    display: block;
+  }
+}
+
+// Запасной путь — мелко, не конкурирует с перетаскиванием
 .matching-board__alt {
   margin: 4px 0 0;
-  color: var(--color-text-muted);
+  color: var(--g-muted);
   font-size: 14px;
   line-height: 1.4;
+
+  @include tablet {
+    display: none;
+  }
 }
 
 .matching-board__sr-only {
@@ -366,42 +487,111 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
-// Лоток прилипает под шапкой сайта: слова и таймер на виду, сколько ни прокручивай определения
+.matching-board__layout {
+  @include tablet {
+    --words-width: 150px;
+
+    display: grid;
+    grid-template-columns: var(--words-width) minmax(0, 1fr);
+    gap: 0 16px;
+    align-items: start;
+    padding: 12px 0 16px;
+    margin-bottom: auto;
+  }
+
+  @include desktop {
+    --words-width: 220px;
+
+    gap: 0 24px;
+  }
+}
+
+// Телефон: лоток прилипает к верху области прокрутки, слова на виду, сколько ни листай определения.
+// Широкий экран: колонка слов слева, липнет к верху слота и листается сама
 .matching-board__tray {
   position: sticky;
-  top: var(--header-height);
+  top: var(--play-sticky-top, var(--header-height));
   z-index: var(--z-matching-tray);
-  margin: 16px calc(-1 * var(--gutter)) 16px;
+  margin: 16px calc(-1 * var(--gutter)) 8px;
   padding: 10px 0 12px;
-  border-bottom: 1px solid rgb(var(--rgb-blue) / 0.18);
-  border-radius: 0 0 24px 24px;
-  background: var(--color-white);
-  box-shadow: 0 10px 24px rgb(var(--rgb-night) / 0.12);
+  border-bottom: 1px solid var(--g-line);
+  border-radius: 0 0 22px 22px;
+  background: var(--g-sticky);
+  box-shadow: 0 10px 24px rgb(0 0 0 / 0.3);
+
+  @include tablet {
+    top: $words-top;
+    max-height: calc(var(--player-slot-height, 100dvh) - #{$words-top * 2} - #{$footer-height});
+    margin: 0;
+    padding: 10px 8px;
+    overflow-y: auto;
+    border-bottom: 0;
+    border-radius: 20px;
+    background: var(--g-surface);
+    box-shadow: inset 0 0 0 1px var(--g-divider);
+    scrollbar-width: thin;
+  }
 }
 
 .matching-board__tray--over {
-  border-bottom: 3px solid var(--color-blue-dark);
-  background: #eef3ff;
+  border-bottom: 3px solid var(--g-accent);
+  background:
+    linear-gradient(var(--g-accent-soft), var(--g-accent-soft)),
+    var(--g-sticky);
+
+  @include tablet {
+    border-bottom: 0;
+    box-shadow: inset 0 0 0 3px var(--g-accent);
+  }
 }
 
 .matching-board__tray-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-  min-height: 36px;
+  gap: 6px 10px;
   padding: 0 var(--gutter);
+
+  @include tablet {
+    padding: 0 4px;
+    margin-bottom: 10px;
+  }
 }
 
+// Телефон: «Слова» читает скринридер, на экране — «Осталось расставить: N»
 .matching-board__tray-title {
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 
-  .matching-board__tray--over & {
-    color: var(--color-blue-dark);
+  @include tablet {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip-path: none;
+    color: var(--g-muted);
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  &--return {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip-path: none;
+    white-space: normal;
+    color: var(--g-text);
+    font-size: 15px;
+    font-weight: 700;
     letter-spacing: 0;
     text-transform: none;
   }
@@ -410,25 +600,20 @@ onBeforeUnmount(() => {
 .matching-board__tray-count {
   min-width: 0;
   margin: 0;
-  color: var(--color-text-muted);
+  color: var(--g-text);
   font-size: 15px;
   font-weight: 600;
   line-height: 1.3;
-}
 
-.matching-board__timer {
-  flex: none;
-  margin: 0 0 0 auto;
-  padding: 4px 12px 4px 8px;
-
-  :deep(.play-timer__time) {
-    font-size: 15px;
-  }
-
-  // «Осталось мало» в лотке не помещается: остаются треугольник и цвет, скринридер слышит объявление таймера
-  :deep(.play-timer__low) {
+  @include tablet {
     display: none;
   }
+}
+
+// Без проигрывателя таймер остаётся в лотке; в проигрывателе он перенесён в его полосу или колонку
+.matching-board__tray-head .matching-board__timer {
+  flex: none;
+  margin: 0 0 0 auto;
 }
 
 .matching-board__done {
@@ -436,7 +621,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 10px;
   margin: 0;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 700;
 
   &::before {
@@ -448,106 +633,136 @@ onBeforeUnmount(() => {
     width: 28px;
     height: 28px;
     border-radius: 50%;
-    background: var(--color-green-dark);
-    color: var(--color-white);
+    background: var(--g-ok);
+    color: var(--g-on-ok);
     font-size: 16px;
+  }
+
+  .matching-board__tray & {
+    @include tablet {
+      font-size: 15px;
+    }
   }
 }
 
-// Одна строка, лишнее уходит вправо: видна часть следующей плитки — понятно, что есть ещё
+.matching-board__return {
+  @include play-secondary;
+
+  width: calc(100% - 2 * var(--gutter));
+  margin: 10px var(--gutter) 0;
+  font-size: 15px;
+  text-align: center;
+
+  @include tablet {
+    width: 100%;
+    margin: 0 0 10px;
+    padding: 8px 10px;
+  }
+}
+
+// Телефон: одна строка, лишнее уходит вправо — видна часть следующей плитки, понятно, что есть ещё
 .matching-board__pool {
   display: flex;
   align-items: stretch;
   gap: 10px;
-  margin: 10px 0 0;
+  margin: 8px 0 0;
   padding: 2px var(--gutter) 6px;
   overflow-x: auto;
   list-style: none;
   scroll-padding-inline: var(--gutter);
   scrollbar-width: none;
+
+  @include tablet {
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+  }
 }
 
 .matching-board__pool-item {
   display: flex;
   flex: none;
   max-width: 280px;
-}
 
-.matching-board__check {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: calc(100% - 2 * var(--gutter));
-  min-height: 60px;
-  margin: 10px var(--gutter) 0;
-  padding: 8px 20px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--color-orange);
-  box-shadow: 0 10px 24px rgb(var(--rgb-orange) / 0.4);
-  color: var(--color-white);
-  font: inherit;
-  font-size: 20px;
-  font-weight: 700;
-  line-height: 1.25;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition:
-    box-shadow 0.2s ease,
-    transform 0.2s ease;
+  @include tablet {
+    max-width: none;
 
-  @media (hover: hover) {
-    &:hover:not(:disabled) {
-      box-shadow: 0 14px 28px rgb(var(--rgb-orange) / 0.45);
+    :deep(.term-chip) {
+      min-height: 56px;
+      padding: 8px 10px 8px 6px;
+      font-size: 16px;
     }
   }
 
-  &:active:not(:disabled) {
-    transform: scale(0.98);
-  }
-
-  &:focus-visible {
-    outline: 3px solid var(--focus-color);
-    outline-offset: 3px;
-  }
-
-  &:disabled {
-    cursor: progress;
-    opacity: 0.7;
-    box-shadow: none;
+  @include desktop {
+    :deep(.term-chip) {
+      font-size: 18px;
+    }
   }
 }
 
-.matching-board__done-hint {
-  margin: 8px var(--gutter) 0;
-  color: var(--color-text-muted);
-  font-size: 14px;
-  line-height: 1.4;
-  text-align: center;
+.matching-board__check {
+  @include play-action;
+}
+
+.matching-board__check--tray {
+  width: calc(100% - 2 * var(--gutter));
+  min-height: 48px;
+  margin: 10px var(--gutter) 0;
+
+  @include tablet {
+    display: none;
+  }
 }
 
 .matching-board__definitions {
   display: flex;
   flex-direction: column;
-  gap: 14px;
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+// Нижняя полоса растягивается на всю ширину окна (под колонку таймера тоже) и липнет к низу слота
+.matching-board__footer {
+  display: none;
+
+  @include tablet {
+    position: sticky;
+    bottom: 0;
+    z-index: var(--z-matching-tray);
+    display: block;
+    margin: auto calc(-1 * var(--player-pad-end, 0px)) 0 calc(-1 * var(--player-pad-start, 0px));
+    padding: 14px var(--player-pad-end, 0px) 14px var(--player-pad-start, 0px);
+    border-top: 1px solid var(--g-line);
+    background: var(--g-sticky);
+    box-shadow: 0 -8px 20px rgb(0 0 0 / 0.25);
+  }
+}
+
+.matching-board__footer-inner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.matching-board__footer-status {
+  margin: 0;
+  color: var(--g-muted);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.matching-board__check--footer {
+  width: auto;
+  min-width: 220px;
+  margin-left: auto;
 }
 
 .matching-board__lifted {
   position: fixed;
   z-index: var(--z-drag-chip);
   max-width: 280px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .matching-board__check {
-    transition: none;
-
-    &:active:not(:disabled) {
-      transform: none;
-    }
-  }
 }
 </style>

@@ -17,7 +17,7 @@ const GOOGLE_ONLY_MESSAGE = 'Accounts without a password are deleted by signing 
 export type DeleteAccountDeps = {
   teachers: TeacherRepository
   hasher: PasswordHasher
-  // Общий с входом лимит неудач по email: удаление не даёт второго канала перебора пароля
+  // По id учителя, не по email: чужие неверные входы по email не блокируют вошедшему учителю эти действия
   failureLimiter: FailureLimiter
   emailSender: EmailSender
   // Не задано или null — хранилище картинок не настроено: файлов нет
@@ -35,7 +35,7 @@ export function makeDeleteAccount(deps: DeleteAccountDeps) {
 
     // Перегрузка — до резерва: 503 не должен тратить лимит неудач учителя
     deps.hasher.assertCapacity()
-    const reservation = deps.failureLimiter.reserve(teacher.email)
+    const reservation = deps.failureLimiter.reserve(teacher.id)
     if (!reservation.allowed) throw new RateLimitedError(reservation.retryAfterSeconds)
 
     let isPasswordValid: boolean

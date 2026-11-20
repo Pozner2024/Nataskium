@@ -3,6 +3,13 @@ import { expect, test, type Page } from '@playwright/test'
 const TOKEN = 'AAAAAAAAAAAAAAAAAAAAAA'
 const VERSION = 'v1'
 
+// Перед загруженным заданием — стартовый экран интро: игра появляется после «Начать».
+// «Начать» разворачивает проигрыватель на весь экран: ждём, пока раскладка встанет, иначе координаты устареют
+async function startIntro(page: Page) {
+  await page.locator('.intro-player__start-button').click()
+  await page.waitForFunction(() => !document.fullscreenEnabled || document.fullscreenElement !== null)
+}
+
 function options(...texts: string[]) {
   return texts.map((text) => ({ text, imageUrl: null }))
 }
@@ -94,6 +101,7 @@ test.describe('игра ученика', () => {
 
     await page.goto(`/play/${TOKEN}`)
     await expect(page).toHaveURL(new RegExp(`/en/play/${TOKEN}$`))
+    await startIntro(page)
     await expect(page.getByRole('heading', { name: 'Capital of France?' })).toBeVisible()
     await expect(page.getByText('Select 1 answer')).toBeVisible()
 
@@ -108,7 +116,7 @@ test.describe('игра ученика', () => {
     await pick(page, 'Paris')
     await submit.click()
     await expect(page.locator('.play-question__option--correct')).toHaveCount(1)
-    await page.getByRole('button', { name: 'Next' }).click()
+    await page.getByRole('button', { name: 'Next', exact: true }).click()
 
     await expect(page.getByText('Select 2 answers')).toBeVisible()
     await pick(page, 'Vienna')
@@ -117,7 +125,7 @@ test.describe('игра ученика', () => {
     await expect(page.locator('.play-question__option--correct')).toHaveCount(1)
     await expect(page.locator('.play-question__option--wrong')).toHaveCount(1)
     await expect(page.locator('.play-question__option--missed')).toHaveCount(1)
-    await page.getByRole('button', { name: 'Next' }).click()
+    await page.getByRole('button', { name: 'Next', exact: true }).click()
 
     await expect(page.getByText('100%')).toBeVisible()
     await expect(page.getByText('Grade: 5')).toBeVisible()
@@ -126,10 +134,44 @@ test.describe('игра ученика', () => {
     await context.close()
   })
 
+  test('стрелки: назад показывает прошлый вопрос с отметками без нового check, вперёд — до текущего', async ({ browser }) => {
+    const context = await browser.newContext({ locale: 'en-US' })
+    const page = await context.newPage()
+    const calls = await mockApi(page, true)
+
+    await page.goto(`/play/${TOKEN}`)
+    await startIntro(page)
+    const prev = page.getByRole('button', { name: 'Previous question' })
+    const forward = page.getByRole('button', { name: 'Next question' })
+    await expect(prev).toBeDisabled()
+    await expect(forward).toBeDisabled()
+
+    await pick(page, 'Rome')
+    await page.getByRole('button', { name: 'Answer' }).click()
+    await page.getByRole('button', { name: 'Next', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'Danube cities?' })).toBeVisible()
+    await expect(prev).toBeEnabled()
+
+    await prev.click()
+    await expect(page.getByRole('heading', { name: 'Capital of France?' })).toBeVisible()
+    await expect(page.locator('.play-question__progress')).toHaveText('1 / 2')
+    await expect(page.locator('.play-question__option--wrong')).toHaveCount(1)
+    await expect(page.locator('.play-question__option--missed')).toHaveCount(1)
+    await expect(page.locator('.play-question__option').first()).toBeDisabled()
+    await expect(prev).toBeDisabled()
+
+    await page.keyboard.press('ArrowRight')
+    await expect(page.getByRole('heading', { name: 'Danube cities?' })).toBeVisible()
+    await expect(forward).toBeDisabled()
+    expect(calls).toEqual({ check: 1, finish: 0 })
+    await context.close()
+  })
+
   test('ru-RU: русский интерфейс без префикса, плюрализация', async ({ page }) => {
     await mockApi(page, false)
     await page.goto(`/play/${TOKEN}`)
     await expect(page).toHaveURL(new RegExp(`/play/${TOKEN}$`))
+    await startIntro(page)
     await expect(page.getByText('Выберите 1 ответ', { exact: true })).toBeVisible()
   })
 
@@ -139,6 +181,7 @@ test.describe('игра ученика', () => {
     const calls = await mockApi(page, false)
 
     await page.goto(`/play/${TOKEN}`)
+    await startIntro(page)
     await pick(page, 'Paris')
     await page.getByRole('button', { name: 'Answer' }).click()
 
@@ -162,9 +205,10 @@ test.describe('игра ученика', () => {
     await mockApi(page, true)
 
     await page.goto(`/play/${TOKEN}`)
+    await startIntro(page)
     await pick(page, 'Paris')
     await page.getByRole('button', { name: 'Answer' }).click()
-    await page.getByRole('button', { name: 'Next' }).click()
+    await page.getByRole('button', { name: 'Next', exact: true }).click()
     await pick(page, 'Vienna')
     await pick(page, 'Prague')
     await page.getByRole('button', { name: 'Answer' }).click()
@@ -190,10 +234,11 @@ test.describe('игра ученика', () => {
     })
 
     await page.goto(`/play/${TOKEN}`)
+    await startIntro(page)
     for (const names of [['Paris'], ['Vienna', 'Prague']]) {
       for (const name of names) await pick(page, name)
       await page.getByRole('button', { name: 'Answer' }).click()
-      await page.getByRole('button', { name: 'Next' }).click()
+      await page.getByRole('button', { name: 'Next', exact: true }).click()
     }
 
     await expect(page.getByText('75%')).toBeVisible()
@@ -216,6 +261,7 @@ test.describe('игра ученика', () => {
     })
 
     await page.goto(`/play/${TOKEN}`)
+    await startIntro(page)
     await pick(page, 'Paris')
     await page.getByRole('button', { name: 'Answer' }).click()
     await expect(page.getByRole('alert')).toHaveText('The activity has changed, please start over')
@@ -240,6 +286,7 @@ test.describe('игра ученика', () => {
     })
 
     await page.goto(`/play/${TOKEN}`)
+    await startIntro(page)
     await pick(page, 'Paris')
     await page.getByRole('button', { name: 'Answer' }).click()
     await expect(page.getByRole('alert')).toHaveText('Something went wrong, please try again')
@@ -279,6 +326,7 @@ test.describe('игра ученика', () => {
     })
 
     await page.goto(`/play/${TOKEN}`)
+    await startIntro(page)
     await expect(page.getByRole('heading', { name: 'Where is the cat?' })).toBeVisible()
     await expect(page.locator('.play-question__image-img')).toHaveJSProperty('naturalWidth', 1)
 
@@ -318,6 +366,7 @@ test.describe('игра ученика: таймер', () => {
     })
 
     await page.goto(`/play/${TOKEN}`)
+    await startIntro(page)
     await expect(page.getByRole('heading', { name: 'Capital of France?' })).toBeVisible()
     await expect(page.getByRole('timer')).toContainText('1:00')
 

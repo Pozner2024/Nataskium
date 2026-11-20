@@ -1,10 +1,5 @@
 <template>
   <section class="quiz-play">
-    <button v-if="isPreview" class="quiz-play__back" type="button" @click="router.back()">
-      {{ t('play.backToPrevious') }}
-    </button>
-    <p v-if="isPreview" class="quiz-play__preview-note">{{ t('play.previewNote') }}</p>
-
     <p class="quiz-play__sr-only" role="status">{{ timer.announcement.value }}</p>
 
     <p v-if="store.status === 'loading'" class="quiz-play__loading" role="status">{{ t('play.loading') }}</p>
@@ -30,9 +25,9 @@
 
 <script setup lang="ts">
 import { onMounted, provide } from 'vue'
-import { useI18n, useRoute, useRouter, useSeoMeta } from '#imports'
-import { PREVIEW_QUERY_KEY, type PlayQuizResponse } from '@/entities/quiz'
-import { PLAY_TIMER_KEY } from '@/features/play-session'
+import { useI18n, useSeoMeta } from '#imports'
+import type { PlayQuizResponse } from '@/entities/quiz'
+import { PLAY_TIMER_KEY, usePlayerScrollRelease } from '@/features/play-session'
 import PlayQuestion from './components/PlayQuestion.vue'
 import PlayResult from './components/PlayResult.vue'
 import { usePlayStore } from './store'
@@ -42,13 +37,11 @@ import { useQuizPlayTimer } from './useQuizPlayTimer'
 const props = defineProps<{ token: string; initial?: PlayQuizResponse }>()
 
 const { t } = useI18n()
-const route = useRoute()
-const router = useRouter()
 const store = usePlayStore()
-const isPreview = route.query[PREVIEW_QUERY_KEY] === '1'
 
 const timer = useQuizPlayTimer()
 provide(PLAY_TIMER_KEY, timer)
+usePlayerScrollRelease(() => store.status !== 'ready' || store.phase === 'result')
 
 useSeoMeta({ title: () => store.title, robots: 'noindex, nofollow' })
 
@@ -58,15 +51,33 @@ onMounted(() => store.start(props.token, undefined, props.initial))
 
 <style scoped lang="scss">
 @use '@/assets/styles/mixins' as *;
+@use '@/assets/styles/breakpoints.module' as *;
 
+// Колонка игры на фоне проигрывателя; на широком экране растёт вместе с окном
 .quiz-play {
   display: flex;
-  flex: 1;
   flex-direction: column;
   width: 100%;
   max-width: 560px;
+  min-height: 100%;
   margin: 0 auto;
   padding: 8px var(--gutter) 24px;
+  color: var(--g-text);
+
+  @include tablet {
+    max-width: 760px;
+    padding: 16px 0 24px;
+  }
+
+  @include desktop {
+    max-width: 1000px;
+  }
+
+  :fullscreen & {
+    @include desktop {
+      max-width: 1180px;
+    }
+  }
 }
 
 .quiz-play__sr-only {
@@ -78,44 +89,21 @@ onMounted(() => store.start(props.token, undefined, props.initial))
   white-space: nowrap;
 }
 
-.quiz-play__back {
-  align-self: flex-start;
-  margin: 0 0 12px;
-  padding: 10px 4px;
-  border: 0;
-  background: none;
-  color: var(--color-blue-dark);
-  font: inherit;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.quiz-play__preview-note {
-  margin: 0 0 12px;
-  padding: 10px 14px;
-  border-radius: 14px;
-  background: rgb(var(--rgb-blue) / 0.1);
-  font-size: 15px;
-  font-weight: 500;
-  line-height: 1.4;
-}
-
 .quiz-play__loading {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 14px;
   margin: 48px 0 0;
-  color: var(--color-text-muted);
+  color: var(--g-muted);
   font-weight: 500;
 
   &::before {
     content: '';
     width: 36px;
     height: 36px;
-    border: 4px solid rgb(var(--rgb-blue) / 0.18);
-    border-top-color: var(--color-blue);
+    border: 4px solid var(--g-surface);
+    border-top-color: var(--g-accent);
     border-radius: 50%;
     animation: quiz-play-spin 0.9s linear infinite;
   }
@@ -140,9 +128,7 @@ onMounted(() => store.start(props.token, undefined, props.initial))
   gap: 20px;
   margin-top: 32px;
   padding: 28px 20px 24px;
-  border-radius: 22px;
   text-align: center;
-  @include card-surface;
 }
 
 .quiz-play__message {
@@ -174,30 +160,6 @@ onMounted(() => store.start(props.token, undefined, props.initial))
 }
 
 .quiz-play__button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 48px;
-  padding: 8px 24px;
-  border: 0;
-  border-radius: 14px;
-  background: rgb(var(--rgb-blue) / 0.1);
-  color: var(--color-blue-dark);
-  font: inherit;
-  font-weight: 700;
-  line-height: 1.2;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition: background-color 0.2s ease;
-
-  @media (hover: hover) {
-    &:hover {
-      background: rgb(var(--rgb-blue) / 0.16);
-    }
-  }
-
-  &:active {
-    background: rgb(var(--rgb-blue) / 0.24);
-  }
+  @include play-secondary;
 }
 </style>

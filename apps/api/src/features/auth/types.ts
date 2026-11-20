@@ -256,6 +256,14 @@ export type FailureLimiter = {
   reserve(key: string): FailureReservation
 }
 
+// «Знакомое устройство»: подписанная cookie, выданная после успешного входа. Без персональных данных
+export type DeviceTrust = {
+  // Подпись привязана к email и текущему passwordHash: смена пароля отзывает все cookie. Ключ устройства (nonce)
+  // или null, если токен не подписан для этой пары
+  verify(email: string, passwordHash: string, token: string | undefined): string | null
+  issue(email: string, passwordHash: string): string
+}
+
 export type Clock = () => Date
 
 // Файлы картинок учителя в хранилище: строки quiz_images удаляются каскадом вместе с аккаунтом, файлы — отдельно (GDPR)

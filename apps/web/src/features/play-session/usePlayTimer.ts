@@ -22,6 +22,10 @@ export type PlayTimerView = {
   remainingSeconds: ComputedRef<number | null>
   isLow: ComputedRef<boolean>
   announcement: Ref<string>
+  // Для плавного кольца: старт по Date.now(), лимит и идёт ли отсчёт. Необязательны — у заглушек в тестах их нет
+  startedAt?: Readonly<Ref<number | null>>
+  limitSeconds?: ComputedRef<number | null>
+  isRunning?: ComputedRef<boolean>
 }
 
 export const PLAY_TIMER_KEY: InjectionKey<PlayTimerView> = Symbol('play-timer')
@@ -96,5 +100,5 @@ export function usePlayTimer(source: PlayTimerSource): PlayTimerView {
 
   onScopeDispose(stop)
 
-  return { elapsedSeconds, remainingSeconds, isLow, announcement }
+  return { elapsedSeconds, remainingSeconds, isLow, announcement, startedAt: source.startedAt, limitSeconds, isRunning }
 }

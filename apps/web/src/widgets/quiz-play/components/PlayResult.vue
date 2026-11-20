@@ -28,27 +28,34 @@
 import { onMounted, useTemplateRef } from 'vue'
 import { useI18n } from '#imports'
 import { formatClock } from '@/features/play-session'
+import { focusInPlace } from '@/shared'
 import { usePlayStore } from '../store'
 
 const { t } = useI18n()
 const store = usePlayStore()
 const heading = useTemplateRef<HTMLElement>('heading')
 
-onMounted(() => heading.value?.focus())
+onMounted(() => focusInPlace(heading.value))
 </script>
 
 <style scoped lang="scss">
 @use '@/assets/styles/mixins' as *;
+@use '@/assets/styles/breakpoints.module' as *;
 
+// Итог лежит прямо на фоне проигрывателя, без карточки
 .play-result {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-top: 24px;
-  padding: 28px 20px 24px;
-  border-radius: 22px;
+  padding: 28px 0 24px;
+  color: var(--g-text);
   text-align: center;
-  @include card-surface;
+
+  @include tablet {
+    width: 100%;
+    max-width: 560px;
+    margin: auto;
+  }
 }
 
 .play-result__title {
@@ -62,7 +69,7 @@ onMounted(() => heading.value?.focus())
 
 .play-result__note {
   margin: 12px 0 0;
-  color: var(--color-text-muted);
+  color: var(--g-muted);
   font-size: 16px;
   font-weight: 500;
   line-height: 1.4;
@@ -70,7 +77,7 @@ onMounted(() => heading.value?.focus())
 
 .play-result__percent {
   margin: 12px 0 0;
-  color: var(--color-blue);
+  color: var(--g-accent);
   font-family: var(--font-display);
   font-size: 60px;
   font-weight: 700;
@@ -82,8 +89,8 @@ onMounted(() => heading.value?.focus())
   margin: 16px 0 0;
   padding: 8px 20px;
   border-radius: 999px;
-  background: rgb(var(--rgb-green) / 0.14);
-  color: var(--color-text);
+  background: var(--g-ok-soft);
+  box-shadow: inset 0 0 0 2px var(--g-ok);
   font-size: 22px;
   font-weight: 700;
   line-height: 1.3;
@@ -97,55 +104,17 @@ onMounted(() => heading.value?.focus())
 
   & + & {
     margin-top: 4px;
-    color: var(--color-text-muted);
+    color: var(--g-muted);
   }
 }
 
 .play-result__again {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  min-height: 56px;
+  @include play-action;
+
   margin-top: 28px;
-  padding: 8px 20px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--color-orange);
-  box-shadow: 0 10px 24px rgb(var(--rgb-orange) / 0.4);
-  color: var(--color-white);
-  font: inherit;
-  font-size: 18px;
-  font-weight: 700;
-  line-height: 1.25;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition:
-    box-shadow 0.2s ease,
-    transform 0.2s ease;
-
-  @media (hover: hover) {
-    &:hover:not(:disabled) {
-      box-shadow: 0 14px 28px rgb(var(--rgb-orange) / 0.45);
-    }
-  }
-
-  &:active:not(:disabled) {
-    transform: scale(0.98);
-  }
 
   &:disabled {
     cursor: progress;
-    opacity: 0.7;
-    box-shadow: none;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    transition: none;
-
-    &:active:not(:disabled) {
-      transform: none;
-    }
   }
 }
 </style>

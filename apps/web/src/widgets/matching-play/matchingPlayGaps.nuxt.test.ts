@@ -83,13 +83,17 @@ describe('MatchingPlay: размеры и «Проверить»', () => {
     expect(wrapper.get('.matching-board__progress').text()).toBe(`0 / ${TEN}`)
   })
 
-  it('«Проверить» не появляется, пока не все слова на местах; после последнего — есть и активна', async () => {
+  it('«Проверить» видна сразу и неактивна с «Осталось расставить: N»; после последнего слова — активна', async () => {
     const wrapper = await mountPlay()
     const store = useMatchingPlayStore()
 
+    expect(wrapper.get('.matching-board__check').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('.matching-board__tray-count').text()).toBe('Осталось расставить: 2')
+
     store.place(1, 0)
     await flushPromises()
-    expect(wrapper.find('.matching-board__check').exists()).toBe(false)
+    expect(wrapper.get('.matching-board__check').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('.matching-board__tray-count').text()).toBe('Осталось расставить: 1')
 
     store.place(0, 1)
     await flushPromises()

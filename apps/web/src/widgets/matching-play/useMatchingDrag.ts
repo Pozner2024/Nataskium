@@ -22,8 +22,14 @@ export type DraggedChip = DragSource & {
 
 type Press = { source: DragSource; pointerId: number; start: Point; offset: Point; width: number }
 
+export type ScrollZone = { top: number; bottom: number }
+
 type DragOptions = {
   tray: Readonly<Ref<HTMLElement | null>>
+  // Что листать при перетаскивании у края: слот проигрывателя; null — window
+  scrollContainer?: Readonly<Ref<HTMLElement | null>> | null
+  // Полоса автопрокрутки; по умолчанию — от низа лотка до низа контейнера (окна)
+  scrollZone?: () => ScrollZone
   definitions: () => readonly (HTMLElement | null)[]
   isLocked: Readonly<Ref<boolean>>
   onLift: (source: DragSource) => void
@@ -48,13 +54,19 @@ export function useMatchingDrag(options: DragOptions) {
     over.value = hitTarget(pointer.value, rectOf(options.tray.value), options.definitions().map(rectOf))
   }
 
+  function defaultZone(container: HTMLElement | null): ScrollZone {
+    const top = options.tray.value?.getBoundingClientRect().bottom ?? 0
+    return { top, bottom: container ? container.getBoundingClientRect().bottom : window.innerHeight }
+  }
+
   // Палец может стоять, пока страница едет: цель пересчитывается каждый кадр
   function scrollFrame(): void {
     frame = null
     if (dragged.value === null) return
-    const trayBottom = options.tray.value?.getBoundingClientRect().bottom ?? 0
-    const step = autoScrollStep(pointer.value.y, { top: trayBottom, bottom: window.innerHeight }, AUTO_SCROLL_EDGE_PX, AUTO_SCROLL_MAX_STEP_PX)
-    if (step !== 0) window.scrollBy(0, step)
+    const container = options.scrollContainer?.value ?? null
+    const zone = options.scrollZone?.() ?? defaultZone(container)
+    const step = autoScrollStep(pointer.value.y, zone, AUTO_SCROLL_EDGE_PX, AUTO_SCROLL_MAX_STEP_PX)
+    if (step !== 0) (container ?? window).scrollBy(0, step)
     updateOver()
     frame = requestAnimationFrame(scrollFrame)
   }

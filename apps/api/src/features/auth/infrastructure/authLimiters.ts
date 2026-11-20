@@ -20,12 +20,16 @@ export function makeAuthLimiters(limits: AuthLimits) {
   const limiter = (limit: RateLimit) => createRateLimiter({ ...limit, maxTrackedKeys: limits.maxTrackedKeys })
 
   const loginFailures = limiter(limits.loginFailuresPerEmail)
+  const deviceFailures = limiter(limits.loginFailuresPerDevice)
+  const teacherFailures = limiter(limits.accountFailuresPerTeacher)
   const registrationEmailsPerHour = limiter(limits.registrationEmailsPerHour)
   const registrationEmailsPerDay = limiter(limits.registrationEmailsPerDay)
   const resetEmailsPerHour = limiter(limits.resetEmailsPerHour)
   const resetEmailsPerDay = limiter(limits.resetEmailsPerDay)
 
   const failureLimiter: FailureLimiter = { reserve: (email) => loginFailures.reserve(email) }
+  const deviceFailureLimiter: FailureLimiter = { reserve: (deviceKey) => deviceFailures.reserve(deviceKey) }
+  const teacherFailureLimiter: FailureLimiter = { reserve: (teacherId) => teacherFailures.reserve(teacherId) }
 
   const registrationEmailQuota = makeEmailQuota(registrationEmailsPerHour, registrationEmailsPerDay)
   const resetEmailQuota = makeEmailQuota(resetEmailsPerHour, resetEmailsPerDay)
@@ -49,6 +53,8 @@ export function makeAuthLimiters(limits: AuthLimits) {
 
   const all = [
     loginFailures,
+    deviceFailures,
+    teacherFailures,
     registrationEmailsPerHour,
     registrationEmailsPerDay,
     resetEmailsPerHour,
@@ -59,6 +65,8 @@ export function makeAuthLimiters(limits: AuthLimits) {
   return {
     ...ipLimiters,
     failureLimiter,
+    deviceFailureLimiter,
+    teacherFailureLimiter,
     registrationEmailQuota,
     resetEmailQuota,
     // Для тестов: свежие счётчики между сценариями

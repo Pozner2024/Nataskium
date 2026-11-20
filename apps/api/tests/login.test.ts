@@ -1,7 +1,7 @@
 import { inspect } from 'node:util'
 import { loginSchema } from '@nataskium/shared/schemas'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { makeLogin, makeTokenService } from '../src/features/auth'
+import { makeDeviceTrust, makeLogin, makeTokenService } from '../src/features/auth'
 import type { TeacherAccount, TeacherRepository } from '../src/features/auth/types'
 import { AppError, RateLimitedError, ServiceBusyError } from '../src/shared/errors'
 import { type CallLog, makeFakeHasher, makeFakeLimiter, makeFakeTeachers, makeMemoryRefreshTokens } from './fakes/authFakes'
@@ -18,6 +18,11 @@ const tokens = makeTokenService({
   jwtSecret: 'qa-fake-jwt-secret-0123456789abcdef',
   hmacSecret: 'qa-fake-hmac-secret-0123456789abcdef',
 })
+
+const deviceTrust = makeDeviceTrust('qa-fake-hmac-secret-0123456789abcdef')
+const FAKE_HASH_PREFIX = '$argon2id$fake$'
+const PASSWORD_HASH = FAKE_HASH_PREFIX + PASSWORD
+const NEW_PASSWORD_HASH = `${FAKE_HASH_PREFIX}qa-new-password`
 
 let calls: CallLog
 
@@ -36,17 +41,20 @@ function teacher(overrides: Partial<TeacherAccount>, hashOf: (password: string) 
 function setup(options: { account?: Partial<TeacherAccount> | null; teachers?: TeacherRepository } = {}) {
   const hasher = makeFakeHasher(calls)
   const limiter = makeFakeLimiter(calls)
+  const deviceLimiter = makeFakeLimiter(calls)
   const refresh = makeMemoryRefreshTokens(calls)
   const accounts = options.account === null ? [] : [teacher(options.account ?? {}, hasher.hashOf)]
   const login = makeLogin({
     teachers: options.teachers ?? makeFakeTeachers(calls, accounts).teachers,
     hasher: hasher.hasher,
     failureLimiter: limiter.limiter,
+    deviceTrust,
+    deviceFailureLimiter: deviceLimiter.limiter,
     refreshTokens: refresh.repository,
     tokens,
     now: () => NOW,
   })
-  return { login, hasher, limiter, refresh }
+  return { login, hasher, limiter, deviceLimiter, refresh }
 }
 
 function input(password = PASSWORD) {
@@ -80,7 +88,7 @@ describe('login: перегрузка и лимит', () => {
     expect(limiter.state.reservations).toBe(0)
   })
 
-  it('лимит исчерпан — 429 без поиска учителя и сверки', async () => {
+  it('лимит исчерпан — 429 без сверки', async () => {
     const { login, limiter } = setup()
     limiter.state.blocked = true
 
@@ -88,7 +96,7 @@ describe('login: перегрузка и лимит', () => {
 
     expect(error).toBeInstanceOf(RateLimitedError)
     expect(error).toMatchObject({ status: 429, retryAfterSeconds: limiter.retryAfterSeconds })
-    expect(calls).toEqual(['hasher.assertCapacity', `limiter.reserve:${EMAIL}`])
+    expect(calls).toEqual(['hasher.assertCapacity', 'teachers.findByEmail', `limiter.reserve:${EMAIL}`])
   })
 
   it(`после ${FAILURES_BEFORE_LOCK} неудач — 429, даже с верным паролем`, async () => {
@@ -117,7 +125,7 @@ describe('login: отказ', () => {
 
     expect(error).toBeInstanceOf(AppError)
     expect(error).toMatchObject(INVALID_LOGIN)
-    expect(calls).toEqual(['hasher.assertCapacity', `limiter.reserve:${EMAIL}`, 'teachers.findByEmail', verifyCall])
+    expect(calls).toEqual(['hasher.assertCapacity', 'teachers.findByEmail', `limiter.reserve:${EMAIL}`, verifyCall])
     expect(limiter.state.failures).toBe(1)
     expect(refresh.rows).toEqual([])
   })
@@ -209,5 +217,99 @@ describe('login: учителя удалили во время сверки па
     expect(error).toMatchObject({ status: 401, message: 'Session is invalid or expired, sign in again' })
     expect(refresh.rows).toEqual([])
     expect(limiter.state.failures).toBe(0)
+  })
+})
+
+describe('login: знакомое устройство', () => {
+  const deviceToken = () => deviceTrust.issue(EMAIL, PASSWORD_HASH)
+
+  it('валидная cookie: резерв берётся по устройству, счётчик email не трогается', async () => {
+    const { login, limiter, deviceLimiter } = setup()
+    const token = deviceToken()
+    const nonce = deviceTrust.verify(EMAIL, PASSWORD_HASH, token)
+
+    expect(await rejectionOf(login(input(WRONG_PASSWORD), token))).toMatchObject(INVALID_LOGIN)
+
+    expect(calls).toContain(`limiter.reserve:${nonce}`)
+    expect(calls).not.toContain(`limiter.reserve:${EMAIL}`)
+    expect(limiter.state.reservations).toBe(0)
+    expect(deviceLimiter.state.failures).toBe(1)
+  })
+
+  it('email заблокирован чужими неудачами — без cookie 429, с валидной cookie вход проходит', async () => {
+    const { login, limiter } = setup()
+    limiter.state.maxFailures = FAILURES_BEFORE_LOCK
+    for (let attempt = 0; attempt < FAILURES_BEFORE_LOCK; attempt++) await rejectionOf(login(input(WRONG_PASSWORD)))
+
+    expect(await rejectionOf(login(input()))).toBeInstanceOf(RateLimitedError)
+    const session = await login(input(), deviceToken())
+
+    expect(session.teacher.email).toBe(EMAIL)
+  })
+
+  it(`${FAILURES_BEFORE_LOCK} неудач с cookie блокируют устройство, но не канал email`, async () => {
+    const { login, limiter, deviceLimiter } = setup()
+    deviceLimiter.state.maxFailures = FAILURES_BEFORE_LOCK
+    const token = deviceToken()
+    for (let attempt = 0; attempt < FAILURES_BEFORE_LOCK; attempt++) await rejectionOf(login(input(WRONG_PASSWORD), token))
+
+    expect(await rejectionOf(login(input(), token))).toBeInstanceOf(RateLimitedError)
+    expect(limiter.state.failures).toBe(0)
+    expect(await login(input())).toMatchObject({ teacher: { email: EMAIL } })
+  })
+
+  it('чужая и испорченная cookie — как без неё', async () => {
+    const { login, limiter } = setup()
+    const foreign = deviceTrust.issue('qa-other@example.test', PASSWORD_HASH)
+
+    await rejectionOf(login(input(WRONG_PASSWORD), foreign))
+    await rejectionOf(login(input(WRONG_PASSWORD), 'garbage'))
+
+    expect(limiter.state.failures).toBe(2)
+  })
+
+  it('успех возвращает токен устройства, валидный для этого email', async () => {
+    const { login } = setup()
+
+    const session = await login(input())
+
+    expect(deviceTrust.verify(EMAIL, PASSWORD_HASH, session.deviceToken)).not.toBeNull()
+    expect(deviceTrust.verify('qa-other@example.test', PASSWORD_HASH, session.deviceToken)).toBeNull()
+  })
+
+  it('пароль сменён (другой hash) — старая cookie недействительна, резерв идёт по email', async () => {
+    const { login, limiter, deviceLimiter } = setup({ account: { passwordHash: NEW_PASSWORD_HASH } })
+
+    await rejectionOf(login(input(WRONG_PASSWORD), deviceTrust.issue(EMAIL, PASSWORD_HASH)))
+
+    expect(limiter.state.failures).toBe(1)
+    expect(deviceLimiter.state.reservations).toBe(0)
+  })
+
+  it('учителя нет — cookie недействительна', async () => {
+    const { login, deviceLimiter } = setup({ account: null })
+
+    await rejectionOf(login(input(), deviceToken()))
+
+    expect(deviceLimiter.state.reservations).toBe(0)
+  })
+
+  it('успешный вход с cookie снимает резерв устройства', async () => {
+    const { login, deviceLimiter } = setup()
+
+    await login(input(), deviceToken())
+
+    expect(deviceLimiter.state.reservations).toBe(1)
+    expect(deviceLimiter.state.failures).toBe(0)
+  })
+
+  it('503 во время сверки с cookie снимает резерв устройства', async () => {
+    const { login, hasher, limiter, deviceLimiter } = setup()
+    hasher.state.busyOnVerify = true
+
+    expect(await rejectionOf(login(input(), deviceToken()))).toBeInstanceOf(ServiceBusyError)
+
+    expect(deviceLimiter.state.failures).toBe(0)
+    expect(limiter.state.reservations).toBe(0)
   })
 })
