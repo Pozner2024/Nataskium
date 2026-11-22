@@ -517,7 +517,6 @@ $controls-bottom-wide: 18px;
   --g-bad-soft: rgb(255 155 155 / 0.2);
   --g-on-bad: #171b3a;
   --g-action: #e98d34;
-  --g-action-edge: #c67127;
   --g-action-text: #1a2140;
   --g-hand: #2549c5;
   --g-timer-track: rgb(255 255 255 / 0.12);

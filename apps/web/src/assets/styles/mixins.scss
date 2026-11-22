@@ -83,7 +83,6 @@ $board-white: '@/assets/images/pcb-white.webp';
   border: 0;
   border-radius: 999px;
   background: var(--g-action);
-  box-shadow: 0 5px 0 var(--g-action-edge);
   color: var(--g-action-text);
   font: inherit;
   font-size: 18px;
@@ -97,15 +96,12 @@ $board-white: '@/assets/images/pcb-white.webp';
 
   @media (hover: hover) {
     &:hover:not(:disabled) {
-      box-shadow:
-        0 5px 0 var(--g-action-edge),
-        0 0 0 3px rgb(var(--rgb-orange) / 0.35);
+      box-shadow: 0 0 0 3px rgb(var(--rgb-orange) / 0.35);
     }
   }
 
   &:active:not(:disabled) {
-    box-shadow: 0 1px 0 var(--g-action-edge);
-    transform: translateY(4px);
+    transform: scale(0.98);
   }
 
   &:focus-visible {
