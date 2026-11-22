@@ -14,12 +14,9 @@
     </p>
 
     <div v-if="placed !== null && !ghost" class="definition-card__cell">
-      <span v-if="over && overTerm" class="definition-card__replace">
-        {{ t('matchingPlay.replaceTitle') }}<br>{{ t('matchingPlay.replaceHint', { term: placed }) }}
-      </span>
       <TermChip
-        v-else
         ref="chip"
+        :class="{ 'definition-card__chip--covered': over && overTerm }"
         :text="placed"
         placed
         :picked="placedPicked"
@@ -29,6 +26,11 @@
         @click="emit('chipClick')"
         @keydown.delete.prevent="emit('remove')"
       />
+      <!-- Подсказка лежит поверх слова: высота ряда не меняется под пальцем, иначе соседние клетки съезжают -->
+      <span v-if="over && overTerm" class="definition-card__replace">
+        {{ t('matchingPlay.replaceTitle') }}
+        <span class="definition-card__replace-hint">{{ t('matchingPlay.replaceHint', { term: placed }) }}</span>
+      </span>
     </div>
 
     <button
@@ -116,24 +118,19 @@ $tray-clearance: 200px;
   grid-template-areas: 'cell text';
   gap: 10px;
   align-items: center;
-  padding: 12px 0;
-  border-top: 1px solid var(--g-divider);
+  padding: 5px 0;
   transition:
     background-color 0.2s ease,
     box-shadow 0.2s ease;
 
-  &:first-child {
-    border-top-color: transparent;
-  }
-
   @include tablet {
     grid-template-columns: 150px minmax(0, 1fr);
     gap: 0 16px;
-    padding: 14px 0;
+    padding: 6px 0;
   }
 
   @include desktop {
-    grid-template-columns: 236px minmax(0, 1fr);
+    grid-template-columns: 280px minmax(0, 1fr);
     gap: 0 20px;
   }
 }
@@ -177,6 +174,7 @@ $tray-clearance: 200px;
 }
 
 .definition-card__cell {
+  position: relative;
   display: flex;
   grid-area: cell;
   align-items: center;
@@ -188,9 +186,9 @@ $tray-clearance: 200px;
 .definition-card__drop {
   gap: 6px;
   width: 100%;
-  min-height: 64px;
+  min-height: 52px;
   margin: 0;
-  padding: 6px 8px;
+  padding: 4px 8px;
   border: 3px dashed var(--g-accent);
   border-radius: 16px;
   background: var(--g-surface);
@@ -249,18 +247,35 @@ $tray-clearance: 200px;
 }
 
 .definition-card__replace {
+  position: absolute;
+  inset: 0;
   display: flex;
-  align-items: center;
-  width: 100%;
-  min-height: 64px;
-  padding: 6px 10px;
+  flex-direction: column;
+  justify-content: center;
+  overflow: hidden;
+  padding: 4px 10px;
   border: 3px solid var(--g-accent);
   border-radius: 16px;
   background: var(--g-accent-soft);
   color: var(--g-text);
   font-size: 14px;
   font-weight: 700;
-  line-height: 1.3;
+  line-height: 1.25;
+}
+
+// На узкой клетке телефона — только «Заменить?»: две строки подсказки в неё не помещаются
+.definition-card__replace-hint {
+  display: none;
+  font-size: 13px;
+  font-weight: 600;
+
+  @include tablet {
+    display: block;
+  }
+}
+
+.definition-card__chip--covered {
+  visibility: hidden;
 }
 
 @media (prefers-reduced-motion: reduce) {
