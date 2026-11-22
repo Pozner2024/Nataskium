@@ -115,11 +115,20 @@ describe('AmbientSignals', () => {
       expect(Number(group.get('.ambient-signals__pad').attributes('cx'))).toBe(end.x)
       expect(Number(group.get('.ambient-signals__pad').attributes('cy'))).toBe(end.y)
     }
-    // У каждой дорожки импульс и вспышка с одной задержкой: четыре разные, первая без задержки
-    const delays = animate.mock.calls.map(([, options]) => (options as KeyframeAnimationOptions).delay)
-    expect(delays).toHaveLength(8)
-    expect(new Set(delays).size).toBe(4)
-    expect(delays[0]).toBe(0)
+    // Импульс — цепочка точек: каждая следующая чуть отстаёт, поэтому хвост огибает изломы.
+    // Дорожки стартуют по очереди: у вспышек четыре разные задержки, первая без задержки
+    const delayOf = (index: number) => (animate.mock.calls[index]![1] as KeyframeAnimationOptions).delay!
+    const calls = animate.mock.contexts.map((element, index) => ({ element: element as HTMLElement, delay: delayOf(index) }))
+    const flashDelays = calls.filter(({ element }) => element.classList.contains('ambient-signals__flash')).map(({ delay }) => delay)
+    expect(flashDelays).toHaveLength(4)
+    expect(new Set(flashDelays).size).toBe(4)
+    expect(flashDelays[0]).toBe(0)
+    const trailDelays = calls
+      .filter(({ element, delay }) => element.classList.contains('ambient-signals__pulse') && delay < flashDelays[1]!)
+      .map(({ delay }) => delay)
+    expect(trailDelays.length).toBeGreaterThan(1)
+    expect(trailDelays).toEqual([...trailDelays].sort((a, b) => a - b))
+    expect(trailDelays[0]).toBe(0)
   })
 
   it('скрыт от скринридера', async () => {
