@@ -352,14 +352,21 @@ onBeforeUnmount(() => {
 $footer-height: 88px;
 $words-top: 16px;
 // На большом экране доска не растягивается на всё окно, а стоит по центру
-$board-max-width: 1240px;
+$board-max-width: 1600px;
 
 // Доска заполняет слот по высоте: нижняя полоса стоит у низа окна и при коротком задании
 .matching-board {
+  // Высота ряда на десктопе растёт с экраном (ноутбук — 52px, интерактивная доска — до 72px); слова и клетки одной высоты
+  --matching-row: 52px;
+
   display: flex;
   flex: 1;
   flex-direction: column;
   color: var(--g-text);
+
+  @include desktop {
+    --matching-row: clamp(52px, 5.5vh, 72px);
+  }
 }
 
 // Рамка темы интро той же ширины, что задание: не шире колонки на широком экране
@@ -669,7 +676,7 @@ $board-max-width: 1240px;
     max-width: none;
 
     :deep(.term-chip) {
-      min-height: 52px;
+      min-height: var(--matching-row, 52px);
       padding: 8px 10px 8px 6px;
       font-size: 16px;
     }

@@ -108,7 +108,7 @@ defineProps<{
 }
 
 .term-chip--placed {
-  min-height: 52px;
+  min-height: var(--matching-row, 52px);
   padding: 8px 10px 8px 6px;
   font-size: 16px;
   touch-action: none;

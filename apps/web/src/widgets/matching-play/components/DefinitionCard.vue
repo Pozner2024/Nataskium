@@ -186,7 +186,7 @@ $tray-clearance: 200px;
 .definition-card__drop {
   gap: 6px;
   width: 100%;
-  min-height: 52px;
+  min-height: var(--matching-row, 52px);
   margin: 0;
   padding: 4px 8px;
   border: 3px dashed var(--g-accent);

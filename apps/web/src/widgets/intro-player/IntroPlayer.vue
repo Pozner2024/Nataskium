@@ -455,6 +455,8 @@ onBeforeUnmount(() => {
 $edge: rgb(0 0 0 / 0.5);
 // Поля страницы над и под окном проигрывателя на планшете и десктопе
 $window-margin: 48px;
+// Поля окна слева и справа на десктопе
+$window-side-desktop: 40px;
 $rail-gap: 12px;
 // Отступ от углов окна и размер угловых кнопок
 $game-corner-gap: 12px;
@@ -554,7 +556,7 @@ $controls-bottom-wide: 18px;
   }
 
   @include desktop {
-    width: min(100% - 160px, calc((100dvh - var(--header-height) - #{$window-margin}) * 16 / 9));
+    width: min(100% - #{$window-side-desktop * 2}, calc((100dvh - var(--header-height) - #{$window-margin}) * 16 / 9));
     margin: 24px auto;
     aspect-ratio: 16 / 9;
   }
