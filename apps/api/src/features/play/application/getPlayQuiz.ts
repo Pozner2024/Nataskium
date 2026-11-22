@@ -13,6 +13,7 @@ export function toPlayQuizResponse(quiz: PlayableQuiz, imageUrl: PlayImageUrl): 
       title: quiz.title,
       showAnswers: quiz.showAnswers,
       timer: quiz.timer,
+      introTheme: quiz.introTheme,
       version: quizVersion(quiz),
       questions: quiz.questions.map((question) => ({
         text: question.text,

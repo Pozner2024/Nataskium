@@ -30,6 +30,9 @@
             <button class="true-false-editor__saved-copy" type="button" @click="copyLink">
               {{ t('teacher.quizEditor.settings.copy') }}
             </button>
+            <NuxtLink class="true-false-editor__saved-try" :to="previewPath">
+              {{ t('teacher.quizEditor.tryActivity') }}
+            </NuxtLink>
             <NuxtLink class="true-false-editor__saved-link" :to="localePath(TEACHER_PATHS.activities)">
               {{ t('teacher.trueFalseEditor.toActivities') }}
             </NuxtLink>
@@ -113,7 +116,7 @@ import { MAX_ACTIVITIES_PER_TEACHER, MAX_TRUE_FALSE_ITEMS, MIN_TRUE_FALSE_ITEMS,
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, toRaw, useTemplateRef, watch } from 'vue'
 import { NuxtLink } from '#components'
 import { navigateTo, onBeforeRouteLeave, useI18n, useLocalePath } from '#imports'
-import { playUrl } from '@/entities/quiz'
+import { PREVIEW_QUERY, playUrl } from '@/entities/quiz'
 import { GroupSelect } from '@/features/activity-settings'
 import { AppConfirmDialog, TEACHER_PATHS } from '@/shared'
 import TrueFalseSettings from './components/TrueFalseSettings.vue'
@@ -236,6 +239,9 @@ async function openSettings(): Promise<void> {
     store.view = 'settings'
   })
 }
+
+// «Пройти задание»: учитель проходит своё задание так, как его увидят ученики (результаты не сохраняются)
+const previewPath = computed(() => (store.shareToken === null ? '' : `/play/${encodeURIComponent(store.shareToken)}?${PREVIEW_QUERY}`))
 
 async function copyLink(): Promise<void> {
   if (store.shareToken === null) return
@@ -601,6 +607,15 @@ onBeforeUnmount(() => {
 
   background: var(--color-blue-dark);
   color: var(--color-white);
+}
+
+// Пройти своё задание — зелёная, как «Начать» у ученика
+.true-false-editor__saved-try {
+  @extend %pill-button;
+
+  background: var(--color-green);
+  color: var(--color-text);
+  text-decoration: none;
 }
 
 .true-false-editor__saved-copy-status {

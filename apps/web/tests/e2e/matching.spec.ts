@@ -1,5 +1,8 @@
 import { expect, test, type Page } from '@playwright/test'
 
+// Интро и вылет вопроса темы по умолчанию — анимация на несколько секунд; эти тесты проверяют игру, поэтому анимации выключены
+test.use({ contextOptions: { reducedMotion: 'reduce' } })
+
 const TOKEN = 'BBBBBBBBBBBBBBBBBBBBBB'
 const VERSION = 'v1'
 
@@ -8,11 +11,9 @@ const DEFINITIONS = ['Meows', 'Barks']
 const TERMS = ['Dog', 'Cat']
 const EXPECTED_ANSWERS = ['Cat', 'Dog']
 
-// Перед загруженным заданием — стартовый экран интро: игра появляется после «Начать».
-// «Начать» разворачивает проигрыватель на весь экран: ждём, пока раскладка встанет, иначе координаты устареют
+// Перед загруженным заданием — стартовый экран интро: игра появляется после «Начать»
 async function startIntro(page: Page) {
   await page.locator('.intro-player__start-button').click()
-  await page.waitForFunction(() => !document.fullscreenEnabled || document.fullscreenElement !== null)
 }
 
 function matchingBody() {
@@ -22,6 +23,7 @@ function matchingBody() {
       title: 'Animals',
       showAnswers: false,
       version: VERSION,
+      introTheme: 'nataskium-night',
       timer: { mode: 'none' },
       definitions: DEFINITIONS,
       terms: TERMS,
@@ -81,6 +83,29 @@ test.describe('игра сопоставления', () => {
     await expect(page.getByText('100%')).toBeVisible()
     await expect(page.getByText('Grade: 5')).toBeVisible()
     expect(calls).toEqual({ get: 1, finish: 1 })
+    await context.close()
+  })
+
+  test('заголовок «Слова» только для скринридера, слово в лотке и пустая клетка одной высоты', async ({ browser }) => {
+    const context = await browser.newContext({ locale: 'en-US' })
+    const page = await context.newPage()
+    await mockApi(page)
+
+    await page.goto(`/play/${TOKEN}`)
+    await startIntro(page)
+    await expect(page.getByRole('heading', { name: 'Match the words with their definitions' })).toBeVisible()
+
+    // Скрыт визуально (1×1 с обрезкой), но остаётся подписью списка слов
+    const title = page.locator('.matching-board__tray-title')
+    await expect(title).toHaveText('Words')
+    const titleBox = await title.boundingBox()
+    expect(titleBox?.width).toBeLessThanOrEqual(1)
+    expect(titleBox?.height).toBeLessThanOrEqual(1)
+    await expect(page.getByRole('list', { name: 'Words' })).toBeVisible()
+
+    const chipBox = await chip(page, 'Cat').boundingBox()
+    const dropBox = await dropOf(page, 0).boundingBox()
+    expect(chipBox?.height).toBeCloseTo(dropBox?.height ?? 0, 0)
     await context.close()
   })
 

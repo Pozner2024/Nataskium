@@ -1,3 +1,4 @@
+import { DEFAULT_INTRO_THEME_KEY } from '@nataskium/shared/schemas'
 import type { QuizInput, QuizQuestion } from './types'
 
 const NEW_QUESTION_OPTIONS_COUNT = 4
@@ -13,5 +14,13 @@ export function newQuestion(): QuizQuestion {
 
 // Раздел пустой: учитель выбирает его сам, схема не даст сохранить без выбора
 export function newQuiz(): QuizInput {
-  return { title: '', showAnswers: true, gradingScale: null, group: '', timer: { mode: 'none' }, questions: [newQuestion()] }
+  return {
+    title: '',
+    showAnswers: true,
+    gradingScale: null,
+    group: '',
+    timer: { mode: 'none' },
+    introTheme: DEFAULT_INTRO_THEME_KEY,
+    questions: [newQuestion()],
+  }
 }

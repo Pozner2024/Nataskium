@@ -24,10 +24,10 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, provide } from 'vue'
+import { onBeforeUnmount, onMounted, provide } from 'vue'
 import { useI18n, useSeoMeta } from '#imports'
 import type { PlayMatchingResponse } from '@/entities/matching'
-import { PLAY_TIMER_KEY, usePlayerScrollRelease } from '@/features/play-session'
+import { PLAY_TIMER_KEY, usePlayerPause, usePlayerScrollRelease } from '@/features/play-session'
 import MatchingBoard from './components/MatchingBoard.vue'
 import MatchingResult from './components/MatchingResult.vue'
 import { useMatchingPlayStore } from './store'
@@ -38,6 +38,7 @@ const props = defineProps<{ token: string; initial?: PlayMatchingResponse }>()
 
 const { t } = useI18n()
 const store = useMatchingPlayStore()
+usePlayerPause(store.pauseClock, store.resumeClock)
 
 const timer = useMatchingPlayTimer()
 provide(PLAY_TIMER_KEY, timer)
@@ -46,6 +47,8 @@ usePlayerScrollRelease(() => store.status !== 'ready' || store.phase === 'result
 useSeoMeta({ title: () => store.title, robots: 'noindex, nofollow' })
 
 onMounted(() => store.start(props.token, props.initial))
+// Стор живёт между показами: без очистки следующий показ на миг рисует старое задание и теряет вылет
+onBeforeUnmount(() => store.dispose())
 </script>
 
 <style scoped lang="scss">

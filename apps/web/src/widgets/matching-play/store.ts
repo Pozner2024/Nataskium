@@ -126,6 +126,9 @@ export const useMatchingPlayStore = defineStore('matching-play', () => {
     review.value = null
     timer.value = { mode: 'none' }
     startedAt.value = null
+    clockHeld.value = false
+    pausedElapsedMs = null
+    paused = false
     timedOut.value = false
     elapsedSeconds.value = null
     finishing = false
@@ -170,7 +173,7 @@ export const useMatchingPlayStore = defineStore('matching-play', () => {
     try {
       const response = await matchingPlayApi.finish(token.value, { version: version.value, answers: answers() })
       if (runEpoch !== epoch) return
-      elapsedSeconds.value = startedAt.value === null ? null : Math.floor((Date.now() - startedAt.value) / MS_PER_SECOND)
+      elapsedSeconds.value = elapsedAtFinish()
       result.value = response.result
       review.value = response.review ?? null
       phase.value = 'result'
@@ -199,10 +202,68 @@ export const useMatchingPlayStore = defineStore('matching-play', () => {
     await run(action)
   }
 
+  // Уход со страницы игры: следующий показ начинается с загрузки и снова получает интро и вылет (ADR 0015)
+  function dispose(): void {
+    reset()
+    status.value = 'loading'
+  }
+
+  // Вылет первого задания (тема интро) не съедает время: пока оно вылетает, таймер стоит на полном лимите,
+  // отсчёт начинается с приземления (ADR 0015)
+  const clockHeld = ref(false)
+
+  function holdClock(): void {
+    if (startedAt.value === null) return
+    startedAt.value = null
+    clockHeld.value = true
+  }
+
+  // Пауза на время окна «Как играть»: прошедшее время замирает, после паузы отсчёт продолжается с него.
+  // Окно могут открыть и во время вылета вопроса: тогда отсчёт начнётся только после закрытия
+  let paused = false
+  let pausedElapsedMs: number | null = null
+
+  // Окно «Как играть» могли открыть, пока finish в полёте: тогда время берётся с момента паузы
+  function elapsedAtFinish(): number | null {
+    if (startedAt.value !== null) return Math.floor((Date.now() - startedAt.value) / MS_PER_SECOND)
+    return pausedElapsedMs === null ? null : Math.floor(pausedElapsedMs / MS_PER_SECOND)
+  }
+
+  function pauseClock(): void {
+    if (paused || phase.value === 'result') return
+    paused = true
+    if (startedAt.value === null) return
+    pausedElapsedMs = Date.now() - startedAt.value
+    elapsedSeconds.value = Math.floor(pausedElapsedMs / MS_PER_SECOND)
+    startedAt.value = null
+  }
+
+  function resumeClock(): void {
+    if (!paused) return
+    paused = false
+    if (pausedElapsedMs === null) return
+    if (!(phase.value === 'result')) {
+      startedAt.value = Date.now() - pausedElapsedMs
+      elapsedSeconds.value = null
+    }
+    pausedElapsedMs = null
+  }
+
+  function restartClock(): void {
+    if (startedAt.value === null && !clockHeld.value) return
+    if (paused) {
+      pausedElapsedMs = 0
+      clockHeld.value = false
+      return
+    }
+    startedAt.value = Date.now()
+    clockHeld.value = false
+  }
+
   return {
     token, title, showAnswers, timer, definitions, terms, placements, picked, phase, status, busy, result, review,
     startedAt, timedOut, elapsedSeconds,
     pool, placedCount, isComplete, isLocked, canCheck,
-    definitionOf, pick, cancelPick, place, unplace, start, check, expire, retry,
+    definitionOf, pick, cancelPick, place, unplace, start, check, expire, retry, holdClock, restartClock, pauseClock, resumeClock, dispose,
   }
 })

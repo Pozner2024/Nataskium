@@ -70,6 +70,7 @@ function toTrueFalseDraft(trueFalse: TrueFalseResponse['trueFalse']): TrueFalseD
     gradingScale: trueFalse.gradingScale,
     group: trueFalse.group,
     timer: trueFalse.timer,
+    introTheme: trueFalse.introTheme,
     items: trueFalse.items.map((item) => ({ statement: item.statement, answer: item.answer })),
   }
 }

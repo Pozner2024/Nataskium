@@ -16,6 +16,7 @@ const INPUT: MatchingInput = {
   gradingScale: null,
   group: 'other',
   timer: { mode: 'none' },
+  introTheme: 'nataskium-night',
   pairs: [
     { term: 'кот', definition: 'мяукает' },
     { term: 'пёс', definition: 'лает' },

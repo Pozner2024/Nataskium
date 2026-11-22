@@ -17,6 +17,7 @@ const INPUT: QuizInput = {
   gradingScale: null,
   group: 'other',
   timer: { mode: 'none' },
+  introTheme: 'nataskium-night',
   questions: [
     {
       text: 'Столица Франции?',

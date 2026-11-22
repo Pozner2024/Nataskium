@@ -2,7 +2,7 @@ import { mountSuspended } from '@nuxt/test-utils/runtime'
 import { flushPromises } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { playApi } from '@/entities/quiz'
-import { usePlayStore } from '../store'
+import { ANSWER_ADVANCE_MS, ANSWER_FEEDBACK_MS, usePlayStore } from '../store'
 import PlayQuestion from './PlayQuestion.vue'
 
 vi.mock('@/entities/quiz', () => ({
@@ -25,6 +25,7 @@ async function startQuiz(showAnswers = false) {
       showAnswers,
       timer: { mode: 'none' },
       version: 'v1',
+      introTheme: 'nataskium-night' as const,
       questions: [
         {
           text: 'Где кошка?',
@@ -50,10 +51,12 @@ async function startQuiz(showAnswers = false) {
 
 beforeEach(() => {
   vi.resetAllMocks()
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
 })
 
 afterEach(() => {
   for (const wrapper of mounted.splice(0)) wrapper.unmount()
+  vi.useRealTimers()
 })
 
 describe('картинки на странице задания', () => {
@@ -68,8 +71,8 @@ describe('картинки на странице задания', () => {
 
     const buttons = wrapper.findAll('.play-question__option')
     expect(buttons.map((button) => button.text())).toEqual(['Тигр', '', 'Кот'])
-    expect(buttons[2]!.get('img').attributes('src')).toBe(IMAGE_A)
-    expect(buttons[2]!.get('img').attributes('alt')).toBe('')
+    expect(buttons[2]!.get('.play-question__option-img').attributes('src')).toBe(IMAGE_A)
+    expect(buttons[2]!.get('.play-question__option-img').attributes('alt')).toBe('')
     expect(buttons[2]!.attributes('aria-label')).toBeUndefined()
     expect(buttons[0]!.find('img').exists()).toBe(false)
   })
@@ -78,11 +81,11 @@ describe('картинки на странице задания', () => {
     const { store, wrapper } = await startQuiz()
     const button = wrapper.findAll('.play-question__option')[1]!
     expect(button.attributes('aria-label')).toBe('Картинка 2')
-    expect(button.get('img').attributes('src')).toBe(IMAGE_B)
+    expect(button.get('.play-question__option-img').attributes('src')).toBe(IMAGE_B)
 
     await button.trigger('click')
     expect(store.selected).toEqual([2])
-    await store.submit()
+    await vi.advanceTimersByTimeAsync(ANSWER_ADVANCE_MS)
     expect(playApi.finish).toHaveBeenCalledWith(TOKEN, { version: 'v1', answers: [[2]] })
   })
 
@@ -90,9 +93,11 @@ describe('картинки на странице задания', () => {
     vi.mocked(playApi.check).mockResolvedValue({ correct: [2] })
     const { store, wrapper } = await startQuiz(true)
     await wrapper.findAll('.play-question__option')[1]!.trigger('click')
-    await store.submit()
+    await vi.advanceTimersByTimeAsync(0)
     await flushPromises()
+    expect(store.phase).toBe('feedback')
     expect(wrapper.findAll('.play-question__option')[1]!.attributes('aria-label')).toBe('Картинка 2, верно')
+    await vi.advanceTimersByTimeAsync(ANSWER_FEEDBACK_MS)
   })
 
   it('картинка не загрузилась — заглушка, вариант остаётся выбираемым', async () => {
@@ -102,7 +107,7 @@ describe('картинки на странице задания', () => {
     expect(wrapper.get('.play-question__image-fallback').text()).toBe('Картинка не загрузилась')
 
     const button = wrapper.findAll('.play-question__option')[1]!
-    await button.get('img').trigger('error')
+    await button.get('.play-question__option-img').trigger('error')
     expect(button.find('img').exists()).toBe(false)
     expect(button.get('.play-question__option-fallback').text()).toBe('Картинка не загрузилась')
     expect(button.attributes('disabled')).toBeUndefined()
@@ -110,6 +115,26 @@ describe('картинки на странице задания', () => {
 
     await button.trigger('click')
     expect(store.selected).toEqual([2])
+  })
+})
+
+describe('размытая копия картинки', () => {
+  it('у вопроса и вариантов с картинкой есть копия-фон с тем же адресом, скрытая от скринридера', async () => {
+    const { wrapper } = await startQuiz()
+    const questionBackdrop = wrapper.get('.play-question__image .play-question__backdrop')
+    expect(questionBackdrop.attributes('src')).toBe(IMAGE_Q)
+    expect(questionBackdrop.attributes('aria-hidden')).toBe('true')
+    expect(questionBackdrop.attributes('alt')).toBe('')
+
+    const buttons = wrapper.findAll('.play-question__option')
+    expect(buttons.map((button) => button.findAll('.play-question__backdrop').map((image) => image.attributes('src')))).toEqual([[], [IMAGE_B], [IMAGE_A]])
+    for (const button of buttons.slice(1)) expect(button.get('.play-question__backdrop').attributes('aria-hidden')).toBe('true')
+  })
+
+  it('картинка не загрузилась — копия-фон тоже убрана', async () => {
+    const { wrapper } = await startQuiz()
+    await wrapper.get('.play-question__image-img').trigger('error')
+    expect(wrapper.find('.play-question__image .play-question__backdrop').exists()).toBe(false)
   })
 })
 

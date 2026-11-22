@@ -40,6 +40,7 @@ function parseCopySource(number: number, row: LibraryQuizCopyRow): QuizInput {
     gradingScale: row.gradingScale,
     group: row.groupSlug,
     timer: timerFromColumns(row.timerMode, row.timeLimitSeconds),
+    introTheme: row.introTheme,
     questions: row.questions,
   })
   if (!parsed.success) throw new Error(`Library quiz ${number} does not match the quiz schema`)
@@ -53,6 +54,7 @@ function parseMatchingCopySource(number: number, row: LibraryQuizCopyRow): Match
     gradingScale: row.gradingScale,
     group: row.groupSlug,
     timer: timerFromColumns(row.timerMode, row.timeLimitSeconds),
+    introTheme: row.introTheme,
     pairs: row.questions,
   })
   if (!parsed.success) throw new Error(`Library matching ${number} does not match the matching schema`)
@@ -66,6 +68,7 @@ function parseTrueFalseCopySource(number: number, row: LibraryQuizCopyRow): True
     gradingScale: row.gradingScale,
     group: row.groupSlug,
     timer: timerFromColumns(row.timerMode, row.timeLimitSeconds),
+    introTheme: row.introTheme,
     items: row.questions,
   })
   if (!parsed.success) throw new Error(`Library true-false ${number} does not match the true-false schema`)

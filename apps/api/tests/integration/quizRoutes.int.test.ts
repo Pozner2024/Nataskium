@@ -29,6 +29,7 @@ const INPUT: QuizInput = {
   gradingScale: null,
   group: 'other',
   timer: { mode: 'none' },
+  introTheme: 'nataskium-night',
   questions: [
     {
       text: 'Столица Франции?',
@@ -133,6 +134,29 @@ describe('/api/quizzes', () => {
     for (const timer of [{ mode: 'limit' }, { mode: 'limit', seconds: 30 }, { mode: 'none', seconds: 600 }, { mode: 'foo' }]) {
       expect((await call('POST', '/', headers, { ...INPUT, timer })).status).toBe(400)
     }
+  })
+
+  it('визуальный стиль: сохраняется в базе и меняется PATCH; без поля — стиль по умолчанию; неизвестный — 400', async () => {
+    const teacher = await createTeacher(prisma)
+    const headers = await auth(teacher.id)
+    const quiz = await createQuiz(headers, { ...INPUT, introTheme: 'nataskium-day' })
+    expect(quiz.introTheme).toBe('nataskium-day')
+    expect(quizResponseSchema.parse(await (await call('GET', `/${quiz.id}`, headers)).json()).quiz.introTheme).toBe('nataskium-day')
+    expect(await prisma.quiz.findUniqueOrThrow({ where: { id: quiz.id } })).toMatchObject({ introTheme: 'nataskium-day' })
+
+    const patched = await call('PATCH', `/${quiz.id}`, headers, { ...INPUT, introTheme: 'nataskium-night' })
+    expect(quizResponseSchema.parse(await patched.json()).quiz.introTheme).toBe('nataskium-night')
+
+    const withoutTheme: Partial<QuizInput> = { ...INPUT }
+    delete withoutTheme.introTheme
+    const response = await call('POST', '/', headers, withoutTheme)
+    expect(response.status).toBe(201)
+    expect(quizResponseSchema.parse(await response.json()).quiz.introTheme).toBe('nataskium-night')
+    const before = await prisma.quiz.count()
+    for (const introTheme of ['neon', 'Nataskium-Day', '', null]) {
+      expect((await call('POST', '/', headers, { ...INPUT, introTheme })).status).toBe(400)
+    }
+    expect(await prisma.quiz.count()).toBe(before)
   })
 
   it('101-я викторина учителя — 409, удалённые не считаются', async () => {

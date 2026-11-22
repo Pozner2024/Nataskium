@@ -18,7 +18,7 @@ const RESULT = { percent: 50, grade: '3', correctCount: 15, partialCount: 0, tot
 function trueFalse(count: number, showAnswers: boolean) {
   return {
     type: 'truefalse' as const,
-    trueFalse: { title: 'Факты', showAnswers, version: 'v1', timer: { mode: 'none' as const }, statements: Array.from({ length: count }, (_, i) => 'S' + i) },
+    trueFalse: { title: 'Факты', showAnswers, version: 'v1', introTheme: 'nataskium-night' as const, timer: { mode: 'none' as const }, statements: Array.from({ length: count }, (_, i) => 'S' + i) },
   }
 }
 

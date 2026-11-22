@@ -14,6 +14,9 @@ type PlayQuestionView = { text: string; imageUrl: string | null; selectCount: nu
 const MS_PER_SECOND = 1000
 const NOT_FOUND_STATUS = 404
 const CONFLICT_STATUS = 409
+// Как в «да/нет»: после подсветки ответа следующий вопрос появляется сам, без кнопок «Ответить» и «Дальше»
+export const ANSWER_FEEDBACK_MS = 1200
+export const ANSWER_ADVANCE_MS = 500
 
 // Состояние прохождения живёт только во вкладке; ответы на сервере не хранятся.
 // Правильные ответы появляются в `correct` лишь после check и только у викторины с showAnswers
@@ -36,6 +39,9 @@ export const usePlayStore = defineStore('play', () => {
   const result = ref<QuizResult | null>(null)
   const status = ref<PlayStatus>('loading')
   const busy = ref(false)
+  // Ответ засчитан, ждём автоперехода к следующему вопросу
+  const advancing = ref(false)
+  let advanceTimer: ReturnType<typeof setTimeout> | null = null
   const timer = ref<QuizTimer>({ mode: 'none' })
   // Метка Date.now() показа первого вопроса: отсчёт идёт по ней, а не по счётчику секунд
   const startedAt = ref<number | null>(null)
@@ -52,7 +58,15 @@ export const usePlayStore = defineStore('play', () => {
   const question = computed(() => questions.value[viewing.value] ?? null)
   const reviewing = computed(() => viewing.value !== current.value)
   const isLast = computed(() => current.value === questions.value.length - 1)
-  const canSubmit = computed(() => question.value !== null && !reviewing.value && !timedOut.value && selected.value.length === question.value.selectCount && !busy.value)
+  const canSubmit = computed(
+    () =>
+      question.value !== null &&
+      !reviewing.value &&
+      !timedOut.value &&
+      !advancing.value &&
+      selected.value.length === question.value.selectCount &&
+      !busy.value,
+  )
 
   // Только в фазе feedback, когда check уже вернул правильные варианты
   const feedback = computed<'correct' | 'partial' | 'wrong' | null>(() => {
@@ -68,7 +82,7 @@ export const usePlayStore = defineStore('play', () => {
     return phase.value === 'feedback' ? correct.value : null
   })
 
-  const canNavigate = computed(() => phase.value !== 'result' && status.value === 'ready' && !busy.value && !timedOut.value)
+  const canNavigate = computed(() => phase.value !== 'result' && status.value === 'ready' && !busy.value && !timedOut.value && !advancing.value)
   const canPrev = computed(() => canNavigate.value && viewing.value > 0)
   const canForward = computed(() => canNavigate.value && viewing.value < current.value)
 
@@ -80,7 +94,7 @@ export const usePlayStore = defineStore('play', () => {
   // Полный выбор блокирует остальные варианты, снять отметку можно всегда.
   // При одном ответе блокировки нет: клик по другому варианту заменяет выбор, как у радиокнопок
   function isDisabled(index: number): boolean {
-    if (reviewing.value || phase.value !== 'question' || busy.value || timedOut.value) return true
+    if (reviewing.value || phase.value !== 'question' || busy.value || timedOut.value || advancing.value) return true
     if (question.value === null || isSelected(index) || question.value.selectCount === 1) return false
     return selected.value.length >= question.value.selectCount
   }
@@ -92,6 +106,31 @@ export const usePlayStore = defineStore('play', () => {
       return
     }
     selected.value = question.value?.selectCount === 1 ? [index] : [...selected.value, index]
+    // Выбрано столько вариантов, сколько нужно, — ответ засчитывается сразу
+    if (canSubmit.value) void submit()
+  }
+
+  // Окно «Как играть» открыли во время подсветки ответа: переход ждёт закрытия окна, ответ под окном не сменится
+  let advanceHeld = false
+
+  function clearAdvance(): void {
+    if (advanceTimer !== null) clearTimeout(advanceTimer)
+    advanceTimer = null
+    advanceHeld = false
+    advancing.value = false
+  }
+
+  function scheduleAdvance(delayMs: number): void {
+    advancing.value = true
+    if (paused) {
+      advanceHeld = true
+      return
+    }
+    advanceTimer = setTimeout(() => {
+      advancing.value = false
+      advanceTimer = null
+      void run(goNext)
+    }, delayMs)
   }
 
   // Сбой загрузки повторяется полным стартом (retryAction = null), остальные — тем же запросом
@@ -129,6 +168,7 @@ export const usePlayStore = defineStore('play', () => {
   }
 
   function reset(): void {
+    clearAdvance()
     epoch += 1
     current.value = 0
     viewing.value = 0
@@ -141,6 +181,9 @@ export const usePlayStore = defineStore('play', () => {
     questions.value = []
     timer.value = { mode: 'none' }
     startedAt.value = null
+    clockHeld.value = false
+    pausedElapsedMs = null
+    paused = false
     timedOut.value = false
     elapsedSeconds.value = null
     finishing = false
@@ -180,13 +223,87 @@ export const usePlayStore = defineStore('play', () => {
     }, 'loading')
   }
 
+  // Уход со страницы игры: следующий показ начинается с загрузки и снова получает интро и вылет (ADR 0015)
+  function dispose(): void {
+    reset()
+    status.value = 'loading'
+  }
+
+  // Вылет первого задания (тема интро) не съедает время: пока оно вылетает, таймер стоит на полном лимите,
+  // отсчёт начинается с приземления (ADR 0015)
+  const clockHeld = ref(false)
+
+  function holdClock(): void {
+    if (startedAt.value === null) return
+    startedAt.value = null
+    clockHeld.value = true
+  }
+
+  // Пауза на время окна «Как играть»: прошедшее время замирает, после паузы отсчёт продолжается с него.
+  // Окно могут открыть и во время вылета вопроса: тогда отсчёт начнётся только после закрытия
+  let paused = false
+  let pausedElapsedMs: number | null = null
+
+  // Окно «Как играть» могли открыть, пока finish в полёте: тогда время берётся с момента паузы
+  function elapsedAtFinish(): number | null {
+    if (startedAt.value !== null) return Math.floor((Date.now() - startedAt.value) / MS_PER_SECOND)
+    return pausedElapsedMs === null ? null : Math.floor(pausedElapsedMs / MS_PER_SECOND)
+  }
+
+  function holdAdvance(): void {
+    if (advanceTimer === null) return
+    clearTimeout(advanceTimer)
+    advanceTimer = null
+    advanceHeld = true
+  }
+
+  // После закрытия окна подсветка видна ещё коротко, затем переход
+  function releaseAdvance(): void {
+    if (!advanceHeld) return
+    advanceHeld = false
+    scheduleAdvance(ANSWER_ADVANCE_MS)
+  }
+
+  function pauseClock(): void {
+    if (paused || phase.value === 'result') return
+    paused = true
+    holdAdvance()
+    if (startedAt.value === null) return
+    pausedElapsedMs = Date.now() - startedAt.value
+    elapsedSeconds.value = Math.floor(pausedElapsedMs / MS_PER_SECOND)
+    startedAt.value = null
+  }
+
+  function resumeClock(): void {
+    if (!paused) return
+    paused = false
+    releaseAdvance()
+    if (pausedElapsedMs === null) return
+    if (!(phase.value === 'result')) {
+      startedAt.value = Date.now() - pausedElapsedMs
+      elapsedSeconds.value = null
+    }
+    pausedElapsedMs = null
+  }
+
+  function restartClock(): void {
+    if (startedAt.value === null && !clockHeld.value) return
+    if (paused) {
+      pausedElapsedMs = 0
+      clockHeld.value = false
+      return
+    }
+    startedAt.value = Date.now()
+    clockHeld.value = false
+  }
+
   async function finish(): Promise<void> {
     const runEpoch = epoch
     finishing = true
     try {
       const response = await playApi.finish(token.value, { version: version.value, answers: answers.value })
       if (runEpoch !== epoch) return
-      elapsedSeconds.value = startedAt.value === null ? null : Math.floor((Date.now() - startedAt.value) / MS_PER_SECOND)
+      elapsedSeconds.value = elapsedAtFinish()
       result.value = response.result
       phase.value = 'result'
     } finally {
@@ -210,7 +327,7 @@ export const usePlayStore = defineStore('play', () => {
     const chosen = [...selected.value]
     answers.value[index] = chosen
     if (!showAnswers.value) {
-      await run(goNext)
+      scheduleAdvance(ANSWER_ADVANCE_MS)
       return
     }
     const runEpoch = epoch
@@ -221,11 +338,13 @@ export const usePlayStore = defineStore('play', () => {
       correct.value = response.correct
       checked.value[index] = response.correct
       phase.value = 'feedback'
+      scheduleAdvance(ANSWER_FEEDBACK_MS)
     })
   }
 
   async function next(): Promise<void> {
     if (busy.value || reviewing.value || phase.value !== 'feedback') return
+    clearAdvance()
     await run(goNext)
   }
 
@@ -241,6 +360,7 @@ export const usePlayStore = defineStore('play', () => {
   async function expire(): Promise<void> {
     if (phase.value === 'result' || timedOut.value || finishing) return
     timedOut.value = true
+    clearAdvance()
     if (phase.value === 'question') selected.value = []
     const runEpoch = epoch
     await inflight
@@ -259,8 +379,8 @@ export const usePlayStore = defineStore('play', () => {
 
   return {
     timer, startedAt, timedOut, elapsedSeconds,
-    title, showAnswers, questions, current, viewing, selected, answers, correct, phase, result, status, busy,
+    title, showAnswers, questions, current, viewing, selected, answers, correct, phase, result, status, busy, advancing,
     question, isLast, canSubmit, feedback, reviewing, viewCorrect, canPrev, canForward,
-    isSelected, isDisabled, toggle, start, submit, next, prev, forward, retry, expire,
+    isSelected, isDisabled, toggle, start, submit, next, prev, forward, retry, expire, holdClock, restartClock, pauseClock, resumeClock, dispose,
   }
 })

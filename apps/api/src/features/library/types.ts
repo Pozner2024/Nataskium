@@ -27,6 +27,7 @@ export type LibraryQuizCopyRow = {
   groupSlug: string
   timerMode: string
   timeLimitSeconds: number | null
+  introTheme: string
   questions: unknown
 }
 

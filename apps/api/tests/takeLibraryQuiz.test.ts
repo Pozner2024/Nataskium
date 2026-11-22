@@ -25,6 +25,7 @@ function row(overrides: Partial<LibraryQuizCopyRow> = {}): LibraryQuizCopyRow {
     groupSlug: 'other',
     timerMode: 'none',
     timeLimitSeconds: null,
+    introTheme: 'nataskium-day',
     questions: [
       {
         text: 'Столица Франции?',
@@ -144,6 +145,19 @@ describe('takeLibraryQuiz (use-case)', () => {
       await s.take(TEACHER, NUMBER)
       expect(s.created[0]!.input.timer).toEqual(timer)
     }
+  })
+
+  it.each(['nataskium-night', 'nataskium-day'])('визуальный стиль копируется: %s', async (introTheme) => {
+    const s = setup({ source: row({ introTheme }) })
+    await s.take(TEACHER, NUMBER)
+    expect(s.created[0]!.input.introTheme).toBe(introTheme)
+  })
+
+  it('неизвестный визуальный стиль → внутренняя ошибка, ничего не создано', async () => {
+    const s = setup({ source: row({ introTheme: 'neon' }) })
+    const error = await rejection(s.take(TEACHER, NUMBER))
+    expect(error).not.toBeInstanceOf(AppError)
+    expect(s.created).toHaveLength(0)
   })
 
   it('недопустимая комбинация колонок таймера → внутренняя ошибка, ничего не создано', async () => {

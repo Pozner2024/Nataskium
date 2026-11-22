@@ -19,6 +19,7 @@ const QUIZ_SELECT = {
   groupSlug: true,
   timerMode: true,
   timeLimitSeconds: true,
+  introTheme: true,
   questions: true,
   updatedAt: true,
 } satisfies Prisma.QuizSelect
@@ -33,6 +34,7 @@ function toStoredQuiz(row: QuizRow): StoredQuiz {
     gradingScale: row.gradingScale,
     group: row.groupSlug,
     timer: timerFromColumns(row.timerMode, row.timeLimitSeconds),
+    introTheme: row.introTheme,
     questions: row.questions,
   })
   if (!parsed.success) throw new Error(`Stored quiz ${row.id} does not match the quiz schema`)
@@ -88,6 +90,7 @@ export function makeQuizRepository(prisma: Prisma.TransactionClient): QuizReposi
             gradingScale: input.gradingScale,
             groupSlug: input.group,
             ...timerToColumns(input.timer),
+            introTheme: input.introTheme,
             questions: input.questions,
           },
           select: QUIZ_SELECT,
@@ -109,6 +112,7 @@ export function makeQuizRepository(prisma: Prisma.TransactionClient): QuizReposi
           gradingScale: input.gradingScale,
           groupSlug: input.group,
           ...timerToColumns(input.timer),
+          introTheme: input.introTheme,
           questions: input.questions,
         },
       })

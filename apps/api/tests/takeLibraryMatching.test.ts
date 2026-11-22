@@ -32,6 +32,7 @@ function copyRow(overrides: Partial<LibraryQuizCopyRow> = {}): LibraryQuizCopyRo
     groupSlug: 'other',
     timerMode: 'limit',
     timeLimitSeconds: 600,
+    introTheme: 'nataskium-day',
     questions: PAIRS,
     ...overrides,
   }
@@ -57,7 +58,7 @@ describe('takeLibraryQuiz: сопоставление', () => {
     expect(await take(TEACHER, NUMBER)).toEqual({ quizId: 'new-matching-id', type: 'matching' })
     expect(createMatching).toHaveBeenCalledWith(
       TEACHER,
-      { title: 'Животные', showAnswers: false, gradingScale: 'five', group: 'other', timer: { mode: 'limit', seconds: 600 }, pairs: PAIRS },
+      { title: 'Животные', showAnswers: false, gradingScale: 'five', group: 'other', timer: { mode: 'limit', seconds: 600 }, introTheme: 'nataskium-day', pairs: PAIRS },
       { isPublic: false },
     )
     expect(createQuiz).not.toHaveBeenCalled()
@@ -85,6 +86,13 @@ describe('takeLibraryQuiz: сопоставление', () => {
 
   it('строка, не прошедшая схему, — внутренняя ошибка, а не копия', async () => {
     const { take, createMatching } = setupTake({ row: copyRow({ questions: [PAIRS[0], PAIRS[0]] }) })
+
+    await expect(take(TEACHER, NUMBER)).rejects.toThrow('does not match the matching schema')
+    expect(createMatching).not.toHaveBeenCalled()
+  })
+
+  it('неизвестный визуальный стиль в строке — внутренняя ошибка, а не копия со стилем по умолчанию', async () => {
+    const { take, createMatching } = setupTake({ row: copyRow({ introTheme: 'neon' }) })
 
     await expect(take(TEACHER, NUMBER)).rejects.toThrow('does not match the matching schema')
     expect(createMatching).not.toHaveBeenCalled()

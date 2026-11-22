@@ -12,6 +12,7 @@ const MATCHING_SELECT = {
   groupSlug: true,
   timerMode: true,
   timeLimitSeconds: true,
+  introTheme: true,
   questions: true,
   updatedAt: true,
 } satisfies Prisma.QuizSelect
@@ -26,6 +27,7 @@ function toStoredMatching(row: MatchingRow): StoredMatching {
     gradingScale: row.gradingScale,
     group: row.groupSlug,
     timer: timerFromColumns(row.timerMode, row.timeLimitSeconds),
+    introTheme: row.introTheme,
     pairs: row.questions,
   })
   if (!parsed.success) throw new Error(`Stored matching ${row.id} does not match the matching schema`)
@@ -40,6 +42,7 @@ function toColumns(input: MatchingInput) {
     gradingScale: input.gradingScale,
     groupSlug: input.group,
     ...timerToColumns(input.timer),
+    introTheme: input.introTheme,
     questions: input.pairs,
   }
 }

@@ -26,6 +26,7 @@ function initial(overrides: Partial<{ showAnswers: boolean; definitions: string[
       title: 'Животные',
       showAnswers: overrides.showAnswers ?? true,
       version: 'v1',
+      introTheme: 'nataskium-night' as const,
       timer: { mode: 'none' as const },
       definitions: overrides.definitions ?? ['Мяукает', 'Лает'],
       terms: overrides.terms ?? ['собака', 'кошка'],

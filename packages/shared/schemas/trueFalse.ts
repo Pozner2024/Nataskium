@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { introThemeKeySchema } from './introTheme'
 import { matchingKey } from './matching'
 import { quizIdSchema, quizInputSchema, quizTimerSchema, requiredText, shareTokenSchema, versionSchema } from './quiz'
 import { quizResultSchema } from './quizResponses'
@@ -27,7 +28,7 @@ const trueFalseItemsSchema = z
   })
 
 // Настройки — те же, что у викторины: название, показ ответов, шкала, раздел, таймер
-const trueFalseSettingsSchema = quizInputSchema.pick({ title: true, showAnswers: true, gradingScale: true, group: true, timer: true })
+const trueFalseSettingsSchema = quizInputSchema.pick({ title: true, showAnswers: true, gradingScale: true, group: true, timer: true, introTheme: true })
 
 export const trueFalseInputSchema = trueFalseSettingsSchema.extend({ items: trueFalseItemsSchema }).strict()
 
@@ -37,6 +38,7 @@ export const trueFalseResponseSchema = z.object({
     id: quizIdSchema,
     shareToken: shareTokenSchema,
     timer: quizTimerSchema,
+    introTheme: introThemeKeySchema,
     items: z.array(z.object({ statement: z.string(), answer: z.boolean() })).max(MAX_TRUE_FALSE_ITEMS),
   }),
 })
@@ -50,6 +52,7 @@ export const playTrueFalseResponseSchema = z.object({
       showAnswers: z.boolean(),
       version: z.string().min(1),
       timer: quizTimerSchema,
+      introTheme: introThemeKeySchema,
       statements: z.array(z.string()).max(MAX_TRUE_FALSE_ITEMS),
     })
     .strict(),

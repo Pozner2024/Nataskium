@@ -99,6 +99,28 @@
         <p v-if="minutesError" id="quiz-time-limit-error" class="activity-settings__error" role="alert">{{ minutesError }}</p>
       </div>
     </div>
+
+    <div class="activity-settings__row">
+      <fieldset class="activity-settings__styles" aria-describedby="quiz-style-hint">
+        <legend class="activity-settings__legend activity-settings__legend--title">{{ t('teacher.quizEditor.settings.visualStyle') }}</legend>
+        <label v-for="style in styles" :key="style.key" class="activity-settings__style">
+          <input
+            class="activity-settings__scale-input"
+            type="radio"
+            name="quiz-style"
+            :value="style.key"
+            :checked="settings.introTheme === style.key"
+            :disabled="disabled"
+            @change="chooseStyle(style.key)"
+          >
+          <span class="activity-settings__style-card">
+            <IntroThemePreview :tone="style.tone" />
+            <span class="activity-settings__style-name">{{ t(style.nameKey) }}</span>
+          </span>
+        </label>
+      </fieldset>
+      <p id="quiz-style-hint" class="activity-settings__hint">{{ t('teacher.quizEditor.settings.visualStyleHint') }}</p>
+    </div>
   </div>
 </template>
 
@@ -108,12 +130,15 @@ import {
   DEFAULT_TIME_LIMIT_SECONDS,
   MAX_TIME_LIMIT_SECONDS,
   MIN_TIME_LIMIT_SECONDS,
+  INTRO_THEME_KEYS,
   TIMER_MODES,
   type ActivityKind,
+  type IntroThemeKey,
   type QuizTimer,
 } from '@nataskium/shared/schemas'
 import { computed, nextTick, ref, useTemplateRef, watch } from 'vue'
 import { useI18n } from '#imports'
+import { IntroThemePreview, findTheme } from '@/entities/intro-theme'
 import GroupSelect from './GroupSelect.vue'
 import type { ActivitySettingsValue, SaveActivitySettings } from './types'
 
@@ -161,6 +186,7 @@ const hintKeys = computed(
 const thresholds = computed(() => (props.settings.gradingScale ? GRADING_SCALES[props.settings.gradingScale] : []))
 // Включить оценку без шкалы нельзя: переключатель только открывает выбор, в задании шкала появляется с выбором
 const isGradingOpen = ref(props.settings.gradingScale !== null)
+const styles = INTRO_THEME_KEYS.map((key) => findTheme(key))
 const minutesText = ref('')
 const minutesError = ref('')
 const root = useTemplateRef<HTMLElement>('root')
@@ -180,6 +206,9 @@ async function restoreFields(): Promise<void> {
   }
   for (const radio of element.querySelectorAll<HTMLInputElement>('input[name="quiz-timer"]')) {
     radio.checked = radio.value === props.settings.timer.mode
+  }
+  for (const radio of element.querySelectorAll<HTMLInputElement>('input[name="quiz-style"]')) {
+    radio.checked = radio.value === props.settings.introTheme
   }
   const { timer } = props.settings
   if (timer.mode === 'limit') minutesText.value = secondsToMinutes(timer.seconds)
@@ -224,6 +253,11 @@ async function chooseTimerMode(mode: QuizTimer['mode']): Promise<void> {
   await saveOrRestore({ timer: mode === 'limit' ? { mode, seconds: DEFAULT_TIME_LIMIT_SECONDS } : { mode } })
 }
 
+async function chooseStyle(introTheme: IntroThemeKey): Promise<void> {
+  if (props.settings.introTheme === introTheme) return
+  await saveOrRestore({ introTheme })
+}
+
 async function commitMinutes(): Promise<void> {
   const parsed = minutesToSeconds(minutesText.value)
   if ('error' in parsed) {
@@ -241,6 +275,7 @@ async function commitMinutes(): Promise<void> {
 
 <style scoped lang="scss">
 @use '@/assets/styles/mixins' as *;
+@use '@/assets/styles/breakpoints.module' as *;
 
 $switch-knob: 26px;
 
@@ -512,7 +547,73 @@ $switch-knob: 26px;
   }
 }
 
+.activity-settings__styles {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+
+  // Плитки как под проигрывателем, не во всю ширину
+  @include tablet {
+    grid-template-columns: repeat(auto-fill, 150px);
+  }
+}
+
+.activity-settings__style {
+  position: relative;
+  display: flex;
+}
+
+.activity-settings__style-card {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  border: 2px solid rgb(var(--rgb-blue) / 0.3);
+  border-radius: 18px;
+  background: var(--color-white);
+  transition: border-color 0.2s ease;
+
+  @media (hover: hover) {
+    .activity-settings__scale-input:hover:not(:checked, :disabled) + & {
+      border-color: var(--color-blue);
+    }
+  }
+
+  .activity-settings__scale-input:checked + & {
+    border-color: var(--color-blue-dark);
+    box-shadow: inset 0 0 0 2px var(--color-blue-dark);
+  }
+
+  .activity-settings__scale-input:focus-visible + & {
+    outline: 3px solid var(--focus-color);
+    outline-offset: 2px;
+  }
+
+  .activity-settings__scale-input:disabled + & {
+    opacity: 0.6;
+  }
+}
+
+.activity-settings__style-name {
+  color: var(--color-blue-dark);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+
+  .activity-settings__scale-input:checked + .activity-settings__style-card & {
+    color: var(--color-text);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .activity-settings__style-card,
   .activity-settings__switch,
   .activity-settings__scale-name {
     transition: none;

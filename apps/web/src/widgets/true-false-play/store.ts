@@ -68,9 +68,13 @@ export const useTrueFalsePlayStore = defineStore('true-false-play', () => {
   const canPrev = computed(() => canNavigate.value && viewing.value > 0)
   const canForward = computed(() => canNavigate.value && viewing.value < current.value)
 
+  // Окно «Как играть» открыли во время подсветки ответа: переход ждёт закрытия окна, ответ под окном не сменится
+  let advanceHeld = false
+
   function clearAdvance(): void {
     if (advanceTimer !== null) clearTimeout(advanceTimer)
     advanceTimer = null
+    advanceHeld = false
     advancing.value = false
   }
 
@@ -122,6 +126,9 @@ export const useTrueFalsePlayStore = defineStore('true-false-play', () => {
     review.value = null
     timer.value = { mode: 'none' }
     startedAt.value = null
+    clockHeld.value = false
+    pausedElapsedMs = null
+    paused = false
     timedOut.value = false
     elapsedSeconds.value = null
     finishing = false
@@ -161,7 +168,7 @@ export const useTrueFalsePlayStore = defineStore('true-false-play', () => {
     try {
       const response = await trueFalsePlayApi.finish(token.value, { version: version.value, answers: answers.value })
       if (runEpoch !== epoch) return
-      elapsedSeconds.value = startedAt.value === null ? null : Math.floor((Date.now() - startedAt.value) / MS_PER_SECOND)
+      elapsedSeconds.value = elapsedAtFinish()
       result.value = response.result
       review.value = response.review ?? null
       phase.value = 'result'
@@ -183,6 +190,10 @@ export const useTrueFalsePlayStore = defineStore('true-false-play', () => {
 
   function scheduleAdvance(delayMs: number): void {
     advancing.value = true
+    if (paused) {
+      advanceHeld = true
+      return
+    }
     advanceTimer = setTimeout(advance, delayMs)
   }
 
@@ -236,10 +247,78 @@ export const useTrueFalsePlayStore = defineStore('true-false-play', () => {
     await run(action)
   }
 
+  // Вылет первого задания (тема интро) не съедает время: пока оно вылетает, таймер стоит на полном лимите,
+  // отсчёт начинается с приземления (ADR 0015)
+  const clockHeld = ref(false)
+
+  function holdClock(): void {
+    if (startedAt.value === null) return
+    startedAt.value = null
+    clockHeld.value = true
+  }
+
+  // Пауза на время окна «Как играть»: прошедшее время замирает, после паузы отсчёт продолжается с него.
+  // Окно могут открыть и во время вылета вопроса: тогда отсчёт начнётся только после закрытия
+  let paused = false
+  let pausedElapsedMs: number | null = null
+
+  // Окно «Как играть» могли открыть, пока finish в полёте: тогда время берётся с момента паузы
+  function elapsedAtFinish(): number | null {
+    if (startedAt.value !== null) return Math.floor((Date.now() - startedAt.value) / MS_PER_SECOND)
+    return pausedElapsedMs === null ? null : Math.floor(pausedElapsedMs / MS_PER_SECOND)
+  }
+
+  function holdAdvance(): void {
+    if (advanceTimer === null) return
+    clearTimeout(advanceTimer)
+    advanceTimer = null
+    advanceHeld = true
+  }
+
+  // После закрытия окна подсветка видна ещё коротко, затем переход
+  function releaseAdvance(): void {
+    if (!advanceHeld) return
+    advanceHeld = false
+    scheduleAdvance(ANSWER_ADVANCE_MS)
+  }
+
+  function pauseClock(): void {
+    if (paused || phase.value === 'result') return
+    paused = true
+    holdAdvance()
+    if (startedAt.value === null) return
+    pausedElapsedMs = Date.now() - startedAt.value
+    elapsedSeconds.value = Math.floor(pausedElapsedMs / MS_PER_SECOND)
+    startedAt.value = null
+  }
+
+  function resumeClock(): void {
+    if (!paused) return
+    paused = false
+    releaseAdvance()
+    if (pausedElapsedMs === null) return
+    if (!(phase.value === 'result')) {
+      startedAt.value = Date.now() - pausedElapsedMs
+      elapsedSeconds.value = null
+    }
+    pausedElapsedMs = null
+  }
+
+  function restartClock(): void {
+    if (startedAt.value === null && !clockHeld.value) return
+    if (paused) {
+      pausedElapsedMs = 0
+      clockHeld.value = false
+      return
+    }
+    startedAt.value = Date.now()
+    clockHeld.value = false
+  }
+
   return {
     token, title, showAnswers, timer, statements, current, viewing, answers, verdict, verdicts, advancing, phase, status, busy, result, review,
     startedAt, timedOut, elapsedSeconds,
     statement, isLast, canAnswer, canPrev, canForward,
-    start, answer, prev, forward, expire, retry, dispose,
+    start, answer, prev, forward, expire, retry, dispose, holdClock, restartClock, pauseClock, resumeClock,
   }
 })

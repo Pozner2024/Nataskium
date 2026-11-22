@@ -32,6 +32,7 @@ function toMatchingResponse(matching: StoredMatching): MatchingResponse {
       gradingScale: matching.gradingScale,
       group: matching.group,
       timer: matching.timer,
+      introTheme: matching.introTheme,
       pairs: matching.pairs.map(({ term, definition }) => ({ term, definition })),
       shareToken: matching.shareToken,
     },

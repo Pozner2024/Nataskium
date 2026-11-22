@@ -12,6 +12,7 @@ const TRUE_FALSE_SELECT = {
   groupSlug: true,
   timerMode: true,
   timeLimitSeconds: true,
+  introTheme: true,
   questions: true,
   updatedAt: true,
 } satisfies Prisma.QuizSelect
@@ -26,6 +27,7 @@ function toStoredTrueFalse(row: TrueFalseRow): StoredTrueFalse {
     gradingScale: row.gradingScale,
     group: row.groupSlug,
     timer: timerFromColumns(row.timerMode, row.timeLimitSeconds),
+    introTheme: row.introTheme,
     items: row.questions,
   })
   if (!parsed.success) throw new Error(`Stored true/false ${row.id} does not match the true/false schema`)
@@ -40,6 +42,7 @@ function toColumns(input: TrueFalseInput) {
     gradingScale: input.gradingScale,
     groupSlug: input.group,
     ...timerToColumns(input.timer),
+    introTheme: input.introTheme,
     questions: input.items,
   }
 }

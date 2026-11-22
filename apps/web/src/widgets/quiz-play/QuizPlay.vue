@@ -24,10 +24,10 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, provide } from 'vue'
+import { onBeforeUnmount, onMounted, provide } from 'vue'
 import { useI18n, useSeoMeta } from '#imports'
 import type { PlayQuizResponse } from '@/entities/quiz'
-import { PLAY_TIMER_KEY, usePlayerScrollRelease } from '@/features/play-session'
+import { PLAY_TIMER_KEY, usePlayerPause, usePlayerScrollRelease } from '@/features/play-session'
 import PlayQuestion from './components/PlayQuestion.vue'
 import PlayResult from './components/PlayResult.vue'
 import { usePlayStore } from './store'
@@ -38,6 +38,7 @@ const props = defineProps<{ token: string; initial?: PlayQuizResponse }>()
 
 const { t } = useI18n()
 const store = usePlayStore()
+usePlayerPause(store.pauseClock, store.resumeClock)
 
 const timer = useQuizPlayTimer()
 provide(PLAY_TIMER_KEY, timer)
@@ -47,6 +48,8 @@ useSeoMeta({ title: () => store.title, robots: 'noindex, nofollow' })
 
 // Язык игры выбирает PlayPage до загрузки (usePlayLocaleRedirect)
 onMounted(() => store.start(props.token, undefined, props.initial))
+// Стор живёт между показами: без очистки следующий показ на миг рисует старое задание и теряет вылет
+onBeforeUnmount(() => store.dispose())
 </script>
 
 <style scoped lang="scss">
@@ -70,12 +73,12 @@ onMounted(() => store.start(props.token, undefined, props.initial))
   }
 
   @include desktop {
-    max-width: 1000px;
+    max-width: 1200px;
   }
 
   :fullscreen & {
     @include desktop {
-      max-width: 1180px;
+      max-width: 1400px;
     }
   }
 }

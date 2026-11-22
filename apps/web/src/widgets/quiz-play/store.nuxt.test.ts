@@ -3,7 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { playApi } from '@/entities/quiz'
 import { ApiError } from '@/shared'
-import { usePlayStore } from './store'
+import { ANSWER_ADVANCE_MS, ANSWER_FEEDBACK_MS, usePlayStore } from './store'
 
 vi.mock('@/entities/quiz', () => ({
   playApi: { get: vi.fn(), check: vi.fn(), finish: vi.fn() },
@@ -29,6 +29,7 @@ function quiz(showAnswers: boolean) {
       showAnswers,
       timer: { mode: 'none' } as const,
       version: 'v1',
+      introTheme: 'nataskium-night' as const,
       questions: [
         { text: 'Q1', imageUrl: null, options: options('a', 'b', 'c'), selectCount: 2 },
         { text: 'Q2', imageUrl: null, options: options('d', 'e'), selectCount: 1 },
@@ -39,17 +40,28 @@ function quiz(showAnswers: boolean) {
 
 let store: ReturnType<typeof usePlayStore>
 
+// Полный выбор засчитывает ответ сам; ждём автоперехода (хватает и для задержки без показа ответов)
+async function answer(...indices: number[]): Promise<void> {
+  for (const index of indices) store.toggle(index)
+  await vi.advanceTimersByTimeAsync(ANSWER_FEEDBACK_MS)
+}
+
 beforeEach(() => {
+  vi.useFakeTimers()
   vi.resetAllMocks()
   setActivePinia(createPinia())
   store = usePlayStore()
+})
+
+afterEach(() => {
+  vi.useRealTimers()
 })
 
 describe('usePlayStore', () => {
   it('ссылка сопоставления до диспетчера PlayPage — «не найдено», а не сбой', async () => {
     get.mockResolvedValue({
       type: 'matching',
-      matching: { title: 'Т', showAnswers: false, version: 'v1', timer: { mode: 'none' }, definitions: ['A', 'B'], terms: ['b', 'a'] },
+      matching: { title: 'Т', showAnswers: false, version: 'v1', introTheme: 'nataskium-night' as const, timer: { mode: 'none' }, definitions: ['A', 'B'], terms: ['b', 'a'] },
     })
     await store.start(TOKEN, NO_SHUFFLE)
     expect(store.status).toBe('notFound')
@@ -62,33 +74,34 @@ describe('usePlayStore', () => {
     expect(get).not.toHaveBeenCalled()
   })
 
-  it('3-я отметка при selectCount = 2 не добавляется, снять отметку можно', async () => {
+  it('selectCount = 2: до полного выбора отметку можно снять, вторая отметка засчитывает ответ, третья не добавляется', async () => {
     get.mockResolvedValue(quiz(false))
     await store.start(TOKEN, NO_SHUFFLE)
     store.toggle(0)
-    store.toggle(1)
-    store.toggle(2)
-    expect(store.selected).toEqual([0, 1])
-    expect(store.isDisabled(2)).toBe(true)
     expect(store.isDisabled(1)).toBe(false)
+    store.toggle(0)
+    expect(store.selected).toEqual([])
+    store.toggle(0)
     store.toggle(1)
-    expect(store.selected).toEqual([0])
+    expect(store.answers[0]).toEqual([0, 1])
+    expect(store.advancing).toBe(true)
+    expect(store.isDisabled(2)).toBe(true)
+    store.toggle(2)
+    store.toggle(1)
+    expect(store.selected).toEqual([0, 1])
     expect(store.canSubmit).toBe(false)
   })
 
-  it('selectCount = 1: клик по другому варианту заменяет выбор, повторный клик снимает', async () => {
+  it('selectCount = 1: один клик сразу засчитывает ответ, другой вариант уже не выбрать', async () => {
     get.mockResolvedValue(quiz(false))
     await store.start(TOKEN, NO_SHUFFLE)
-    store.toggle(0)
+    await answer(0, 1)
     store.toggle(1)
-    await store.submit()
+    expect(store.answers[1]).toEqual([1])
+    expect(store.isDisabled(0)).toBe(true)
     store.toggle(0)
-    expect(store.isDisabled(1)).toBe(false)
     store.toggle(1)
     expect(store.selected).toEqual([1])
-    expect(store.canSubmit).toBe(true)
-    store.toggle(1)
-    expect(store.selected).toEqual([])
   })
 
   it('selectCount = 1: после «Ответить» выбор не меняется', async () => {
@@ -112,23 +125,25 @@ describe('usePlayStore', () => {
     get.mockResolvedValue(quiz(false))
     finish.mockReturnValue(new Promise(() => {}))
     await store.start(TOKEN, NO_SHUFFLE)
+    await answer(0, 1)
     store.toggle(0)
-    store.toggle(1)
-    await store.submit()
-    store.toggle(0)
-    void store.submit()
+    await vi.advanceTimersByTimeAsync(ANSWER_ADVANCE_MS)
+    expect(finish).toHaveBeenCalledTimes(1)
     expect(store.busy).toBe(true)
     expect(store.isDisabled(1)).toBe(true)
     store.toggle(1)
     expect(store.selected).toEqual([0])
   })
 
-  it('без showAnswers после «Ответить» сразу следующий вопрос, check не вызывается', async () => {
+  it('без showAnswers полный выбор ведёт к следующему вопросу через ANSWER_ADVANCE_MS, check не вызывается', async () => {
     get.mockResolvedValue(quiz(false))
     await store.start(TOKEN, NO_SHUFFLE)
     store.toggle(0)
     store.toggle(1)
-    await store.submit()
+    expect(store.current).toBe(0)
+    await vi.advanceTimersByTimeAsync(ANSWER_ADVANCE_MS - 1)
+    expect(store.current).toBe(0)
+    await vi.advanceTimersByTimeAsync(1)
     expect(check).not.toHaveBeenCalled()
     expect(store.current).toBe(1)
     expect(store.selected).toEqual([])
@@ -157,6 +172,68 @@ describe('usePlayStore', () => {
     expect(store.result).toEqual(RESULT)
   })
 
+  it('с showAnswers подсветка держится ANSWER_FEEDBACK_MS, затем следующий вопрос сам', async () => {
+    get.mockResolvedValue(quiz(true))
+    check.mockResolvedValue({ correct: [0, 2] })
+    await store.start(TOKEN, NO_SHUFFLE)
+    store.toggle(0)
+    store.toggle(1)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(check).toHaveBeenCalledTimes(1)
+    expect(store.phase).toBe('feedback')
+    await vi.advanceTimersByTimeAsync(ANSWER_FEEDBACK_MS - 1)
+    expect(store.current).toBe(0)
+    expect(store.feedback).toBe('partial')
+    await vi.advanceTimersByTimeAsync(1)
+    expect(store.current).toBe(1)
+    expect(store.phase).toBe('question')
+    expect(store.correct).toEqual([])
+  })
+
+  it('окно «Как играть» во время подсветки: вопрос не меняется, после закрытия переход через ANSWER_ADVANCE_MS', async () => {
+    get.mockResolvedValue(quiz(true))
+    check.mockResolvedValue({ correct: [0, 2] })
+    await store.start(TOKEN, NO_SHUFFLE)
+    store.toggle(0)
+    store.toggle(1)
+    await vi.advanceTimersByTimeAsync(0)
+    store.pauseClock()
+    await vi.advanceTimersByTimeAsync(ANSWER_FEEDBACK_MS * 3)
+    expect(store.current).toBe(0)
+    expect(store.phase).toBe('feedback')
+    store.resumeClock()
+    await vi.advanceTimersByTimeAsync(ANSWER_ADVANCE_MS)
+    expect(store.current).toBe(1)
+  })
+
+  it('ушли со страницы, не закрыв «Как играть»: следующая игра не стоит на паузе', async () => {
+    get.mockResolvedValue(quiz(false))
+    await store.start(TOKEN, NO_SHUFFLE)
+    store.pauseClock()
+    store.dispose()
+
+    await store.start(TOKEN, NO_SHUFFLE)
+    store.toggle(0)
+    store.toggle(1)
+    await vi.advanceTimersByTimeAsync(ANSWER_ADVANCE_MS)
+    expect(store.current).toBe(1)
+  })
+
+  it('«Дальше» во время подсветки переходит сразу и отменяет автопереход', async () => {
+    get.mockResolvedValue(quiz(true))
+    check.mockResolvedValue({ correct: [0, 1] })
+    await store.start(TOKEN, NO_SHUFFLE)
+    store.toggle(0)
+    store.toggle(1)
+    await vi.advanceTimersByTimeAsync(0)
+    await store.next()
+    expect(store.current).toBe(1)
+    expect(store.advancing).toBe(false)
+    await vi.advanceTimersByTimeAsync(ANSWER_FEEDBACK_MS)
+    expect(store.current).toBe(1)
+    expect(finish).not.toHaveBeenCalled()
+  })
+
   it('варианты уходят на сервер с исходными индексами', async () => {
     get.mockResolvedValue(quiz(false))
     await store.start(TOKEN, () => 0)
@@ -174,22 +251,19 @@ describe('usePlayStore', () => {
 
     get.mockResolvedValue(quiz(false))
     await store.start(TOKEN, NO_SHUFFLE)
-    store.toggle(0)
-    store.toggle(1)
-    await store.submit()
-    store.toggle(0)
     finish.mockRejectedValue(new ApiError(409))
-    await store.submit()
+    await answer(0, 1)
+    await answer(0)
     expect(store.status).toBe('changed')
   })
 
   it('сбой сети — failed, retry повторяет тот же запрос', async () => {
     get.mockResolvedValue(quiz(true))
     await store.start(TOKEN, NO_SHUFFLE)
+    check.mockRejectedValueOnce(new ApiError(0)).mockResolvedValueOnce({ correct: [0, 1] })
     store.toggle(0)
     store.toggle(1)
-    check.mockRejectedValueOnce(new ApiError(0)).mockResolvedValueOnce({ correct: [0, 1] })
-    await store.submit()
+    await vi.advanceTimersByTimeAsync(0)
     expect(store.status).toBe('failed')
     await store.retry()
     expect(store.status).toBe('ready')
@@ -210,11 +284,8 @@ describe('usePlayStore', () => {
     get.mockResolvedValue(quiz(false))
     finish.mockResolvedValue({ result: RESULT })
     await store.start(TOKEN, NO_SHUFFLE)
-    store.toggle(0)
-    store.toggle(1)
-    await store.submit()
-    store.toggle(0)
-    await store.submit()
+    await answer(0, 1)
+    await answer(0)
     expect(store.phase).toBe('result')
     await store.start()
     expect(store.phase).toBe('question')
@@ -229,38 +300,38 @@ describe('usePlayStore', () => {
     check.mockReturnValue(new Promise((resolve) => { release = resolve }))
     store.toggle(0)
     store.toggle(1)
-    const pending = store.submit()
+    expect(check).toHaveBeenCalledTimes(1)
     await store.start()
     release({ correct: [0, 1] })
-    await pending
+    await vi.advanceTimersByTimeAsync(ANSWER_FEEDBACK_MS)
     expect(store.phase).toBe('question')
     expect(store.correct).toEqual([])
+    expect(store.current).toBe(0)
   })
 
   it('поздний ответ finish после «Пройти ещё раз» не применяется', async () => {
     get.mockResolvedValue(quiz(false))
     await store.start(TOKEN, NO_SHUFFLE)
-    store.toggle(0)
-    store.toggle(1)
-    await store.submit()
+    await answer(0, 1)
     let release: (value: { result: typeof RESULT }) => void = () => {}
     finish.mockReturnValue(new Promise((resolve) => { release = resolve }))
-    store.toggle(0)
-    const pending = store.submit()
+    await answer(0)
+    expect(finish).toHaveBeenCalledTimes(1)
     await store.start()
     release({ result: RESULT })
-    await pending
+    await vi.advanceTimersByTimeAsync(0)
     expect(store.phase).toBe('question')
     expect(store.result).toBeNull()
   })
 
-  it('двойной submit — один вызов check', async () => {
+  it('автоотправка и повторный submit — один вызов check', async () => {
     get.mockResolvedValue(quiz(true))
     check.mockResolvedValue({ correct: [0, 1] })
     await store.start(TOKEN, NO_SHUFFLE)
     store.toggle(0)
     store.toggle(1)
     await Promise.all([store.submit(), store.submit()])
+    await vi.advanceTimersByTimeAsync(0)
     expect(check).toHaveBeenCalledTimes(1)
   })
 
@@ -275,22 +346,22 @@ describe('usePlayStore', () => {
   it('feedback: верно, частично, неверно', async () => {
     get.mockResolvedValue(quiz(true))
     await store.start(TOKEN, NO_SHUFFLE)
+    check.mockResolvedValue({ correct: [0, 1] })
     store.toggle(0)
     store.toggle(1)
-    check.mockResolvedValue({ correct: [0, 1] })
-    await store.submit()
+    await vi.advanceTimersByTimeAsync(0)
     expect(store.feedback).toBe('correct')
     await store.start(TOKEN, NO_SHUFFLE)
+    check.mockResolvedValue({ correct: [0, 2] })
     store.toggle(0)
     store.toggle(1)
-    check.mockResolvedValue({ correct: [0, 2] })
-    await store.submit()
+    await vi.advanceTimersByTimeAsync(0)
     expect(store.feedback).toBe('partial')
     await store.start(TOKEN, NO_SHUFFLE)
+    check.mockResolvedValue({ correct: [2] })
     store.toggle(0)
     store.toggle(1)
-    check.mockResolvedValue({ correct: [2] })
-    await store.submit()
+    await vi.advanceTimersByTimeAsync(0)
     expect(store.feedback).toBe('wrong')
   })
 })
@@ -308,6 +379,7 @@ describe('usePlayStore: картинки', () => {
         showAnswers: false,
         timer: { mode: 'none' },
         version: 'v1',
+        introTheme: 'nataskium-night' as const,
         questions: [
           {
             text: 'Q1',
@@ -330,8 +402,7 @@ describe('usePlayStore: картинки', () => {
       { text: 'c', imageUrl: IMAGE_C, index: 2 },
       { text: '', imageUrl: IMAGE_A, index: 0 },
     ])
-    store.toggle(store.question!.options[2]!.index)
-    await store.submit()
+    await answer(store.question!.options[2]!.index)
     expect(finish).toHaveBeenCalledWith(TOKEN, { version: 'v1', answers: [[0]] })
   })
 })
@@ -345,12 +416,7 @@ describe('usePlayStore: таймер', () => {
   }
 
   beforeEach(() => {
-    vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(START)
-  })
-
-  afterEach(() => {
-    vi.useRealTimers()
   })
 
   it('startedAt ставится после загрузки вопросов, а не раньше', async () => {
@@ -370,15 +436,27 @@ describe('usePlayStore: таймер', () => {
     finish.mockResolvedValue({ result: RESULT })
     await store.start(TOKEN, NO_SHUFFLE)
     store.toggle(0)
-    store.toggle(1)
-    await store.submit()
-    store.toggle(0)
     await store.expire()
     expect(finish).toHaveBeenCalledTimes(1)
-    expect(finish).toHaveBeenCalledWith(TOKEN, { version: 'v1', answers: [[0, 1], []] })
+    expect(finish).toHaveBeenCalledWith(TOKEN, { version: 'v1', answers: [[], []] })
     expect(store.timedOut).toBe(true)
     expect(store.phase).toBe('result')
     expect(store.selected).toEqual([])
+  })
+
+  it('expire во время автоперехода: засчитанный ответ уходит, переход отменён, finish один', async () => {
+    get.mockResolvedValue(timedQuiz(false, { mode: 'limit', seconds: 60 }))
+    finish.mockResolvedValue({ result: RESULT })
+    await store.start(TOKEN, NO_SHUFFLE)
+    store.toggle(0)
+    store.toggle(1)
+    expect(store.advancing).toBe(true)
+    await store.expire()
+    await vi.advanceTimersByTimeAsync(ANSWER_FEEDBACK_MS)
+    expect(store.advancing).toBe(false)
+    expect(store.current).toBe(0)
+    expect(finish).toHaveBeenCalledTimes(1)
+    expect(finish).toHaveBeenCalledWith(TOKEN, { version: 'v1', answers: [[0, 1], []] })
   })
 
   it('expire без единого ответа: все массивы пустые', async () => {
@@ -396,7 +474,7 @@ describe('usePlayStore: таймер', () => {
     await store.start(TOKEN, NO_SHUFFLE)
     store.toggle(0)
     store.toggle(1)
-    await store.submit()
+    await vi.advanceTimersByTimeAsync(0)
     expect(store.phase).toBe('feedback')
     await store.expire()
     expect(finish).toHaveBeenCalledWith(TOKEN, { version: 'v1', answers: [[0, 1], []] })
@@ -406,10 +484,7 @@ describe('usePlayStore: таймер', () => {
     get.mockResolvedValue(timedQuiz(false, { mode: 'limit', seconds: 60 }))
     finish.mockReturnValue(new Promise(() => {}))
     await store.start(TOKEN, NO_SHUFFLE)
-    store.toggle(0)
-    store.toggle(1)
-    await store.submit()
-    store.toggle(0)
+    await answer(0, 1)
     void store.expire()
     expect(store.timedOut).toBe(true)
     expect(store.phase).toBe('question')
@@ -431,11 +506,8 @@ describe('usePlayStore: таймер', () => {
     get.mockResolvedValue(timedQuiz(false, { mode: 'limit', seconds: 60 }))
     finish.mockResolvedValue({ result: RESULT })
     await store.start(TOKEN, NO_SHUFFLE)
-    store.toggle(0)
-    store.toggle(1)
-    await store.submit()
-    store.toggle(0)
-    await store.submit()
+    await answer(0, 1)
+    await answer(0)
     expect(store.phase).toBe('result')
     await store.expire()
     expect(finish).toHaveBeenCalledTimes(1)
@@ -509,12 +581,9 @@ describe('usePlayStore: таймер', () => {
       return { result: RESULT }
     })
     await store.start(TOKEN, NO_SHUFFLE)
-    store.toggle(0)
-    store.toggle(1)
-    await store.submit()
+    await answer(0, 1)
     expect(store.elapsedSeconds).toBeNull()
-    store.toggle(0)
-    await store.submit()
+    await answer(0)
     expect(store.elapsedSeconds).toBe(222)
     vi.setSystemTime(START + 900 * MS)
     expect(store.elapsedSeconds).toBe(222)
@@ -525,11 +594,8 @@ describe('usePlayStore: таймер', () => {
     finish.mockResolvedValue({ result: RESULT })
     await store.start(TOKEN, NO_SHUFFLE)
     expect(store.timer).toEqual({ mode: 'none' })
-    store.toggle(0)
-    store.toggle(1)
-    await store.submit()
-    store.toggle(0)
-    await store.submit()
+    await answer(0, 1)
+    await answer(0)
     expect(store.timedOut).toBe(false)
     expect(finish).toHaveBeenCalledWith(TOKEN, { version: 'v1', answers: [[0, 1], [0]] })
   })
@@ -538,11 +604,8 @@ describe('usePlayStore: таймер', () => {
     let release: (value: { result: typeof RESULT }) => void = () => {}
     finish.mockReturnValue(new Promise((resolve) => { release = resolve }))
     await store.start(TOKEN, NO_SHUFFLE)
-    store.toggle(0)
-    store.toggle(1)
-    await store.submit()
-    store.toggle(0)
-    const submitting = store.submit()
+    await answer(0, 1)
+    await answer(0)
     expect(finish).toHaveBeenCalledTimes(1)
 
     vi.setSystemTime(START + 61 * MS)
@@ -551,7 +614,7 @@ describe('usePlayStore: таймер', () => {
     expect(finish).toHaveBeenCalledTimes(1)
 
     release({ result: RESULT })
-    await submitting
+    await vi.advanceTimersByTimeAsync(0)
     expect(store.phase).toBe('result')
     expect(store.timedOut).toBe(false)
   })
@@ -560,11 +623,8 @@ describe('usePlayStore: таймер', () => {
     get.mockResolvedValue(timedQuiz(false, { mode: 'limit', seconds: 60 }))
     finish.mockRejectedValueOnce(new ApiError(0)).mockResolvedValueOnce({ result: RESULT })
     await store.start(TOKEN, NO_SHUFFLE)
-    store.toggle(0)
-    store.toggle(1)
-    await store.submit()
-    store.toggle(0)
-    await store.submit()
+    await answer(0, 1)
+    await answer(0)
     expect(store.status).toBe('failed')
     expect(store.timedOut).toBe(false)
 

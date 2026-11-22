@@ -1,7 +1,12 @@
 <template>
+  <div v-if="themeKey && themeFrame" class="intro-preview-page__theme">
+    <IntroTheme ref="themePreview" :theme-key="themeKey" :state="themeState" />
+  </div>
   <IntroPlayer
+    v-else
     :key="runKey"
     :src="videoSrc"
+    :intro-theme="themeKey"
     :style="{ '--header-height': '0px' }"
     :type-label="intro.typeLabel"
     title="Математика цивилизаций"
@@ -34,9 +39,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref, useTemplateRef } from 'vue'
 import { useRoute, useSeoMeta } from '#imports'
 import { IntroPlayer } from '@/widgets/intro-player'
+import { IntroTheme } from '@/entities/intro-theme'
 
 useSeoMeta({ robots: 'noindex, nofollow' })
 
@@ -62,6 +68,17 @@ function isAllowedSrc(value: string): boolean {
 
 const intro = computed(() => (route.query.type === 'match' ? INTROS.match : INTROS.quiz))
 
+// Тема кодом: ?theme=<ключ> — в проигрывателе со стартовым экраном (неизвестный ключ — тема по умолчанию).
+// Только сцена: ?frame=logo — кадр с собранным лого, ?frame=intro — интро сразу после загрузки (повтор — перезагрузить)
+const themeKey = computed(() => (typeof route.query.theme === 'string' ? route.query.theme : null))
+const themeFrame = computed(() => route.query.frame === 'logo' || route.query.frame === 'intro')
+const themeState = computed(() => (route.query.frame === 'logo' ? 'assembled' : 'clean'))
+const themePreview = useTemplateRef<InstanceType<typeof IntroTheme>>('themePreview')
+
+onMounted(() => {
+  if (route.query.frame === 'intro') themePreview.value?.play()
+})
+
 const videoSrc = computed(() => {
   const raw = route.query.src
   return typeof raw === 'string' && isAllowedSrc(raw) ? raw : DEFAULT_SRC
@@ -69,6 +86,11 @@ const videoSrc = computed(() => {
 </script>
 
 <style scoped lang="scss">
+.intro-preview-page__theme {
+  position: relative;
+  height: 100dvh;
+}
+
 .intro-preview-page {
   display: flex;
   flex: 1;

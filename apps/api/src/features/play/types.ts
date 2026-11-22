@@ -2,7 +2,7 @@ import type { GradingScaleType } from '@nataskium/shared/grading'
 import type { MatchingInput, QuizInput, TrueFalseInput } from '@nataskium/shared/schemas'
 
 // Только то, что нужно игре ученика. Фича не знает о репозитории викторин: связывание в app.ts
-export type PlayableQuiz = Pick<QuizInput, 'title' | 'showAnswers' | 'timer' | 'questions'> & {
+export type PlayableQuiz = Pick<QuizInput, 'title' | 'showAnswers' | 'timer' | 'introTheme' | 'questions'> & {
   gradingScale: GradingScaleType | null
   updatedAt: Date
 }
@@ -12,7 +12,7 @@ export type PlayQuizSource = {
   findByShareToken(token: string): Promise<PlayableQuiz | null>
 }
 
-export type PlayableMatching = Pick<MatchingInput, 'title' | 'showAnswers' | 'timer' | 'pairs'> & {
+export type PlayableMatching = Pick<MatchingInput, 'title' | 'showAnswers' | 'timer' | 'introTheme' | 'pairs'> & {
   gradingScale: GradingScaleType | null
   updatedAt: Date
 }
@@ -22,7 +22,7 @@ export type PlayMatchingSource = {
   findByShareToken(token: string): Promise<PlayableMatching | null>
 }
 
-export type PlayableTrueFalse = Pick<TrueFalseInput, 'title' | 'showAnswers' | 'timer' | 'items'> & {
+export type PlayableTrueFalse = Pick<TrueFalseInput, 'title' | 'showAnswers' | 'timer' | 'introTheme' | 'items'> & {
   gradingScale: GradingScaleType | null
   updatedAt: Date
 }

@@ -20,7 +20,7 @@ describe('playApi', () => {
 
   const MATCHING_BODY = {
     type: 'matching',
-    matching: { title: 'Т', showAnswers: false, version: 'v1', timer: { mode: 'none' }, definitions: ['A', 'B'], terms: ['b', 'a'] },
+    matching: { title: 'Т', showAnswers: false, version: 'v1', introTheme: 'nataskium-night' as const, timer: { mode: 'none' }, definitions: ['A', 'B'], terms: ['b', 'a'] },
   }
 
   function stubFetchJson(body: unknown) {

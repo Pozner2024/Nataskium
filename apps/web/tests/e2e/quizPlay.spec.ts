@@ -1,13 +1,14 @@
 import { expect, test, type Page } from '@playwright/test'
 
+// Интро и вылет вопроса темы по умолчанию — анимация на несколько секунд; эти тесты проверяют игру, поэтому анимации выключены
+test.use({ contextOptions: { reducedMotion: 'reduce' } })
+
 const TOKEN = 'AAAAAAAAAAAAAAAAAAAAAA'
 const VERSION = 'v1'
 
-// Перед загруженным заданием — стартовый экран интро: игра появляется после «Начать».
-// «Начать» разворачивает проигрыватель на весь экран: ждём, пока раскладка встанет, иначе координаты устареют
+// Перед загруженным заданием — стартовый экран интро: игра появляется после «Начать»
 async function startIntro(page: Page) {
   await page.locator('.intro-player__start-button').click()
-  await page.waitForFunction(() => !document.fullscreenEnabled || document.fullscreenElement !== null)
 }
 
 function options(...texts: string[]) {
@@ -22,6 +23,7 @@ function quizBody(showAnswers: boolean) {
       showAnswers,
       timer: { mode: 'none' },
       version: VERSION,
+      introTheme: 'nataskium-night',
       questions: [
         { text: 'Capital of France?', imageUrl: null, options: options('Paris', 'Rome', 'Berlin'), selectCount: 1 },
         { text: 'Danube cities?', imageUrl: null, options: options('Vienna', 'Prague', 'Budapest', 'Madrid'), selectCount: 2 },
@@ -49,6 +51,7 @@ function imageQuizBody() {
       showAnswers: false,
       timer: { mode: 'none' },
       version: VERSION,
+      introTheme: 'nataskium-night',
       questions: [
         {
           text: 'Where is the cat?',
@@ -105,27 +108,18 @@ test.describe('игра ученика', () => {
     await expect(page.getByRole('heading', { name: 'Capital of France?' })).toBeVisible()
     await expect(page.getByText('Select 1 answer')).toBeVisible()
 
-    const submit = page.getByRole('button', { name: 'Answer' })
-    await expect(submit).toBeDisabled()
+    // Кнопок «Ответить» и «Дальше» нет: полный выбор засчитывается сам, следующий вопрос появляется после подсветки
+    await expect(page.getByRole('button', { name: 'Answer' })).toHaveCount(0)
     await pick(page, 'Paris')
-    // Один ответ: клик по другому варианту заменяет выбор, блокировки нет
-    await expect(page.getByRole('button', { name: 'Rome' })).toBeEnabled()
-    await pick(page, 'Rome')
-    await expect(page.getByRole('button', { name: 'Rome' })).toHaveAttribute('aria-pressed', 'true')
-    await expect(page.getByRole('button', { name: 'Paris', exact: true })).toHaveAttribute('aria-pressed', 'false')
-    await pick(page, 'Paris')
-    await submit.click()
     await expect(page.locator('.play-question__option--correct')).toHaveCount(1)
-    await page.getByRole('button', { name: 'Next', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'Rome' })).toBeDisabled()
 
     await expect(page.getByText('Select 2 answers')).toBeVisible()
     await pick(page, 'Vienna')
     await pick(page, 'Prague')
-    await submit.click()
     await expect(page.locator('.play-question__option--correct')).toHaveCount(1)
     await expect(page.locator('.play-question__option--wrong')).toHaveCount(1)
     await expect(page.locator('.play-question__option--missed')).toHaveCount(1)
-    await page.getByRole('button', { name: 'Next', exact: true }).click()
 
     await expect(page.getByText('100%')).toBeVisible()
     await expect(page.getByText('Grade: 5')).toBeVisible()
@@ -147,8 +141,6 @@ test.describe('игра ученика', () => {
     await expect(forward).toBeDisabled()
 
     await pick(page, 'Rome')
-    await page.getByRole('button', { name: 'Answer' }).click()
-    await page.getByRole('button', { name: 'Next', exact: true }).click()
     await expect(page.getByRole('heading', { name: 'Danube cities?' })).toBeVisible()
     await expect(prev).toBeEnabled()
 
@@ -175,7 +167,7 @@ test.describe('игра ученика', () => {
     await expect(page.getByText('Выберите 1 ответ', { exact: true })).toBeVisible()
   })
 
-  test('ответы скрыты: после «Ответить» нет подсветки, check не вызывается', async ({ browser }) => {
+  test('ответы скрыты: после выбора нет подсветки, check не вызывается, следующий вопрос сам', async ({ browser }) => {
     const context = await browser.newContext({ locale: 'en-US' })
     const page = await context.newPage()
     const calls = await mockApi(page, false)
@@ -183,7 +175,6 @@ test.describe('игра ученика', () => {
     await page.goto(`/play/${TOKEN}`)
     await startIntro(page)
     await pick(page, 'Paris')
-    await page.getByRole('button', { name: 'Answer' }).click()
 
     await expect(page.getByRole('heading', { name: 'Danube cities?' })).toBeVisible()
     await expect(page.locator('.play-question__mark')).toHaveCount(0)
@@ -207,11 +198,9 @@ test.describe('игра ученика', () => {
     await page.goto(`/play/${TOKEN}`)
     await startIntro(page)
     await pick(page, 'Paris')
-    await page.getByRole('button', { name: 'Answer' }).click()
-    await page.getByRole('button', { name: 'Next', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'Danube cities?' })).toBeVisible()
     await pick(page, 'Vienna')
     await pick(page, 'Prague')
-    await page.getByRole('button', { name: 'Answer' }).click()
 
     const missed = page.locator('.play-question__option--missed')
     await expect(missed).toContainText('correct option, not selected')
@@ -235,11 +224,10 @@ test.describe('игра ученика', () => {
 
     await page.goto(`/play/${TOKEN}`)
     await startIntro(page)
-    for (const names of [['Paris'], ['Vienna', 'Prague']]) {
-      for (const name of names) await pick(page, name)
-      await page.getByRole('button', { name: 'Answer' }).click()
-      await page.getByRole('button', { name: 'Next', exact: true }).click()
-    }
+    await pick(page, 'Paris')
+    await expect(page.getByRole('heading', { name: 'Danube cities?' })).toBeVisible()
+    await pick(page, 'Vienna')
+    await pick(page, 'Prague')
 
     await expect(page.getByText('75%')).toBeVisible()
     await expect(page.getByText('Correct: 1 of 2')).toBeVisible()
@@ -263,7 +251,6 @@ test.describe('игра ученика', () => {
     await page.goto(`/play/${TOKEN}`)
     await startIntro(page)
     await pick(page, 'Paris')
-    await page.getByRole('button', { name: 'Answer' }).click()
     await expect(page.getByRole('alert')).toHaveText('The activity has changed, please start over')
 
     await page.getByRole('button', { name: 'Start over' }).click()
@@ -288,7 +275,6 @@ test.describe('игра ученика', () => {
     await page.goto(`/play/${TOKEN}`)
     await startIntro(page)
     await pick(page, 'Paris')
-    await page.getByRole('button', { name: 'Answer' }).click()
     await expect(page.getByRole('alert')).toHaveText('Something went wrong, please try again')
 
     await page.getByRole('button', { name: 'Try again' }).click()
@@ -332,15 +318,17 @@ test.describe('игра ученика', () => {
 
     const images = page.getByRole('button', { name: /^Image \d$/ })
     await expect(images).toHaveCount(2)
-    await expect(page.getByRole('button', { name: 'Tiger' }).locator('img')).toHaveCount(1)
+    await expect(page.getByRole('button', { name: 'Tiger' }).locator('.play-question__option-img')).toHaveCount(1)
+    // Поля картинки закрывает её размытая копия; у битой картинки копии нет
+    await expect(page.getByRole('button', { name: 'Tiger' }).locator('.play-question__backdrop')).toHaveAttribute('aria-hidden', 'true')
     await expect(page.locator('.play-question__option-fallback')).toHaveCount(1)
+    await expect(page.locator('.play-question__option', { has: page.locator('.play-question__option-fallback') }).locator('img')).toHaveCount(0)
 
     const broken = page.locator('.play-question__option', { has: page.locator('.play-question__option-fallback') })
     await expect(broken).toBeEnabled()
     const cat = page.locator('.play-question__option', { has: page.locator(`img[src="${IMAGE_CAT}"]`) })
     await cat.click()
     await expect(cat).toHaveAttribute('aria-pressed', 'true')
-    await page.getByRole('button', { name: 'Answer' }).click()
 
     await expect(page.getByText('100%')).toBeVisible()
     expect(answers).toEqual([[0]])
@@ -371,7 +359,6 @@ test.describe('игра ученика: таймер', () => {
     await expect(page.getByRole('timer')).toContainText('1:00')
 
     await pick(page, 'Paris')
-    await page.getByRole('button', { name: 'Answer' }).click()
     await expect(page.getByRole('heading', { name: 'Danube cities?' })).toBeVisible()
     await pick(page, 'Vienna')
 

@@ -2,7 +2,7 @@ import { mountSuspended } from '@nuxt/test-utils/runtime'
 import { flushPromises } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { playApi } from '@/entities/quiz'
-import { usePlayStore } from '../store'
+import { ANSWER_FEEDBACK_MS, usePlayStore } from '../store'
 import PlayQuestion from './PlayQuestion.vue'
 import PlayResult from './PlayResult.vue'
 
@@ -22,6 +22,7 @@ async function startQuiz() {
       showAnswers: true,
       timer: { mode: 'none' },
       version: 'v1',
+      introTheme: 'nataskium-night' as const,
       questions: [
         { text: 'Q1', imageUrl: null, options: [{ text: 'a', imageUrl: null }, { text: 'b', imageUrl: null }], selectCount: 1 },
         { text: 'Q2', imageUrl: null, options: [{ text: 'c', imageUrl: null }, { text: 'd', imageUrl: null }], selectCount: 1 },
@@ -37,14 +38,16 @@ async function startQuiz() {
 
 beforeEach(() => {
   vi.resetAllMocks()
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
 })
 
 afterEach(() => {
   for (const wrapper of mounted.splice(0)) wrapper.unmount()
+  vi.useRealTimers()
 })
 
 describe('фокус в игре', () => {
-  it('после «Ответить» фокус на «Дальше», затем на заголовке нового вопроса, затем на заголовке итога', async () => {
+  it('после ответа фокус остаётся на заголовке вопроса, после автоперехода — на заголовке нового, затем итога', async () => {
     const store = await startQuiz()
     const question = await mountSuspended(PlayQuestion, { attachTo: document.body })
     mounted.push(question)
@@ -53,18 +56,19 @@ describe('фокус в игре', () => {
     expect(document.activeElement?.textContent).toBe('Q1')
 
     store.toggle(0)
-    await store.submit()
+    await vi.advanceTimersByTimeAsync(0)
     await flushPromises()
-    expect(document.activeElement).toBe(question.get('.play-question__action').element)
+    expect(store.phase).toBe('feedback')
+    expect(document.activeElement).toBe(question.get('.play-question__text').element)
     expect(question.get('[aria-live="polite"]').text()).toBe('Верно')
 
-    await store.next()
+    await vi.advanceTimersByTimeAsync(ANSWER_FEEDBACK_MS)
     await flushPromises()
     expect(document.activeElement?.textContent).toBe('Q2')
 
     store.toggle(0)
-    await store.submit()
-    await store.next()
+    await vi.advanceTimersByTimeAsync(ANSWER_FEEDBACK_MS)
+    expect(store.phase).toBe('result')
     const result = await mountSuspended(PlayResult, { attachTo: document.body })
     mounted.push(result)
     await flushPromises()

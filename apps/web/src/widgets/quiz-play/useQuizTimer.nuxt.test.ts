@@ -212,10 +212,9 @@ describe('useQuizTimer: режимы без лимита', () => {
   it('stopwatch: после результата счёт замораживается значением из стора', async () => {
     await startWith({ mode: 'stopwatch' })
     await advance(10)
+    // Выбор засчитывается сам, итог приходит после автоперехода
     store.toggle(0)
-    await store.submit()
-    await flushPromises()
-    expect(store.phase).toBe('result')
+    await vi.waitFor(() => expect(store.phase).toBe('result'))
     await advance(30)
     expect(view.elapsedSeconds.value).toBe(store.elapsedSeconds)
     expect(vi.getTimerCount()).toBe(0)

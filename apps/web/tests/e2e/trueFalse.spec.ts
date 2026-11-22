@@ -1,5 +1,8 @@
 import { expect, test, type Page } from '@playwright/test'
 
+// Интро и вылет вопроса темы по умолчанию — анимация на несколько секунд; эти тесты проверяют игру, поэтому анимации выключены
+test.use({ contextOptions: { reducedMotion: 'reduce' } })
+
 const TOKEN = 'CCCCCCCCCCCCCCCCCCCCCC'
 const VERSION = 'v1'
 
@@ -8,17 +11,15 @@ const STATEMENTS = ['Земля круглая', 'Солнце холодное'
 const [FIRST, SECOND, THIRD] = STATEMENTS
 const CORRECT_ANSWERS = [true, false, true]
 
-// Перед загруженным заданием — стартовый экран интро: игра появляется после «Начать».
-// «Начать» разворачивает проигрыватель на весь экран: ждём, пока раскладка встанет, иначе координаты устареют
+// Перед загруженным заданием — стартовый экран интро: игра появляется после «Начать»
 async function startIntro(page: Page) {
   await page.locator('.intro-player__start-button').click()
-  await page.waitForFunction(() => !document.fullscreenEnabled || document.fullscreenElement !== null)
 }
 
 function activityBody(showAnswers: boolean) {
   return {
     type: 'truefalse',
-    trueFalse: { title: 'Факты', showAnswers, version: VERSION, timer: { mode: 'none' }, statements: STATEMENTS },
+    trueFalse: { title: 'Факты', showAnswers, version: VERSION, introTheme: 'nataskium-night', timer: { mode: 'none' }, statements: STATEMENTS },
   }
 }
 

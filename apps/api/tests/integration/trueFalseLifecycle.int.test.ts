@@ -21,6 +21,7 @@ const inputOf = (items: { statement: string; answer: boolean }[], overrides: Par
   gradingScale: 'five',
   group: 'other',
   timer: { mode: 'none' },
+  introTheme: 'nataskium-night',
   items,
   ...overrides,
 })

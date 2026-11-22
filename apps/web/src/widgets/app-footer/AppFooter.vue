@@ -54,7 +54,9 @@ const currentYear = useState('footer-year', () => new Date().getFullYear())
     inset: 0;
     z-index: -1;
     pointer-events: none;
-    background: url($board-white) 0 0 / #{$board-tile-size} auto repeat;
+    // Узор как в ночной теме интро Nataskium: синяя плата
+    opacity: 0.6;
+    background: url($board-pattern) 0 0 / #{$board-tile-size} auto repeat;
     -webkit-mask-image: radial-gradient(ellipse 73% 100% at 0% 100%, #000 0%, transparent 100%);
             mask-image: radial-gradient(ellipse 73% 100% at 0% 100%, #000 0%, transparent 100%);
   }

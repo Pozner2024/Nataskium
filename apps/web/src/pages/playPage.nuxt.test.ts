@@ -22,18 +22,19 @@ const QUIZ = {
     showAnswers: false,
     timer: { mode: 'none' as const },
     version: 'v1',
+    introTheme: 'nataskium-night' as const,
     questions: [{ text: 'Столица Франции?', imageUrl: null, options: [{ text: 'Париж', imageUrl: null }, { text: 'Рим', imageUrl: null }], selectCount: 1 }],
   },
 }
 
 const MATCHING = {
   type: 'matching' as const,
-  matching: { title: 'Животные', showAnswers: false, version: 'v1', timer: { mode: 'none' as const }, definitions: ['мяукает', 'лает'], terms: ['пёс', 'кот'] },
+  matching: { title: 'Животные', showAnswers: false, version: 'v1', introTheme: 'nataskium-night' as const, timer: { mode: 'none' as const }, definitions: ['мяукает', 'лает'], terms: ['пёс', 'кот'] },
 }
 
 const TRUE_FALSE = {
   type: 'truefalse' as const,
-  trueFalse: { title: 'Факты', showAnswers: false, version: 'v1', timer: { mode: 'none' as const }, statements: ['Земля круглая', 'Солнце холодное'] },
+  trueFalse: { title: 'Факты', showAnswers: false, version: 'v1', introTheme: 'nataskium-night' as const, timer: { mode: 'none' as const }, statements: ['Земля круглая', 'Солнце холодное'] },
 }
 
 let wrapper: VueWrapper
@@ -43,8 +44,17 @@ async function mountPage(token = TOKEN, route = `/play/${token}`) {
   await flushPromises()
 }
 
+// Тема интро по умолчанию играет анимацию; тесты страницы проверяют игру, поэтому интро выключено через reduced motion
+function skipIntroAnimation() {
+  const realMatchMedia = window.matchMedia.bind(window)
+  vi.spyOn(window, 'matchMedia').mockImplementation((query) =>
+    query.includes('prefers-reduced-motion') ? ({ matches: true, media: query } as MediaQueryList) : realMatchMedia(query),
+  )
+}
+
 // Перед загруженным заданием — стартовый экран интро; игра монтируется после «Начать»
 async function pressStart() {
+  skipIntroAnimation()
   await wrapper.get('.intro-player__start-button').trigger('click')
   await flushPromises()
 }
@@ -127,6 +137,21 @@ describe('PlayPage: диспетчер по типу задания', () => {
     expect(navigateToMock.mock.calls[0]?.[0]).toMatch(/^\/de\//)
     expect(navigateToMock.mock.calls[0]?.[1]).toEqual({ replace: true })
     expect(playApi.get).not.toHaveBeenCalled()
+  })
+
+  it('язык выбран переключателем (переход внутри сайта): язык браузера его не перебивает', async () => {
+    vi.spyOn(window.navigator, 'languages', 'get').mockReturnValue(['de-DE'])
+    const state = window.history.state as Record<string, unknown> | null
+    window.history.replaceState({ ...state, back: '/' }, '')
+    try {
+      vi.mocked(playApi.get).mockResolvedValue(QUIZ)
+      await mountPage()
+
+      expect(navigateToMock).not.toHaveBeenCalled()
+      expect(playApi.get).toHaveBeenCalledWith(TOKEN)
+    } finally {
+      window.history.replaceState({ ...state, back: null }, '')
+    }
   })
 
   it('превью: при переходе на другой язык ?preview=1 сохраняется', async () => {

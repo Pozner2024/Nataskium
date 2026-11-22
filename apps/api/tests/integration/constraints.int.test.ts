@@ -449,6 +449,41 @@ describe('quizzes.type', () => {
     })
   })
 
+  describe('intro_theme', () => {
+    const QUIZ_ID = '00000000-0000-0000-0000-0000000000c1'
+    const insertWithId = () => prisma.$executeRawUnsafe(insertQuiz({}).replace('gen_random_uuid()', `'${QUIZ_ID}'`))
+
+    it("строка без intro_theme получает 'nataskium-night' — так же, как существующие строки при ADD COLUMN DEFAULT", async () => {
+      await insertWithId()
+
+      expect(await prisma.$queryRaw<{ intro_theme: string }[]>`SELECT intro_theme FROM quizzes`).toEqual([{ intro_theme: 'nataskium-night' }])
+    })
+
+    it('nataskium-day принимается', async () => {
+      await insertWithId()
+
+      await expect(prisma.$executeRawUnsafe(`UPDATE quizzes SET intro_theme = 'nataskium-day' WHERE id = '${QUIZ_ID}'`)).resolves.toBe(1)
+    })
+
+    it.each([
+      ['неизвестный стиль', "'neon'"],
+      ['верхний регистр', "'Nataskium-Day'"],
+      ['пустая строка', "''"],
+      ['пробел по краям', "' nataskium-day '"],
+    ])('%s отклоняется', async (_name, value) => {
+      await insertWithId()
+
+      expect(await violatedConstraint(`UPDATE quizzes SET intro_theme = ${value} WHERE id = '${QUIZ_ID}'`)).toBe('quizzes_intro_theme_check')
+    })
+
+    it('NULL отклоняется NOT NULL', async () => {
+      await insertWithId()
+
+      const error = await prisma.$executeRawUnsafe(`UPDATE quizzes SET intro_theme = NULL WHERE id = '${QUIZ_ID}'`).catch((caught: unknown) => caught)
+      expect(String(error)).toMatch(/null value in column "intro_theme"/)
+    })
+  })
+
   it('type: NULL отклоняется NOT NULL', async () => {
     const error = await prisma.$executeRawUnsafe(insertQuiz({ type: 'NULL' })).catch((caught: unknown) => caught)
     expect(String(error)).toMatch(/null value in column "type"/)

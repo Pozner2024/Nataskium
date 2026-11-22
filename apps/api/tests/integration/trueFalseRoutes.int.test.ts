@@ -16,6 +16,7 @@ const INPUT: TrueFalseInput = {
   gradingScale: 'five',
   group: 'other',
   timer: { mode: 'none' },
+  introTheme: 'nataskium-night',
   items: [
     { statement: 'Земля круглая', answer: true },
     { statement: 'Солнце холодное', answer: false },
@@ -69,14 +70,33 @@ describe('/api/true-false', () => {
   it('создание и чтение: GET возвращает утверждения с answer, без служебных полей', async () => {
     const teacher = await createTeacher(prisma)
     const created = await createTrueFalse(teacher.id)
-    expect(created).toMatchObject({ title: INPUT.title, items: INPUT.items, timer: INPUT.timer, group: 'other' })
+    expect(created).toMatchObject({ title: INPUT.title, items: INPUT.items, timer: INPUT.timer, introTheme: INPUT.introTheme, group: 'other' })
 
     const response = await request('GET', `${BASE}/${created.id}`, { teacherId: teacher.id })
     expect(response.status).toBe(200)
     const body = (await response.json()) as { trueFalse: Record<string, unknown> }
     expect(trueFalseResponseSchema.parse(body).trueFalse).toEqual(created)
-    expect(Object.keys(body.trueFalse).sort()).toEqual(['gradingScale', 'group', 'id', 'items', 'shareToken', 'showAnswers', 'timer', 'title'])
+    expect(Object.keys(body.trueFalse).sort()).toEqual(['gradingScale', 'group', 'id', 'introTheme', 'items', 'shareToken', 'showAnswers', 'timer', 'title'])
     expect(await prisma.quiz.findUniqueOrThrow({ where: { id: created.id } })).toMatchObject({ type: 'truefalse', isPublic: true })
+  })
+
+  it('визуальный стиль: сохраняется в базе и меняется PATCH; без поля — стиль по умолчанию; неизвестный — 400', async () => {
+    const teacher = await createTeacher(prisma)
+    const created = await createTrueFalse(teacher.id, { ...INPUT, introTheme: 'nataskium-day' })
+    expect(created.introTheme).toBe('nataskium-day')
+    expect(await prisma.quiz.findUniqueOrThrow({ where: { id: created.id } })).toMatchObject({ introTheme: 'nataskium-day' })
+
+    const patched = await request('PATCH', `${BASE}/${created.id}`, { teacherId: teacher.id, body: { ...INPUT, introTheme: 'nataskium-night' } })
+    expect(trueFalseResponseSchema.parse(await patched.json()).trueFalse.introTheme).toBe('nataskium-night')
+
+    const withoutTheme: Partial<typeof INPUT> = { ...INPUT }
+    delete withoutTheme.introTheme
+    expect((await createTrueFalse(teacher.id, withoutTheme)).introTheme).toBe('nataskium-night')
+    const before = await prisma.quiz.count()
+    for (const introTheme of ['neon', 'Nataskium-Day', '', null]) {
+      expect((await request('POST', BASE, { teacherId: teacher.id, body: { ...INPUT, introTheme } })).status).toBe(400)
+    }
+    expect(await prisma.quiz.count()).toBe(before)
   })
 
   it('изменение и удаление', async () => {

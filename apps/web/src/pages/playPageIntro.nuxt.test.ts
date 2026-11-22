@@ -19,13 +19,14 @@ const QUIZ = {
     showAnswers: false,
     timer: { mode: 'none' as const },
     version: 'v1',
+    introTheme: 'nataskium-night' as const,
     questions: [{ text: 'Столица Франции?', imageUrl: null, options: [{ text: 'Париж', imageUrl: null }, { text: 'Рим', imageUrl: null }], selectCount: 1 }],
   },
 }
 
 const MATCHING = {
   type: 'matching' as const,
-  matching: { title: 'Животные', showAnswers: false, version: 'v1', timer: { mode: 'none' as const }, definitions: ['мяукает', 'лает'], terms: ['пёс', 'кот'] },
+  matching: { title: 'Животные', showAnswers: false, version: 'v1', introTheme: 'nataskium-night' as const, timer: { mode: 'none' as const }, definitions: ['мяукает', 'лает'], terms: ['пёс', 'кот'] },
 }
 
 let wrapper: VueWrapper | undefined

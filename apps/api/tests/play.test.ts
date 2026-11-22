@@ -24,6 +24,7 @@ function setup(overrides: Partial<PlayableQuiz> = {}) {
     showAnswers: true,
     gradingScale: 'five',
     timer: { mode: 'none' },
+    introTheme: 'nataskium-day',
     updatedAt: UPDATED_AT,
     questions: [question([true, false]), question([false, true, true]), question([true, false, false])],
     ...overrides,
@@ -59,6 +60,7 @@ describe('getPlayQuiz', () => {
 
     expect(JSON.stringify(quiz)).not.toContain('isCorrect')
     expect(quiz.version).toBe(VERSION)
+    expect(quiz.introTheme).toBe('nataskium-day')
     expect(quiz.questions[1]).toEqual({
       text: 'Вопрос',
       imageUrl: null,
@@ -109,6 +111,7 @@ describe('getPlayQuiz', () => {
           showAnswers: true,
           gradingScale: null,
           timer: { mode: 'none' },
+          introTheme: 'nataskium-night',
           updatedAt: UPDATED_AT,
           questions: [{ ...question([true, false]), imageId: '0b6f2f8e-1111-4c1a-9a51-000000000001' }],
         }

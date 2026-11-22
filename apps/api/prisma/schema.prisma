@@ -159,6 +159,9 @@ model Quiz {
   // в миграции add_quiz_timer; секунды заданы только при limit
   timerMode          String    @default("none") @map("timer_mode")
   timeLimitSeconds   Int?      @map("time_limit_seconds")
+  // Визуальный стиль проигрывателя (ADR 0015), выбирает учитель. CHECK quizzes_intro_theme_check добавлен вручную
+  // в миграции add_intro_theme; список дублирует INTRO_THEME_KEYS из packages/shared
+  introTheme         String    @default("nataskium-night") @map("intro_theme")
 
   teacher Teacher      @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   group   LibraryGroup @relation(fields: [groupSlug], references: [slug], onDelete: Restrict)

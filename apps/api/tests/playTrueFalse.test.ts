@@ -21,6 +21,7 @@ const TRUE_FALSE: PlayableTrueFalse = {
   showAnswers: true,
   gradingScale: 'five',
   timer: { mode: 'none' },
+  introTheme: 'nataskium-day',
   updatedAt: UPDATED_AT,
   items: ITEMS,
 }
@@ -45,6 +46,7 @@ describe('GET: toPlayTrueFalseResponse', () => {
         title: 'Факты',
         showAnswers: true,
         timer: { mode: 'none' },
+        introTheme: 'nataskium-day',
         version: VERSION,
         statements: ['Земля круглая', 'Солнце холодное', 'Вода мокрая'],
       },

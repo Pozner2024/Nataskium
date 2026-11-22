@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { GRADING_SCALE_TYPES } from '../grading'
+import { DEFAULT_INTRO_THEME_KEY, introThemeKeySchema } from './introTheme'
 import { DEFAULT_GROUP_SLUG, groupSlugSchema } from './library'
 import { CONTROL_CHARS_EXCEPT_NEWLINE, hasNoUnsafeChars } from './textChars'
 
@@ -125,6 +126,8 @@ export const quizInputSchema = z
     group: groupSlugSchema.default(DEFAULT_GROUP_SLUG),
     // Старые клиенты без поля сохраняют задание без таймера
     timer: quizTimerSchema.default({ mode: 'none' }),
+    // Визуальный стиль проигрывателя (ADR 0015); старые клиенты без поля получают стиль по умолчанию
+    introTheme: introThemeKeySchema.default(DEFAULT_INTRO_THEME_KEY),
     questions: z
       .array(quizQuestionSchema)
       .min(MIN_QUESTIONS, `At least ${MIN_QUESTIONS} question is required`)

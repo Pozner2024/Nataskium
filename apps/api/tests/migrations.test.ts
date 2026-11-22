@@ -63,6 +63,7 @@ const MANUAL_CHECKS = [
     'quizzes_time_limit_check',
     `CHECK ( ("timer_mode" = 'limit' AND "time_limit_seconds" IS NOT NULL AND "time_limit_seconds" BETWEEN 60 AND 10800) OR ("timer_mode" <> 'limit' AND "time_limit_seconds" IS NULL) )`,
   ],
+  ['quizzes', 'quizzes_intro_theme_check', `CHECK ("intro_theme" IN ('nataskium-night', 'nataskium-day'))`],
   ['quizzes', 'quizzes_type_check', `CHECK ("type" IN ('quiz', 'matching', 'truefalse'))`],
   // CASE обязателен: в AND jsonb_array_length на не-массиве может вычислиться первым и бросить ошибку
   [

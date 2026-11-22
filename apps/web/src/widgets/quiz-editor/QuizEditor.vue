@@ -30,6 +30,9 @@
             <button class="quiz-editor__saved-copy" type="button" @click="copyLink">
               {{ t('teacher.quizEditor.settings.copy') }}
             </button>
+            <NuxtLink class="quiz-editor__saved-try" :to="previewPath">
+              {{ t('teacher.quizEditor.tryActivity') }}
+            </NuxtLink>
             <NuxtLink class="quiz-editor__saved-link" :to="localePath(TEACHER_PATHS.activities)">
               {{ t('teacher.quizEditor.toActivities') }}
             </NuxtLink>
@@ -115,7 +118,7 @@ import { MAX_QUESTIONS, MAX_QUIZZES_PER_TEACHER, QUIZ_TITLE_MAX_LENGTH } from '@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { NuxtLink } from '#components'
 import { navigateTo, onBeforeRouteLeave, useI18n, useLocalePath } from '#imports'
-import { playUrl } from '@/entities/quiz'
+import { PREVIEW_QUERY, playUrl } from '@/entities/quiz'
 import { GroupSelect } from '@/features/activity-settings'
 import { AppConfirmDialog, TEACHER_PATHS } from '@/shared'
 import QuestionCard from './components/QuestionCard.vue'
@@ -206,6 +209,9 @@ async function openSettings(): Promise<void> {
     store.view = 'settings'
   })
 }
+
+// «Пройти задание»: учитель проходит своё задание так, как его увидят ученики (результаты не сохраняются)
+const previewPath = computed(() => (store.shareToken === null ? '' : `/play/${encodeURIComponent(store.shareToken)}?${PREVIEW_QUERY}`))
 
 async function copyLink(): Promise<void> {
   if (store.shareToken === null) return
@@ -551,6 +557,15 @@ onBeforeUnmount(() => {
 
   background: var(--color-blue-dark);
   color: var(--color-white);
+  text-decoration: none;
+}
+
+// Пройти своё задание — зелёная, как «Начать» у ученика
+.quiz-editor__saved-try {
+  @extend %pill-button;
+
+  background: var(--color-green);
+  color: var(--color-text);
   text-decoration: none;
 }
 

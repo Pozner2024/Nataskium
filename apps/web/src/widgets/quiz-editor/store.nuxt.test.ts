@@ -194,6 +194,7 @@ describe('useQuizEditorStore: картинки', () => {
         title: 'Животные',
         showAnswers: true,
         gradingScale: null,
+        introTheme: 'nataskium-night' as const,
         group: 'other',
         timer: { mode: 'none' },
         questions: [

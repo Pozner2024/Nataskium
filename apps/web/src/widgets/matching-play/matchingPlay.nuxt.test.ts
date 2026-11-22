@@ -26,6 +26,7 @@ function initial(showAnswers = true) {
       title: 'Животные',
       showAnswers,
       version: 'v1',
+      introTheme: 'nataskium-night' as const,
       timer: { mode: 'none' as const },
       definitions: ['Мяукает', 'Лает'],
       terms: ['собака', 'кошка'],
@@ -65,6 +66,14 @@ describe('MatchingPlay: доска', () => {
     expect(wrapper.findAll('.matching-board__pool .term-chip').map((chip) => chip.text())).toEqual(['собака', 'кошка'])
     expect(wrapper.get('.matching-board__check').attributes('disabled')).toBeDefined()
     expect(wrapper.get('.matching-board__progress').text()).toBe('0 / 2')
+  })
+
+  it('заголовок «Слова» остаётся в разметке и подписывает список слов (виден только скринридеру)', async () => {
+    const wrapper = await mountPlay()
+
+    const title = wrapper.get('.matching-board__tray-title')
+    expect(title.text()).toBe('Слова')
+    expect(wrapper.get('.matching-board__pool').attributes('aria-labelledby')).toBe(title.attributes('id'))
   })
 
   it('фокус на заголовке задания при старте', async () => {

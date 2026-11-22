@@ -12,7 +12,7 @@ const MAX_ITEMS = 30
 const itemsOf = (count: number) => Array.from({ length: count }, (_, i) => ({ statement: 'Утверждение ' + i, answer: i % 2 === 0 }))
 
 async function finish(count: number, scale: GradingScaleType | null, answers: (boolean | null)[], showAnswers = false) {
-  const trueFalse: PlayableTrueFalse = { title: 'Т', showAnswers, gradingScale: scale, timer: { mode: 'none' }, updatedAt: UPDATED_AT, items: itemsOf(count) }
+  const trueFalse: PlayableTrueFalse = { title: 'Т', showAnswers, gradingScale: scale, timer: { mode: 'none' }, introTheme: 'nataskium-night', updatedAt: UPDATED_AT, items: itemsOf(count) }
   const run = makeFinishTrueFalse({ trueFalses: { findByShareToken: async () => trueFalse } })
   return run(TOKEN, { version: VERSION, answers })
 }

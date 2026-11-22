@@ -277,6 +277,7 @@ describe('картинки в ответах API', () => {
       id: IMAGE_ID,
       shareToken: 'A'.repeat(22),
       timer: { mode: 'none' },
+      introTheme: 'nataskium-night',
     },
   })
 
@@ -297,6 +298,7 @@ describe('картинки в ответах API', () => {
         showAnswers: true,
         version: 'v1',
         timer: { mode: 'none' },
+        introTheme: 'nataskium-night',
         questions: [{ text: 'Столица Франции?', imageUrl: IMAGE_URL, options, selectCount: 1 }],
       },
     })

@@ -643,6 +643,7 @@ describe('схемы auth: публичный API', () => {
       'groupSlugSchema',
       'imageIdSchema',
       'imageUploadResponseSchema',
+      'introThemeKeySchema',
       'libraryGroupSchema',
       'libraryGroupsResponseSchema',
       'libraryListQuerySchema',

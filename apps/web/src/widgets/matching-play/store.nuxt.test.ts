@@ -22,6 +22,7 @@ function matching(timer: QuizTimer = { mode: 'none' }) {
       title: 'Животные',
       showAnswers: true,
       version: 'v1',
+      introTheme: 'nataskium-night' as const,
       timer,
       definitions: ['Мяукает', 'Лает', 'Мычит'],
       terms: ['собака', 'корова', 'кошка'],
@@ -69,7 +70,7 @@ describe('useMatchingPlayStore: загрузка', () => {
   })
 
   it('по ссылке оказалась викторина — «не найдено»', async () => {
-    get.mockResolvedValue({ type: 'quiz', quiz: { title: 'Q', showAnswers: false, timer: { mode: 'none' }, version: 'v1', questions: [] } })
+    get.mockResolvedValue({ type: 'quiz', quiz: { title: 'Q', showAnswers: false, timer: { mode: 'none' }, version: 'v1', introTheme: 'nataskium-night' as const, questions: [] } })
     await store.start(TOKEN)
 
     expect(store.status).toBe('notFound')
@@ -336,5 +337,18 @@ describe('useMatchingPlayStore: истечение времени', () => {
     await store.expire()
 
     expect(finish).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('useMatchingPlayStore: пауза «Как играть»', () => {
+  it('ушли со страницы, не закрыв окно: в следующей игре отсчёт запускается после вылета', async () => {
+    await startWith(matching({ mode: 'limit', seconds: 60 }))
+    store.pauseClock()
+    store.dispose()
+
+    await startWith(matching({ mode: 'limit', seconds: 60 }))
+    store.holdClock()
+    store.restartClock()
+    expect(store.startedAt).not.toBeNull()
   })
 })

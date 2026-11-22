@@ -18,6 +18,7 @@ beforeEach(() => {
       title: 'T',
       showAnswers: true,
       gradingScale: null,
+      introTheme: 'nataskium-night' as const,
       timer: { mode: 'none' },
       questions: [{
         text: 'Q',

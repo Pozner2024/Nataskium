@@ -44,6 +44,7 @@ function copySourceRow(overrides: Partial<LibraryQuizCopyRow> = {}): LibraryQuiz
     groupSlug: 'other',
     timerMode: 'none',
     timeLimitSeconds: null,
+    introTheme: 'nataskium-night',
     questions: PAIR_SHAPED_QUESTIONS,
     ...overrides,
   }

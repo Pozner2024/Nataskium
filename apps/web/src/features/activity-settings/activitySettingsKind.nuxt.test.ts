@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { libraryApi } from '@/entities/library'
 import ActivitySettings from './ActivitySettings.vue'
 
-const SETTINGS = { group: '', showAnswers: true, gradingScale: null, timer: { mode: 'none' as const } }
+const SETTINGS = { group: '', showAnswers: true, gradingScale: null, introTheme: 'nataskium-night' as const, timer: { mode: 'none' as const } }
 const mounted: { unmount: () => void }[] = []
 
 async function mountKind(kind?: 'quiz' | 'matching' | 'truefalse') {

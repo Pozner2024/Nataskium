@@ -19,6 +19,7 @@ const MATCHING: PlayableMatching = {
   showAnswers: true,
   gradingScale: 'five',
   timer: { mode: 'stopwatch' },
+  introTheme: 'nataskium-day',
   updatedAt: UPDATED_AT,
   pairs: PAIRS,
 }
@@ -36,6 +37,7 @@ function setup(shuffle: PlayShuffle = reverse) {
             showAnswers: false,
             gradingScale: null,
             timer: { mode: 'none' as const },
+            introTheme: 'nataskium-night' as const,
             updatedAt: UPDATED_AT,
             questions: [{ text: 'Q', imageId: null, options: [{ text: 'a', isCorrect: true, imageId: null }, { text: 'b', isCorrect: false, imageId: null }] }],
           }
@@ -70,6 +72,7 @@ describe('getPlayActivity', () => {
         title: 'Животные',
         showAnswers: true,
         timer: { mode: 'stopwatch' },
+        introTheme: 'nataskium-day',
         version: UPDATED_AT.toISOString(),
         definitions: ['мяукает', 'лает', 'мычит'],
         terms: ['корова', 'пёс', 'кот'],
@@ -84,7 +87,7 @@ describe('getPlayActivity', () => {
 
     for (const leak of ['pairs', 'correct', 'gradingScale', 'term"', 'definition"', 'id"']) expect(body).not.toContain(leak)
     if (response.type !== 'matching') throw new Error('expected matching')
-    expect(Object.keys(response.matching).sort()).toEqual(['definitions', 'showAnswers', 'terms', 'timer', 'title', 'version'])
+    expect(Object.keys(response.matching).sort()).toEqual(['definitions', 'introTheme', 'showAnswers', 'terms', 'timer', 'title', 'version'])
     expect([...response.matching.terms].sort()).toEqual(PAIRS.map((pair) => pair.term).sort())
   })
 

@@ -10,6 +10,7 @@ const MATCHING = {
   title: 'T',
   showAnswers: true,
   gradingScale: null,
+  introTheme: 'nataskium-night' as const,
   group: 'english',
   timer: { mode: 'none' },
   pairs: [

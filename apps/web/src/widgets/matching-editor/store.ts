@@ -62,6 +62,7 @@ function toMatchingInput(matching: MatchingResponse['matching']): MatchingInput 
     gradingScale: matching.gradingScale,
     group: matching.group,
     timer: matching.timer,
+    introTheme: matching.introTheme,
     pairs: matching.pairs.map((pair) => ({ term: pair.term, definition: pair.definition })),
   }
 }

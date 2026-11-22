@@ -45,6 +45,7 @@ function toQuizResponse(quiz: StoredQuiz, imageUrl: ImageUrl): QuizResponse {
       gradingScale: quiz.gradingScale,
       group: quiz.group,
       timer: quiz.timer,
+      introTheme: quiz.introTheme,
       questions: quiz.questions.map((question) => ({
         ...question,
         imageUrl: urlOf(imageUrl, question.imageId),

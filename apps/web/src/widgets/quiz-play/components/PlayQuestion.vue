@@ -1,97 +1,90 @@
 <template>
   <div v-if="store.question" class="play-question">
-    <header class="play-question__top">
-      <span class="play-question__title">{{ store.title }}</span>
-      <div class="play-question__counter">
-        <button
-          ref="prevButton"
-          class="play-question__arrow"
-          type="button"
-          :aria-label="t('play.prevQuestion')"
-          :disabled="!store.canPrev"
-          @click="navigate(store.prev, $event)"
-        >‹</button>
-        <span class="play-question__progress">{{ store.viewing + 1 }} / {{ store.questions.length }}</span>
-        <button
-          ref="forwardButton"
-          class="play-question__arrow"
-          type="button"
-          :aria-label="t('play.nextQuestion')"
-          :disabled="!store.canForward"
-          @click="navigate(store.forward, $event)"
-        >›</button>
-      </div>
-    </header>
     <PlayTimerPortal>
       <PlayTimer />
     </PlayTimerPortal>
-    <progress
-      class="play-question__bar"
-      :max="store.questions.length"
-      :value="store.viewing + 1"
-      :aria-label="t('play.progress', { current: store.viewing + 1, total: store.questions.length })"
-    />
 
-    <h1 ref="heading" class="play-question__text" tabindex="-1">{{ store.question.text }}</h1>
-    <div v-if="store.question.imageUrl" class="play-question__image">
-      <p v-if="isBroken(store.question.imageUrl)" class="play-question__image-fallback">{{ t('play.imageFailed') }}</p>
-      <img
-        v-else
-        class="play-question__image-img"
-        :src="store.question.imageUrl"
-        alt=""
-        @error="markBroken(store.question.imageUrl)"
-      >
-    </div>
-    <p class="play-question__hint">{{ t('play.selectHint', store.question.selectCount) }}</p>
-
-    <p class="play-question__sr-only" aria-live="polite">{{ feedbackText }}</p>
-
-    <ul class="play-question__options">
-      <li v-for="(option, position) in store.question.options" :key="option.index" class="play-question__item">
-        <button
-          class="play-question__option"
-          :class="[optionClass(option.index), { 'play-question__option--image': option.imageUrl }]"
-          type="button"
-          :aria-pressed="store.isSelected(option.index)"
-          :disabled="store.isDisabled(option.index)"
-          :aria-label="imageOptionLabel(option, position)"
-          @click="store.toggle(option.index)"
-        >
-          <span v-if="option.imageUrl" class="play-question__option-image">
-            <span v-if="isBroken(option.imageUrl)" class="play-question__option-fallback" aria-hidden="true">
-              {{ t('play.imageFailed') }}
-            </span>
-            <img v-else class="play-question__option-img" :src="option.imageUrl" alt="" @error="markBroken(option.imageUrl)">
-          </span>
-          <span v-if="option.text" class="play-question__option-text">{{ option.text }}</span>
-          <template v-if="mark(option.index)">
-            <span class="play-question__mark" aria-hidden="true">{{ mark(option.index)!.symbol }}</span>
-            <span class="play-question__sr-only">{{ t(mark(option.index)!.label) }}</span>
-          </template>
-        </button>
-      </li>
-    </ul>
-
-    <button
-      v-if="store.phase === 'question'"
-      class="play-question__action"
-      type="button"
-      :disabled="!store.canSubmit"
-      @click="store.submit()"
+    <EntranceCard
+      :swap-key="store.viewing"
+      items=".play-question__text, .play-question__image, .play-question__hint, .play-question__item"
+      @entering="store.holdClock()"
+      @landed="onLanded"
     >
-      {{ t('play.submit') }}
-    </button>
-    <button v-else ref="nextButton" class="play-question__action" type="button" :disabled="store.busy || store.reviewing" @click="store.next()">
-      {{ t('play.next') }}
-    </button>
+      <h1 ref="heading" class="play-question__text" tabindex="-1">{{ store.question.text }}</h1>
+      <div v-if="store.question.imageUrl" class="play-question__image">
+        <p v-if="isBroken(store.question.imageUrl)" class="play-question__image-fallback">{{ t('play.imageFailed') }}</p>
+        <template v-else>
+          <img class="play-question__backdrop" :src="store.question.imageUrl" alt="" aria-hidden="true">
+          <img
+            class="play-question__image-img"
+            :src="store.question.imageUrl"
+            alt=""
+            @error="markBroken(store.question.imageUrl)"
+          >
+        </template>
+      </div>
+      <p class="play-question__hint">{{ t('play.selectHint', store.question.selectCount) }}</p>
+
+      <p class="play-question__sr-only" aria-live="polite">{{ feedbackText }}</p>
+
+      <ul class="play-question__options">
+        <li v-for="(option, position) in store.question.options" :key="option.index" class="play-question__item">
+          <button
+            class="play-question__option"
+            :class="[optionClass(option.index), { 'play-question__option--image': option.imageUrl }]"
+            type="button"
+            :aria-pressed="store.isSelected(option.index)"
+            :disabled="store.isDisabled(option.index)"
+            :aria-label="imageOptionLabel(option, position)"
+            @click="onOption(option.index)"
+          >
+            <span v-if="option.imageUrl" class="play-question__option-image">
+              <span v-if="isBroken(option.imageUrl)" class="play-question__option-fallback" aria-hidden="true">
+                {{ t('play.imageFailed') }}
+              </span>
+              <template v-else>
+                <img class="play-question__backdrop" :src="option.imageUrl" alt="" aria-hidden="true">
+                <img class="play-question__option-img" :src="option.imageUrl" alt="" @error="markBroken(option.imageUrl)">
+              </template>
+            </span>
+            <span v-if="option.text" class="play-question__option-text">{{ option.text }}</span>
+            <template v-if="mark(option.index)">
+              <span class="play-question__mark" aria-hidden="true">{{ mark(option.index)!.symbol }}</span>
+              <span class="play-question__sr-only">{{ t(mark(option.index)!.label) }}</span>
+            </template>
+          </button>
+        </li>
+      </ul>
+
+    </EntranceCard>
+
+    <!-- Навигация по вопросам — внизу по центру, под ответами; название задания и полоса прогресса не показываются -->
+    <div class="play-question__counter" :class="{ 'play-question__counter--waiting': !landed }">
+      <button
+        ref="prevButton"
+        class="play-question__arrow"
+        type="button"
+        :aria-label="t('play.prevQuestion')"
+        :disabled="!store.canPrev"
+        @click="navigate(store.prev, $event)"
+      >‹</button>
+      <span class="play-question__progress">{{ store.viewing + 1 }} / {{ store.questions.length }}</span>
+      <button
+        ref="forwardButton"
+        class="play-question__arrow"
+        type="button"
+        :aria-label="t('play.nextQuestion')"
+        :disabled="!store.canForward"
+        @click="navigate(store.forward, $event)"
+      >›</button>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
 import { useI18n } from '#imports'
-import { PlayTimerPortal } from '@/features/play-session'
+import { EntranceCard, PlayTimerPortal, usePlayerSound } from '@/features/play-session'
 import { focusInPlace } from '@/shared'
 import { usePlayStore } from '../store'
 import PlayTimer from './PlayTimer.vue'
@@ -99,23 +92,44 @@ import PlayTimer from './PlayTimer.vue'
 const { t } = useI18n()
 const store = usePlayStore()
 const heading = useTemplateRef<HTMLElement>('heading')
-const nextButton = useTemplateRef<HTMLButtonElement>('nextButton')
 const prevButton = useTemplateRef<HTMLButtonElement>('prevButton')
 const forwardButton = useTemplateRef<HTMLButtonElement>('forwardButton')
+// Пока первый вопрос вылетает, фокус не трогаем: он переходит на вопрос после приземления
+const landed = ref(false)
+
+// Вылет (тема интро) не съедает время задания: отсчёт с приземления вопроса (ADR 0015)
+function onLanded(played: boolean): void {
+  landed.value = true
+  if (played) store.restartClock()
+  void moveFocus()
+}
+
+const playSound = usePlayerSound()
+
+function onOption(index: number): void {
+  playSound('select')
+  store.toggle(index)
+}
+
+// После проверки (если учитель показывает ответы): звон за верный ответ, мягкий звук за неверный и частично верный
+watch(
+  () => store.feedback,
+  (feedback) => {
+    if (feedback === null) return
+    playSound(feedback === 'correct' ? 'correct' : 'wrong')
+  },
+)
 
 const FEEDBACK_KEYS = { correct: 'play.feedbackCorrect', partial: 'play.feedbackPartial', wrong: 'play.feedbackWrong' } as const
 const feedbackText = computed(() => (store.feedback === null ? '' : t(FEEDBACK_KEYS[store.feedback])))
 
-// Кнопка, на которой был фокус, исчезает или блокируется: без переноса фокус упал бы на body
+// После смены вопроса и после вылета фокус на тексте вопроса: кнопок «Ответить» и «Дальше» больше нет
 async function moveFocus(): Promise<void> {
   await nextTick()
-  // Пока идёт запрос, «Дальше» заблокирована, а заблокированной кнопке фокус не дать
-  if (store.busy) return
-  const target = store.phase === 'feedback' ? nextButton.value : heading.value
-  focusInPlace(target)
+  if (!landed.value) return
+  focusInPlace(heading.value)
 }
 
-onMounted(moveFocus)
 watch(() => [store.current, store.phase, store.busy], moveFocus)
 
 // После нажатия стрелки фокус остаётся на ней; если она стала неактивной — переходит на другую или на текст вопроса
@@ -192,6 +206,9 @@ function optionClass(index: number): Record<string, boolean> {
 @use '@/assets/styles/mixins' as *;
 @use '@/assets/styles/breakpoints.module' as *;
 
+$question-image-max-height: 34vh;
+$backdrop-blur: 18px;
+
 .play-question {
   display: flex;
   flex: 1;
@@ -204,41 +221,19 @@ function optionClass(index: number): Record<string, boolean> {
   }
 }
 
-.play-question__top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.play-question__title {
-  display: -webkit-box;
-  min-width: 0;
-  overflow: hidden;
-  color: var(--g-muted);
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 1.3;
-  overflow-wrap: anywhere;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-
-  @include desktop {
-    font-size: 17px;
-  }
-
-  :fullscreen & {
-    @include desktop {
-      font-size: 20px;
-    }
-  }
-}
-
 .play-question__counter {
   display: flex;
   flex: none;
   align-items: center;
+  justify-content: center;
   gap: 6px;
+  margin-top: 20px;
+  transition: opacity 0.3s ease;
+
+  &--waiting {
+    visibility: hidden;
+    opacity: 0;
+  }
 }
 
 .play-question__arrow {
@@ -290,35 +285,6 @@ function optionClass(index: number): Record<string, boolean> {
   }
 }
 
-.play-question__bar {
-  display: block;
-  width: 100%;
-  height: 8px;
-  margin: 10px 0 0;
-  border: 0;
-  border-radius: 999px;
-  overflow: hidden;
-  background: var(--g-surface);
-  box-shadow: inset 0 0 0 1px var(--g-divider);
-  color: var(--g-accent);
-  appearance: none;
-
-  &::-webkit-progress-bar {
-    border-radius: 999px;
-    background: var(--g-surface);
-  }
-
-  &::-webkit-progress-value {
-    border-radius: 999px;
-    background: var(--g-accent);
-  }
-
-  &::-moz-progress-bar {
-    border-radius: 999px;
-    background: var(--g-accent);
-  }
-}
-
 .play-question__text {
   margin: 22px 0 0;
   border-radius: 8px;
@@ -333,21 +299,23 @@ function optionClass(index: number): Record<string, boolean> {
   }
 
   @include desktop {
-    font-size: 32px;
+    font-size: 48px;
   }
 
   :fullscreen & {
     @include desktop {
       margin-top: 28px;
-      font-size: 42px;
+      font-size: 60px;
     }
   }
 }
 
+// Рамка 16:9 по ширине карточки; на низком экране она сужается, чтобы ответы оставались видны
 .play-question__image {
   position: relative;
-  height: min(220px, 34vh);
-  margin: 14px 0 0;
+  width: min(100%, #{$question-image-max-height} * 16 / 9);
+  aspect-ratio: 16 / 9;
+  margin: 14px auto 0;
   border: 1px solid var(--g-divider);
   border-radius: 18px;
   overflow: hidden;
@@ -362,6 +330,18 @@ function optionClass(index: number): Record<string, boolean> {
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+
+// Картинка показывается целиком, пустые поля по краям закрывает её размытая затемнённая копия
+.play-question__backdrop {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: blur($backdrop-blur) brightness(0.75);
+  transform: scale(1.15);
 }
 
 .play-question__image-fallback,
@@ -413,12 +393,12 @@ function optionClass(index: number): Record<string, boolean> {
   }
 
   @include desktop {
-    gap: 16px;
+    gap: 24px;
   }
 
   :fullscreen & {
     @include desktop {
-      gap: 20px;
+      gap: 28px;
       margin-top: 28px;
     }
   }
@@ -487,17 +467,17 @@ function optionClass(index: number): Record<string, boolean> {
   }
 
   @include desktop {
-    min-height: 104px;
-    padding: 16px 22px;
-    font-size: 23px;
+    min-height: 150px;
+    padding: 20px 28px;
+    font-size: 32px;
   }
 
   :fullscreen & {
     @include desktop {
-      min-height: 132px;
-      padding: 20px 28px;
+      min-height: 184px;
+      padding: 24px 32px;
       border-radius: 24px;
-      font-size: 28px;
+      font-size: 40px;
     }
   }
 
@@ -618,33 +598,6 @@ function optionClass(index: number): Record<string, boolean> {
       width: 36px;
       height: 36px;
       font-size: 20px;
-    }
-  }
-}
-
-.play-question__action {
-  @include play-action;
-
-  margin-top: 24px;
-
-  @include tablet {
-    max-width: 360px;
-    min-height: 60px;
-    margin-inline: auto;
-    font-size: 20px;
-  }
-
-  @include desktop {
-    max-width: 420px;
-    min-height: 64px;
-    font-size: 22px;
-  }
-
-  :fullscreen & {
-    @include desktop {
-      max-width: 480px;
-      min-height: 72px;
-      font-size: 24px;
     }
   }
 }

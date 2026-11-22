@@ -1,4 +1,4 @@
-import { MIN_TRUE_FALSE_ITEMS } from '@nataskium/shared/schemas'
+import { DEFAULT_INTRO_THEME_KEY, MIN_TRUE_FALSE_ITEMS } from '@nataskium/shared/schemas'
 import type { TrueFalseDraft, TrueFalseDraftItem } from './types'
 
 export function newItem(): TrueFalseDraftItem {
@@ -13,6 +13,7 @@ export function newTrueFalse(): TrueFalseDraft {
     gradingScale: null,
     group: '',
     timer: { mode: 'none' },
+    introTheme: DEFAULT_INTRO_THEME_KEY,
     items: Array.from({ length: MIN_TRUE_FALSE_ITEMS }, newItem),
   }
 }

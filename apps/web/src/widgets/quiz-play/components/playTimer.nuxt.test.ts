@@ -111,9 +111,10 @@ describe('PlayResult: таймер', () => {
     vi.mocked(playApi.finish).mockResolvedValue({ result: RESULT })
     const store = await startQuiz(timer)
     if (expireInstead) await store.expire()
+    // Выбор засчитывается сам, итог приходит после автоперехода
     else {
       store.toggle(0)
-      await store.submit()
+      await vi.waitFor(() => expect(store.phase).toBe('result'))
     }
     expect(store.phase).toBe('result')
     const wrapper = await mountSuspended(PlayResult)

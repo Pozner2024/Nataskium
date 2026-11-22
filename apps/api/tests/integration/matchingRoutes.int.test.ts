@@ -24,6 +24,7 @@ const INPUT: MatchingInput = {
   gradingScale: 'five',
   group: 'other',
   timer: { mode: 'stopwatch' },
+  introTheme: 'nataskium-night',
   pairs: [
     { term: 'кот', definition: 'мяукает' },
     { term: 'пёс', definition: 'лает' },
@@ -358,6 +359,27 @@ describe('/api/matchings', () => {
     expect(await prisma.quiz.count()).toBe(0)
   })
 
+  it('визуальный стиль: сохраняется в базе и меняется PATCH; без поля — стиль по умолчанию; неизвестный — 400', async () => {
+    const teacher = await createTeacher(prisma)
+    const created = await createMatching(teacher.id, { ...INPUT, introTheme: 'nataskium-day' })
+    expect(created.introTheme).toBe('nataskium-day')
+    expect(await prisma.quiz.findUniqueOrThrow({ where: { id: created.id } })).toMatchObject({ introTheme: 'nataskium-day' })
+
+    const patched = await request('PATCH', `${BASE}/${created.id}`, { teacherId: teacher.id, body: { ...INPUT, introTheme: 'nataskium-night' } })
+    expect(matchingResponseSchema.parse(await patched.json()).matching.introTheme).toBe('nataskium-night')
+
+    const withoutTheme: Partial<typeof INPUT> = { ...INPUT }
+    delete withoutTheme.introTheme
+    expect((await createMatching(teacher.id, withoutTheme)).introTheme).toBe('nataskium-night')
+    const before = await prisma.quiz.count()
+    for (const introTheme of ['neon', 'Nataskium-Day', '', null]) {
+      const response = await request('POST', BASE, { teacherId: teacher.id, body: { ...INPUT, introTheme } })
+      expect(response.status).toBe(400)
+      expect(await issuePaths(response)).toContain('introTheme')
+    }
+    expect(await prisma.quiz.count()).toBe(before)
+  })
+
   it('ответ POST не содержит teacherId, isPublic, publicNumber, updatedAt и кода привязки', async () => {
     const teacher = await createTeacher(prisma)
     const response = await request('POST', BASE, { teacherId: teacher.id, body: INPUT })
@@ -365,7 +387,7 @@ describe('/api/matchings', () => {
     expect(response.status).toBe(201)
     const body = (await response.json()) as Record<string, unknown>
     expect(Object.keys(body)).toEqual(['matching'])
-    expect(Object.keys(body.matching as object).sort()).toEqual(['gradingScale', 'group', 'id', 'pairs', 'shareToken', 'showAnswers', 'timer', 'title'])
+    expect(Object.keys(body.matching as object).sort()).toEqual(['gradingScale', 'group', 'id', 'introTheme', 'pairs', 'shareToken', 'showAnswers', 'timer', 'title'])
     expect(JSON.stringify(body)).not.toContain(teacher.id)
   })
 })

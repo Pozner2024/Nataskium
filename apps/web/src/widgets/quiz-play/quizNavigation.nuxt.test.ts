@@ -3,7 +3,7 @@ import { flushPromises } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { playApi } from '@/entities/quiz'
 import PlayQuestion from './components/PlayQuestion.vue'
-import { usePlayStore } from './store'
+import { ANSWER_FEEDBACK_MS, usePlayStore } from './store'
 
 vi.mock('@/entities/quiz', () => ({
   playApi: { get: vi.fn(), check: vi.fn(), finish: vi.fn() },
@@ -17,7 +17,7 @@ function options(...texts: string[]) {
   return texts.map((text) => ({ text, imageUrl: null }))
 }
 
-function quiz(showAnswers: boolean) {
+function quiz(showAnswers: boolean, secondSelectCount = 1) {
   return {
     type: 'quiz' as const,
     quiz: {
@@ -25,36 +25,38 @@ function quiz(showAnswers: boolean) {
       showAnswers,
       timer: { mode: 'none' } as const,
       version: 'v1',
+      introTheme: 'nataskium-night' as const,
       questions: [
         { text: 'Q1', imageUrl: null, options: options('a', 'b'), selectCount: 1 },
-        { text: 'Q2', imageUrl: null, options: options('c', 'd'), selectCount: 1 },
+        { text: 'Q2', imageUrl: null, options: options('c', 'd'), selectCount: secondSelectCount },
         { text: 'Q3', imageUrl: null, options: options('e', 'f'), selectCount: 1 },
       ],
     },
   }
 }
 
-async function startQuiz(showAnswers: boolean) {
-  vi.mocked(playApi.get).mockResolvedValue(quiz(showAnswers))
+async function startQuiz(showAnswers: boolean, secondSelectCount = 1) {
+  vi.mocked(playApi.get).mockResolvedValue(quiz(showAnswers, secondSelectCount))
   vi.mocked(playApi.check).mockResolvedValue({ correct: [0] })
   const store = usePlayStore()
   await store.start(TOKEN, NO_SHUFFLE)
   return store
 }
 
-// Первый вопрос отвечен неверно (выбран вариант 1, верный 0), «Дальше» нажата: текущий — второй
+// Первый вопрос отвечен неверно (выбран вариант 1, верный 0), автопереход прошёл: текущий — второй
 async function answerFirst(store: ReturnType<typeof usePlayStore>) {
   store.toggle(1)
-  await store.submit()
-  await store.next()
+  await vi.advanceTimersByTimeAsync(ANSWER_FEEDBACK_MS)
 }
 
 beforeEach(() => {
   vi.resetAllMocks()
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
 })
 
 afterEach(() => {
   for (const wrapper of mounted.splice(0)) wrapper.unmount()
+  vi.useRealTimers()
 })
 
 describe('стрелки викторины: store', () => {
@@ -95,61 +97,69 @@ describe('стрелки викторины: store', () => {
     expect(playApi.check).not.toHaveBeenCalled()
   })
 
-  it('возврат на текущий вопрос в фазе feedback сохраняет feedback и «Дальше»', async () => {
+  it('во время подсветки ответа стрелки неактивны, после автоперехода назад видны отметки', async () => {
     const store = await startQuiz(true)
     await answerFirst(store)
     store.toggle(0)
-    await store.submit()
+    await vi.advanceTimersByTimeAsync(0)
     expect(store.phase).toBe('feedback')
+    expect(store.feedback).toBe('correct')
+    expect(store.canPrev).toBe(false)
     store.prev()
+    expect(store.viewing).toBe(1)
+
+    await vi.advanceTimersByTimeAsync(ANSWER_FEEDBACK_MS)
+    expect(store.current).toBe(2)
+    store.prev()
+    expect(store.viewing).toBe(1)
     expect(store.viewCorrect).toEqual([0])
     expect(store.feedback).toBeNull()
-    await store.next()
-    expect(store.current).toBe(1)
-    store.forward()
-    expect(store.viewing).toBe(1)
-    expect(store.phase).toBe('feedback')
-    expect(store.viewCorrect).toEqual([0])
-    expect(store.feedback).toBe('correct')
   })
 
-  it('выбор в процессе на текущем вопросе не теряется после просмотра прошлого', async () => {
-    const store = await startQuiz(true)
+  it('неполный выбор на текущем вопросе не теряется после просмотра прошлого', async () => {
+    const store = await startQuiz(true, 2)
     await answerFirst(store)
     store.toggle(0)
     store.prev()
     store.forward()
     expect(store.isSelected(0)).toBe(true)
-    expect(store.canSubmit).toBe(true)
+    expect(store.canSubmit).toBe(false)
+    store.toggle(1)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(playApi.check).toHaveBeenLastCalledWith(TOKEN, { version: 'v1', questionIndex: 1, selected: [0, 1] })
   })
 
-  it('пока идёт запрос, стрелки неактивны', async () => {
+  it('пока идёт запрос и держится подсветка, стрелки неактивны', async () => {
     const store = await startQuiz(true)
     await answerFirst(store)
     let release: (value: { correct: number[] }) => void = () => undefined
     vi.mocked(playApi.check).mockReturnValue(new Promise((resolve) => (release = resolve)))
     store.toggle(0)
-    const pending = store.submit()
     expect(store.busy).toBe(true)
     expect(store.canPrev).toBe(false)
     store.prev()
     expect(store.viewing).toBe(1)
     release({ correct: [0] })
-    await pending
+    await vi.advanceTimersByTimeAsync(0)
+    expect(store.busy).toBe(false)
+    expect(store.canPrev).toBe(false)
+    await vi.advanceTimersByTimeAsync(ANSWER_FEEDBACK_MS)
     expect(store.canPrev).toBe(true)
   })
 
-  it('«Дальше» и отправка при просмотре прошлого ничего не делают', async () => {
+  it('при просмотре прошлого выбор, отправка и «Дальше» ничего не делают', async () => {
     const store = await startQuiz(true)
     await answerFirst(store)
+    store.prev()
     store.toggle(0)
     await store.submit()
-    store.prev()
     await store.next()
+    await vi.advanceTimersByTimeAsync(ANSWER_FEEDBACK_MS)
     expect(store.current).toBe(1)
-    store.toggle(1)
+    expect(store.viewing).toBe(0)
+    expect(store.selected).toEqual([])
     expect(store.isSelected(1)).toBe(true)
-    expect(store.selected).toEqual([0])
+    expect(playApi.check).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -175,16 +185,14 @@ describe('стрелки викторины: разметка', () => {
     return { store, wrapper }
   }
 
-  it('кнопка «‹» ведёт на прошлый вопрос, счётчик и полоса показывают его номер, «Дальше» неактивна', async () => {
+  it('кнопка «‹» ведёт на прошлый вопрос, счётчик показывает его номер, варианты неактивны', async () => {
     const { wrapper } = await mountQuestion()
     const [prev, forward] = wrapper.findAll('.play-question__arrow')
     expect(prev?.attributes('disabled')).toBeUndefined()
     expect(forward?.attributes('disabled')).toBeDefined()
     await prev?.trigger('click')
     expect(wrapper.get('.play-question__progress').text()).toBe('1 / 3')
-    expect(wrapper.get('.play-question__bar').attributes('value')).toBe('1')
     expect(wrapper.get('.play-question__text').text()).toBe('Q1')
-    expect(wrapper.get('.play-question__action').attributes('disabled')).toBeDefined()
     expect(wrapper.findAll('.play-question__option').every((option) => option.attributes('disabled') !== undefined)).toBe(true)
     expect(wrapper.find('.play-question__option--wrong').exists()).toBe(true)
     expect(wrapper.find('.play-question__option--missed').exists()).toBe(true)
@@ -206,8 +214,7 @@ describe('стрелки викторины: разметка', () => {
   it('фокус остаётся на нажатой «›», даже если клик не поставил на неё фокус', async () => {
     const { store, wrapper } = await mountQuestion()
     store.toggle(0)
-    await store.submit()
-    await store.next()
+    await vi.advanceTimersByTimeAsync(ANSWER_FEEDBACK_MS)
     await flushPromises()
     const [prev, forward] = wrapper.findAll('.play-question__arrow')
     await prev?.trigger('click')

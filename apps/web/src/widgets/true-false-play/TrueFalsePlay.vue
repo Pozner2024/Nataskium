@@ -21,44 +21,45 @@
     <TrueFalseResult v-else-if="store.phase === 'result'" />
 
     <div v-else-if="store.statement !== null" class="true-false-play__screen">
-      <header class="true-false-play__top">
-        <span class="true-false-play__title">{{ store.title }}</span>
-        <div class="true-false-play__counter">
-          <button ref="prevArrow" class="true-false-play__arrow" type="button" :aria-label="t('play.trueFalse.prevStatement')" :disabled="!store.canPrev" @click="onArrow(store.prev, $event)">‹</button>
-          <span class="true-false-play__progress">{{ store.viewing + 1 }} / {{ store.statements.length }}</span>
-          <button ref="nextArrow" class="true-false-play__arrow" type="button" :aria-label="t('play.trueFalse.nextStatement')" :disabled="!store.canForward" @click="onArrow(store.forward, $event)">›</button>
-        </div>
-      </header>
       <PlayTimerPortal>
         <PlayTimer :mode="store.timer.mode" />
       </PlayTimerPortal>
-      <progress
-        class="true-false-play__bar"
-        :max="store.statements.length"
-        :value="store.viewing + 1"
-        :aria-label="t('play.trueFalse.progress', { current: store.viewing + 1, total: store.statements.length })"
-      />
 
-      <StatementCard ref="card" :text="store.statement" />
-      <p class="true-false-play__hint">{{ t('play.trueFalse.question') }}</p>
+      <EntranceCard
+        :swap-key="store.viewing"
+        items=".statement-card, .true-false-play__hint, .answer-buttons__button"
+        @entering="store.holdClock()"
+        @landed="onLanded"
+      >
+        <StatementCard ref="card" :text="store.statement" />
+        <p class="true-false-play__hint">{{ t('play.trueFalse.question') }}</p>
 
-      <p class="true-false-play__live" aria-live="polite">{{ verdictText }}</p>
+        <p class="true-false-play__live" aria-live="polite">{{ verdictText }}</p>
 
-      <AnswerButtons
-        :chosen="store.answers[store.viewing] ?? null"
-        :disabled="!store.canAnswer"
-        :verdict="store.verdict"
-        @answer="store.answer"
-      />
+        <AnswerButtons
+          :chosen="store.answers[store.viewing] ?? null"
+          :disabled="!store.canAnswer"
+          :verdict="store.verdict"
+          @answer="onAnswer"
+        />
+      </EntranceCard>
+
+      <!-- Навигация по утверждениям — внизу по центру, под ответами; название задания и полоса прогресса не показываются -->
+      <div class="true-false-play__counter" :class="{ 'true-false-play__counter--waiting': !landed }">
+        <button ref="prevArrow" class="true-false-play__arrow" type="button" :aria-label="t('play.trueFalse.prevStatement')" :disabled="!store.canPrev" @click="onArrow(store.prev, $event)">‹</button>
+        <span class="true-false-play__progress" aria-hidden="true">{{ store.viewing + 1 }} / {{ store.statements.length }}</span>
+        <span class="true-false-play__sr-only">{{ t('play.trueFalse.progress', { current: store.viewing + 1, total: store.statements.length }) }}</span>
+        <button ref="nextArrow" class="true-false-play__arrow" type="button" :aria-label="t('play.trueFalse.nextStatement')" :disabled="!store.canForward" @click="onArrow(store.forward, $event)">›</button>
+      </div>
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, provide, useTemplateRef, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, useTemplateRef, watch } from 'vue'
 import { useI18n, useSeoMeta } from '#imports'
 import type { PlayTrueFalseResponse } from '@/entities/true-false'
-import { PlayTimer, PlayTimerPortal, PLAY_TIMER_KEY, usePlayerScrollRelease } from '@/features/play-session'
+import { EntranceCard, PlayTimer, PlayTimerPortal, PLAY_TIMER_KEY, usePlayerPause, usePlayerScrollRelease, usePlayerSound } from '@/features/play-session'
 import AnswerButtons from './components/AnswerButtons.vue'
 import StatementCard from './components/StatementCard.vue'
 import TrueFalseResult from './components/TrueFalseResult.vue'
@@ -70,15 +71,34 @@ const props = defineProps<{ token: string; initial?: PlayTrueFalseResponse }>()
 
 const { t } = useI18n()
 const store = useTrueFalsePlayStore()
+usePlayerPause(store.pauseClock, store.resumeClock)
 const card = useTemplateRef<{ focus: () => void }>('card')
 const prevArrow = useTemplateRef<HTMLButtonElement>('prevArrow')
 const nextArrow = useTemplateRef<HTMLButtonElement>('nextArrow')
+// Пока первое утверждение вылетает, фокус не трогаем: он переходит на утверждение после приземления
+const landed = ref(false)
 
 const timer = useTrueFalsePlayTimer()
 provide(PLAY_TIMER_KEY, timer)
 usePlayerScrollRelease(() => store.status !== 'ready' || store.phase === 'result')
 
 useSeoMeta({ title: () => store.title, robots: 'noindex, nofollow' })
+
+const playSound = usePlayerSound()
+
+function onAnswer(value: boolean): void {
+  playSound('select')
+  store.answer(value)
+}
+
+// Если учитель показывает ответы: звон за верное, мягкий звук за неверное — только для текущего утверждения
+watch(
+  () => store.verdict,
+  (verdict) => {
+    if (verdict === null || store.viewing !== store.current) return
+    playSound(verdict ? 'correct' : 'wrong')
+  },
+)
 
 // Слова слышит только скринридер и только про текущий ответ; при просмотре прошлых утверждений молчим
 const verdictText = computed(() => {
@@ -89,7 +109,7 @@ const verdictText = computed(() => {
 // Кнопка, на которой был фокус, блокируется: без переноса фокус упал бы на body
 async function moveFocus(): Promise<void> {
   await nextTick()
-  if (store.busy || store.status !== 'ready' || store.phase === 'result') return
+  if (!landed.value || store.busy || store.status !== 'ready' || store.phase === 'result') return
   card.value?.focus()
 }
 
@@ -106,6 +126,13 @@ async function keepArrowFocus(used: HTMLElement | null): Promise<void> {
   const other = arrows.find((arrow) => arrow !== active && arrow?.disabled === false)
   if (other) other.focus()
   else card.value?.focus()
+}
+
+// Вылет (тема интро) не съедает время задания: отсчёт с приземления утверждения (ADR 0015)
+function onLanded(played: boolean): void {
+  landed.value = true
+  if (played) store.restartClock()
+  void moveFocus()
 }
 
 function onArrow(navigate: () => void, event: Event): void {
@@ -263,31 +290,19 @@ watch(() => [store.current, store.phase, store.busy, store.advancing, store.stat
   }
 }
 
-.true-false-play__top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.true-false-play__title {
-  display: -webkit-box;
-  min-width: 0;
-  overflow: hidden;
-  color: var(--g-muted);
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 1.3;
-  overflow-wrap: anywhere;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-
 .true-false-play__counter {
   display: flex;
   flex: none;
   align-items: center;
+  justify-content: center;
   gap: 6px;
+  margin-top: 20px;
+  transition: opacity 0.3s ease;
+
+  &--waiting {
+    visibility: hidden;
+    opacity: 0;
+  }
 }
 
 .true-false-play__arrow {
@@ -331,35 +346,6 @@ watch(() => [store.current, store.phase, store.busy, store.advancing, store.stat
   font-weight: 700;
   line-height: 1.3;
   white-space: nowrap;
-}
-
-.true-false-play__bar {
-  display: block;
-  width: 100%;
-  height: 8px;
-  margin: 10px 0 0;
-  border: 0;
-  border-radius: 999px;
-  overflow: hidden;
-  background: var(--g-surface);
-  box-shadow: inset 0 0 0 1px var(--g-divider);
-  color: var(--g-accent);
-  appearance: none;
-
-  &::-webkit-progress-bar {
-    border-radius: 999px;
-    background: var(--g-surface);
-  }
-
-  &::-webkit-progress-value {
-    border-radius: 999px;
-    background: var(--g-accent);
-  }
-
-  &::-moz-progress-bar {
-    border-radius: 999px;
-    background: var(--g-accent);
-  }
 }
 
 .true-false-play__hint {

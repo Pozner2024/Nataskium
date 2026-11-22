@@ -40,7 +40,7 @@ defineProps<{
 </script>
 
 <style scoped lang="scss">
-// «Физическая» плитка с ребром снизу и точками-ручкой: видно, что её можно взять. Цвета — тема проигрывателя
+// Плоская плитка с точками-ручкой: видно, что её можно взять. Цвета — тема проигрывателя
 .term-chip {
   position: relative;
   display: inline-flex;
@@ -48,11 +48,10 @@ defineProps<{
   gap: 8px;
   width: 100%;
   min-width: 0;
-  min-height: 64px;
+  min-height: 52px;
   margin: 0;
-  padding: 10px 18px 10px 10px;
+  padding: 8px 18px 8px 10px;
   border: 2px solid var(--g-line);
-  border-bottom-width: 5px;
   border-radius: 18px;
   background: var(--g-chip);
   color: var(--g-text);
@@ -109,7 +108,7 @@ defineProps<{
 }
 
 .term-chip--placed {
-  min-height: 64px;
+  min-height: 52px;
   padding: 8px 10px 8px 6px;
   font-size: 16px;
   touch-action: none;

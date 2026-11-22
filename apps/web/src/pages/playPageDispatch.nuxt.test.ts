@@ -27,13 +27,14 @@ const QUIZ = {
     showAnswers: false,
     timer: { mode: 'none' as const },
     version: 'v1',
+    introTheme: 'nataskium-night' as const,
     questions: [{ text: 'Столица Франции?', imageUrl: null, options: [{ text: 'Париж', imageUrl: null }, { text: 'Рим', imageUrl: null }], selectCount: 1 }],
   },
 }
 
 const MATCHING = {
   type: 'matching' as const,
-  matching: { title: 'Животные', showAnswers: false, version: 'v1', timer: { mode: 'none' as const }, definitions: ['мяукает', 'лает'], terms: ['пёс', 'кот'] },
+  matching: { title: 'Животные', showAnswers: false, version: 'v1', introTheme: 'nataskium-night' as const, timer: { mode: 'none' as const }, definitions: ['мяукает', 'лает'], terms: ['пёс', 'кот'] },
 }
 
 const TRUE_FALSE = {
@@ -42,6 +43,7 @@ const TRUE_FALSE = {
     title: 'Факты',
     showAnswers: false,
     version: 'v1',
+    introTheme: 'nataskium-night' as const,
     timer: { mode: 'none' as const },
     statements: ['Земля круглая', 'Солнце холодное'],
   },
@@ -55,8 +57,17 @@ async function mountPage(route = `/play/${TOKEN}`) {
   return wrapper
 }
 
+// Тема интро по умолчанию играет анимацию; тесты страницы проверяют игру, поэтому интро выключено через reduced motion
+function skipIntroAnimation() {
+  const realMatchMedia = window.matchMedia.bind(window)
+  vi.spyOn(window, 'matchMedia').mockImplementation((query) =>
+    query.includes('prefers-reduced-motion') ? ({ matches: true, media: query } as MediaQueryList) : realMatchMedia(query),
+  )
+}
+
 // Перед загруженным заданием — стартовый экран интро; игра монтируется после «Начать»
 async function pressStart(page: VueWrapper) {
+  skipIntroAnimation()
   await page.get('.intro-player__start-button').trigger('click')
   await flushPromises()
 }
@@ -138,10 +149,9 @@ describe('PlayPage: повтор задания', () => {
     await pressStart(page)
     expect(playApi.get).toHaveBeenCalledTimes(1)
 
+    // Выбор засчитывается сам, итог приходит после автоперехода
     await page.find('.play-question__option').trigger('click')
-    await page.find('.play-question__action').trigger('click')
-    await flushPromises()
-    expect(page.find('.play-result__again').exists()).toBe(true)
+    await vi.waitFor(() => expect(page.find('.play-result__again').exists()).toBe(true))
 
     vi.mocked(playApi.get).mockResolvedValue(QUIZ)
     await page.find('.play-result__again').trigger('click')
@@ -158,8 +168,7 @@ describe('PlayPage: повтор задания', () => {
     await pressStart(page)
 
     await page.find('.play-question__option').trigger('click')
-    await page.find('.play-question__action').trigger('click')
-    await flushPromises()
+    await vi.waitFor(() => expect(page.find('[role="alert"]').exists()).toBe(true))
     expect(page.find('[role="alert"]').text()).toBe('Задание изменилось, начните заново')
 
     vi.mocked(playApi.get).mockResolvedValue(QUIZ)

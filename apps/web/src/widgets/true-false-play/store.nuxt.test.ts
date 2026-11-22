@@ -19,7 +19,7 @@ const RESULT = { percent: 100, grade: '5', correctCount: 3, partialCount: 0, tot
 function trueFalse(showAnswers = true, timer: QuizTimer = { mode: 'none' }) {
   return {
     type: 'truefalse' as const,
-    trueFalse: { title: 'Факты', showAnswers, version: 'v1', timer, statements: ['Земля плоская', 'Вода мокрая', 'Лёд горячий'] },
+    trueFalse: { title: 'Факты', showAnswers, version: 'v1', introTheme: 'nataskium-night' as const, timer, statements: ['Земля плоская', 'Вода мокрая', 'Лёд горячий'] },
   }
 }
 
@@ -74,7 +74,7 @@ describe('useTrueFalsePlayStore: загрузка', () => {
   })
 
   it('по ссылке оказалась викторина — «не найдено»', async () => {
-    get.mockResolvedValue({ type: 'quiz', quiz: { title: 'Q', showAnswers: false, timer: { mode: 'none' }, version: 'v1', questions: [] } })
+    get.mockResolvedValue({ type: 'quiz', quiz: { title: 'Q', showAnswers: false, timer: { mode: 'none' }, version: 'v1', introTheme: 'nataskium-night' as const, questions: [] } })
     await store.start(TOKEN)
 
     expect(store.status).toBe('notFound')
@@ -157,6 +157,33 @@ describe('useTrueFalsePlayStore: с показом ответов', () => {
 
     expect(store.current).toBe(1)
     expect(store.verdict).toBeNull()
+  })
+
+  it('окно «Как играть» во время подсветки: утверждение не меняется, после закрытия переход через ANSWER_ADVANCE_MS', async () => {
+    check.mockResolvedValue({ correct: true })
+    await startWith()
+
+    await store.answer(true)
+    store.pauseClock()
+    await vi.advanceTimersByTimeAsync(ANSWER_FEEDBACK_MS * 3)
+    expect(store.current).toBe(0)
+    expect(store.verdict).toBe(true)
+
+    store.resumeClock()
+    await vi.advanceTimersByTimeAsync(ANSWER_ADVANCE_MS)
+    expect(store.current).toBe(1)
+  })
+
+  it('ушли со страницы, не закрыв «Как играть»: следующая игра не стоит на паузе', async () => {
+    check.mockResolvedValue({ correct: true })
+    await startWith()
+    store.pauseClock()
+    store.dispose()
+
+    await startWith()
+    await store.answer(true)
+    await vi.advanceTimersByTimeAsync(ANSWER_FEEDBACK_MS)
+    expect(store.current).toBe(1)
   })
 
   it('отсчёт задержки начинается после ответа сервера, а не после клика', async () => {

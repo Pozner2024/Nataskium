@@ -74,7 +74,7 @@ describe('trueFalseInputSchema', () => {
 })
 
 describe('play-схемы', () => {
-  const play = { type: 'truefalse', trueFalse: { title: 'T', showAnswers: true, version: 'v1', timer: { mode: 'none' }, statements: ['a', 'b'] } }
+  const play = { type: 'truefalse', trueFalse: { title: 'T', showAnswers: true, version: 'v1', introTheme: 'nataskium-night', timer: { mode: 'none' }, statements: ['a', 'b'] } }
 
   it('finish: answers допускает null, отклоняет 31 элемент и строки', () => {
     expect(playTrueFalseFinishInputSchema.safeParse({ version: 'v1', answers: [true, null, false] }).success).toBe(true)
@@ -102,6 +102,7 @@ describe('play-схемы', () => {
       showAnswers: true,
       gradingScale: 'five',
       timer: { mode: 'none' },
+      introTheme: 'nataskium-day',
       items: [{ statement: 'a', answer: true }, { statement: 'b', answer: false }],
     }
     expect(trueFalseResponseSchema.safeParse({ trueFalse: cabinet }).success).toBe(true)

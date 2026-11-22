@@ -158,3 +158,5 @@ export type {
   TrueFalseItem,
   TrueFalseResponse,
 } from './trueFalse'
+export { DEFAULT_INTRO_THEME_KEY, INTRO_THEME_KEYS, introThemeKeySchema } from './introTheme'
+export type { IntroThemeKey } from './introTheme'

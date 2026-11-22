@@ -3,14 +3,16 @@
     ref="rootRef"
     class="intro-player"
     :class="{
-      'intro-player--light': theme === 'light',
+      'intro-player--light': isLight,
       'intro-player--done': phase === 'done',
       'intro-player--timer': timerCount > 0,
     }"
   >
-    <div class="intro-player__pcb" />
+    <div v-if="!introTheme" class="intro-player__pcb" />
+    <!-- Сцена темы кодом лежит там же, где статичная плата и ролик: позади скрима и содержимого -->
+    <IntroTheme v-if="introTheme" ref="themeSceneRef" :theme-key="introTheme" :sound="themeSound" />
     <video
-      v-if="src"
+      v-if="src && !introTheme"
       ref="videoRef"
       class="intro-player__video"
       :class="{ 'intro-player__video--hidden': phase === 'start' }"
@@ -24,6 +26,8 @@
       @volumechange="syncMuted"
     />
     <div v-if="phase === 'done'" class="intro-player__scrim" />
+    <!-- Живой фон — на стартовом экране и в игре; во время заставки его нет -->
+    <IntroThemeAmbience v-if="introTheme && phase !== 'playing'" :theme-key="introTheme" />
 
     <div v-if="$slots.toolbar" class="intro-player__toolbar">
       <slot name="toolbar" />
@@ -31,10 +35,13 @@
 
     <!-- Иконки: Lucide, лицензия ISC, https://lucide.dev -->
     <div v-if="phase !== 'done'" class="intro-player__top">
-      <div class="intro-player__steps" aria-hidden="true">
-        <i v-for="step in STEPS" :key="step" class="intro-player__step" :class="{ 'intro-player__step--on': step <= currentStep }" />
-      </div>
-      <button v-if="phase === 'playing' || skippable" type="button" class="intro-player__skip" @click="skip">
+      <button
+        v-if="phase === 'playing' || skippable"
+        type="button"
+        class="intro-player__skip"
+        :class="{ 'intro-player__skip--scrim': hasStartScrim }"
+        @click="skip"
+      >
         {{ skipLabel }}
         <svg class="intro-player__skip-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
           <polygon points="5 4 15 12 5 20 5 4" />
@@ -44,11 +51,11 @@
     </div>
 
     <div v-if="phase === 'start'" class="intro-player__start">
-      <div class="intro-player__console">
-        <span class="intro-player__leds" aria-hidden="true">
-          <i class="intro-player__led intro-player__led--green" />
-          <i class="intro-player__led intro-player__led--orange" />
-          <i class="intro-player__led intro-player__led--blue" />
+      <div class="intro-player__console" :class="{ 'intro-player__console--scrim': hasStartScrim }">
+        <span class="intro-player__dots" aria-hidden="true">
+          <i class="intro-player__dot intro-player__dot--green" />
+          <i class="intro-player__dot intro-player__dot--orange" />
+          <i class="intro-player__dot intro-player__dot--blue" />
         </span>
         <p class="intro-player__type">{{ typeLabel }}</p>
         <h1 class="intro-player__title" :class="{ 'intro-player__title--long': title.length > LONG_TITLE_LENGTH }">{{ title }}</h1>
@@ -59,38 +66,14 @@
           </svg>
           {{ startLabel }}
         </button>
+        <button v-if="rules.length > 0" type="button" class="intro-player__rules-link" @click="rulesOpen = true">
+          {{ rulesLabel }}
+        </button>
       </div>
     </div>
 
-    <div v-show="phase === 'done' && intro" class="intro-player__bar">
-      <div class="intro-player__steps intro-player__steps--compact" aria-hidden="true">
-        <i v-for="step in STEPS" :key="step" class="intro-player__step intro-player__step--on" />
-      </div>
-      <div ref="timerRef" class="intro-player__timer" />
-      <button
-        v-if="canFullscreen"
-        type="button"
-        class="intro-player__screen"
-        :aria-pressed="isFullscreen"
-        @click="toggleFullscreen"
-      >
-        <svg class="intro-player__icon intro-player__icon--small" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <template v-if="isFullscreen">
-            <path d="M8 3v3a2 2 0 0 1-2 2H3" />
-            <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
-            <path d="M3 16h3a2 2 0 0 1 2 2v3" />
-            <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
-          </template>
-          <template v-else>
-            <path d="M8 3H5a2 2 0 0 0-2 2v3" />
-            <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
-            <path d="M3 16v3a2 2 0 0 0 2 2h3" />
-            <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
-          </template>
-        </svg>
-        {{ isFullscreen ? collapseLabel : enterFullscreenLabel }}
-      </button>
-    </div>
+    <!-- Таймер игры: на телефоне в левом верхнем углу, на широком экране — в колонке слева. Отдельной полосы нет -->
+    <div v-show="phase === 'done' && intro" ref="timerRef" class="intro-player__timer" />
 
     <Transition name="intro-player-fade">
       <div v-if="phase === 'done'" class="intro-player__body">
@@ -110,11 +93,25 @@
       </div>
     </Transition>
 
-    <div v-if="phase !== 'done'" class="intro-player__controls">
+    <div class="intro-player__controls">
       <button
-        v-if="phase === 'playing'"
+        v-if="phase === 'done' && rules.length > 0"
         type="button"
         class="intro-player__control"
+        :aria-label="rulesLabel"
+        @click="rulesOpen = true"
+      >
+        <svg class="intro-player__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <circle cx="12" cy="12" r="10" />
+          <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+          <path d="M12 17h.01" />
+        </svg>
+      </button>
+      <button
+        v-if="phase === 'playing' || (phase === 'done' && themeSound)"
+        type="button"
+        class="intro-player__control"
+        :class="{ 'intro-player__control--scrim': hasStartScrim }"
         :aria-label="isMuted ? unmuteLabel : muteLabel"
         @click="toggleMuted"
       >
@@ -136,6 +133,7 @@
         v-if="canFullscreen"
         type="button"
         class="intro-player__control"
+        :class="{ 'intro-player__control--scrim': hasStartScrim }"
         :aria-label="isFullscreen ? exitFullscreenLabel : enterFullscreenLabel"
         @click="toggleFullscreen"
       >
@@ -155,12 +153,25 @@
         </svg>
       </button>
     </div>
+
+    <!-- Внутри корня: в полноэкранном режиме окно видно поверх игры. Пока оно открыто в игре, таймер на паузе -->
+    <AppDialog v-if="rules.length > 0" v-model:open="rulesOpen" :title="rulesLabel">
+      <ol class="intro-player__rules">
+        <li v-for="(step, index) in rules" :key="index">{{ step }}</li>
+      </ol>
+      <p v-if="rulesNote" class="intro-player__rules-note">{{ rulesNote }}</p>
+      <template #actions>
+        <button class="intro-player__rules-close" type="button" autofocus @click="rulesOpen = false">{{ rulesCloseLabel }}</button>
+      </template>
+    </AppDialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
-import { PLAYER_SCROLL_KEY, PLAYER_SCROLL_RELEASE_KEY, PLAYER_TIMER_SLOT_KEY } from '@/features/play-session'
+import { AppDialog } from '@/shared'
+import { PLAYER_ENTRANCE_KEY, PLAYER_PAUSE_KEY, PLAYER_SCROLL_KEY, PLAYER_SCROLL_RELEASE_KEY, PLAYER_SOUND_KEY, PLAYER_TIMER_SLOT_KEY } from '@/features/play-session'
+import { IntroTheme, IntroThemeAmbience, createIntroEntrance, createIntroSound, createQuestionSwap, findTheme, type QuestionSwap } from '@/entities/intro-theme'
 
 const props = withDefaults(
   defineProps<{
@@ -172,6 +183,8 @@ const props = withDefaults(
     // «Пропустить» уже на стартовом экране (предпросмотр учителя)
     skippable?: boolean
     theme?: 'night' | 'light'
+    // Тема кодом (ADR 0015): интро рисует сцена темы, ролик не нужен. Тон темы перекрывает theme
+    introTheme?: string | null
     typeLabel: string
     title: string
     hint: string
@@ -183,26 +196,45 @@ const props = withDefaults(
     unmuteLabel: string
     muteLabel: string
     scrollDownLabel: string
+    // «Как играть»: шаги правил игры; пусто — кнопки и окна нет
+    rules?: string[]
+    rulesNote?: string
+    rulesLabel?: string
+    rulesCloseLabel?: string
   }>(),
-  { src: null, poster: undefined, intro: true, skippable: false, theme: 'night' },
+  {
+    src: null,
+    poster: undefined,
+    intro: true,
+    skippable: false,
+    theme: 'night',
+    introTheme: null,
+    rules: () => [],
+    rulesNote: '',
+    rulesLabel: '',
+    rulesCloseLabel: '',
+  },
 )
 
 const emit = defineEmits<{ done: [] }>()
 
 type Phase = 'start' | 'playing' | 'done'
 
-const STEPS = [1, 2, 3]
-const STEP_BY_PHASE: Record<Phase, number> = { start: 1, playing: 2, done: 3 }
 const LONG_TITLE_LENGTH = 50
 // Запас, после которого считается, что слот долистан до конца
 const SCROLL_END_TOLERANCE_PX = 1
 
 const videoRef = ref<HTMLVideoElement | null>(null)
+const themeSceneRef = ref<InstanceType<typeof IntroTheme> | null>(null)
+// Звуки темы кодом: включаются в обработчике «Начать» (жест пользователя), при пропуске и reduced motion молчат
+const themeSound = props.introTheme ? createIntroSound(props.introTheme) : null
+const isLight = computed(() => (props.introTheme ? findTheme(props.introTheme).tone === 'light' : props.theme === 'light'))
+// Без темы кадр за карточкой и «Пропустить» заранее не известен (ролик), поэтому подложка для контраста есть всегда
+const hasStartScrim = computed(() => (props.introTheme ? findTheme(props.introTheme).startScrim : true))
 const rootRef = ref<HTMLElement | null>(null)
 const scrollRef = ref<HTMLElement | null>(null)
 const timerRef = ref<HTMLElement | null>(null)
 const phase = ref<Phase>(props.intro ? 'start' : 'done')
-const currentStep = computed(() => STEP_BY_PHASE[phase.value])
 const canFullscreen = ref(false)
 const isFullscreen = ref(false)
 const isMuted = ref(false)
@@ -213,6 +245,29 @@ const isVideoUnavailable = ref(!props.src)
 let resizeObserver: ResizeObserver | null = null
 
 const scrollReleased = ref(false)
+
+// Вылет только у первого вопроса после интро (при reduced motion — плавное проявление); рамка у темы кодом на всех вопросах
+let entranceTaken = false
+// Стиль можно сменить во время игры: смена вопроса берётся у текущего стиля
+let questionSwap: { key: string | null; swap: QuestionSwap | null } | null = null
+provide(PLAYER_ENTRANCE_KEY, {
+  framed: !!props.introTheme && findTheme(props.introTheme).kind === 'code',
+  take: () => {
+    if (entranceTaken || !props.introTheme || !rootRef.value) return null
+    entranceTaken = true
+    return createIntroEntrance(props.introTheme, rootRef.value, isReducedMotion(), themeSound)
+  },
+  swap: () => {
+    if (questionSwap?.key !== props.introTheme) {
+      questionSwap = { key: props.introTheme, swap: createQuestionSwap(props.introTheme, isReducedMotion(), themeSound) }
+    }
+    return questionSwap.swap
+  },
+})
+
+const rulesOpen = ref(false)
+provide(PLAYER_PAUSE_KEY, computed(() => rulesOpen.value && phase.value === 'done'))
+provide(PLAYER_SOUND_KEY, (name) => themeSound?.play(name))
 
 provide(PLAYER_SCROLL_KEY, scrollRef)
 provide(PLAYER_SCROLL_RELEASE_KEY, scrollReleased)
@@ -235,6 +290,24 @@ function finish() {
 function onVideoError() {
   isVideoUnavailable.value = true
   if (phase.value === 'playing') finish()
+}
+
+function isReducedMotion(): boolean {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
+function nextFrame(): Promise<void> {
+  return new Promise((resolve) => requestAnimationFrame(() => resolve()))
+}
+
+// Раскладка интро считается один раз: два кадра, чтобы размер после смены экрана устоялся
+async function playThemeIntro() {
+  phase.value = 'playing'
+  await nextFrame()
+  await nextFrame()
+  if (phase.value !== 'playing') return
+  await themeSceneRef.value?.play()
+  finish()
 }
 
 async function requestFullscreenQuietly() {
@@ -261,7 +334,16 @@ async function playWithSoundOrMuted(video: HTMLVideoElement) {
 }
 
 function start() {
-  if (canFullscreen.value) void requestFullscreenQuietly()
+  if (props.introTheme) {
+    if (!isReducedMotion()) {
+      themeSound?.unlock()
+      void playThemeIntro()
+      return
+    }
+    finish()
+    return
+  }
+  // Полный экран — только по кнопке «На весь экран», «Начать» его не включает (решение пользователя 2026-11-21)
   const video = videoRef.value
   if (!video || isVideoUnavailable.value) {
     finish()
@@ -272,6 +354,14 @@ function start() {
 }
 
 function skip() {
+  if (props.introTheme) {
+    // «Пропустить» на стартовом экране — тоже жест: звуки игры включаются, звук интро обрывается
+    if (!isReducedMotion()) themeSound?.unlock()
+    themeSound?.stop()
+    themeSceneRef.value?.skip()
+    finish()
+    return
+  }
   const video = videoRef.value
   video?.pause()
   // Последний кадр остаётся фоном под содержимым
@@ -284,6 +374,11 @@ function syncMuted() {
 }
 
 function toggleMuted() {
+  if (themeSound) {
+    isMuted.value = !isMuted.value
+    themeSound.setMuted(isMuted.value)
+    return
+  }
   if (videoRef.value) videoRef.value.muted = !videoRef.value.muted
 }
 
@@ -345,6 +440,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  themeSound?.dispose()
   document.removeEventListener('fullscreenchange', syncFullscreen)
   resizeObserver?.disconnect()
 })
@@ -358,6 +454,14 @@ $edge: rgb(0 0 0 / 0.5);
 // Поля страницы над и под окном проигрывателя на планшете и десктопе
 $window-margin: 48px;
 $rail-gap: 12px;
+// Углы игры: таймер слева, кнопки справа; под них сверху слота оставлено место
+$game-corner-gap: 12px;
+$game-corner-size: 56px;
+$game-top-clearance: $game-corner-gap * 2 + $game-corner-size;
+// Кнопки звука и экрана: отступы от углов и место под ними в слоте игры
+$controls-edge: 20px;
+$controls-bottom: 28px;
+$controls-clearance: $controls-bottom + $game-corner-size + $game-corner-gap;
 
 @mixin pressable($shadow-size, $pressed-size) {
   transition:
@@ -370,7 +474,7 @@ $rail-gap: 12px;
   }
 
   &:focus-visible {
-    outline: 4px solid var(--color-white);
+    outline: 4px solid var(--g-focus);
     outline-offset: 3px;
   }
 }
@@ -408,6 +512,7 @@ $rail-gap: 12px;
   --g-scrim-top: rgb(23 27 58 / 0.65);
   --g-scrim-bottom: rgb(23 27 58 / 0.85);
   --g-more: rgb(23 27 58 / 0.75);
+  --g-card-scrim: rgb(23 27 58 / 0.85);
 
   --player-rail-width: 0px;
 
@@ -473,6 +578,7 @@ $rail-gap: 12px;
   --g-scrim-top: rgb(255 255 255 / 0.45);
   --g-scrim-bottom: rgb(255 255 255 / 0.72);
   --g-more: rgb(255 255 255 / 0.8);
+  --g-card-scrim: rgb(255 255 255 / 0.9);
 }
 
 // Колонка с таймером на широком экране лежит поверх левого поля слота
@@ -538,6 +644,7 @@ $rail-gap: 12px;
   display: flex;
   flex: none;
   align-items: center;
+  justify-content: flex-end;
   gap: 16px;
   min-height: 52px;
   padding: 16px 20px 0;
@@ -548,66 +655,44 @@ $rail-gap: 12px;
   }
 }
 
-.intro-player__steps {
-  display: flex;
-  flex: 1;
-  gap: 6px;
-
-  &--compact {
-    flex: none;
-    width: 64px;
-
-    @include tablet {
-      width: 132px;
-    }
-  }
-}
-
-.intro-player__step {
-  display: block;
-  flex: 1;
-  height: 10px;
-  border-radius: 5px;
-  background: rgb(var(--rgb-white) / 0.4);
-
-  &--on {
-    background: var(--color-green-light);
-    box-shadow: 0 0 8px rgb(124 200 88 / 0.7);
-  }
-
-  .intro-player__steps--compact & {
-    height: 6px;
-    border-radius: 3px;
-    box-shadow: none;
-  }
-}
-
+// Второстепенная кнопка: контур без заливки, чтобы не спорить с «Начать». Подсветка наведения — слой поверх заливки
 .intro-player__skip {
-  @include pressable(5px, 1px);
-
   display: inline-flex;
   flex: none;
   align-items: center;
   gap: 8px;
-  min-height: 52px;
-  padding: 0 20px;
+  min-height: 48px;
+  padding: 0 18px;
   white-space: nowrap;
-  border: 0;
-  border-radius: 18px;
-  background: var(--color-orange);
-  color: var(--color-text);
+  border: 2px solid var(--g-text);
+  border-radius: 999px;
+  background-color: transparent;
+  color: var(--g-text);
   font-family: var(--font-body);
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 700;
-  box-shadow:
-    0 5px 0 var(--color-orange-dark),
-    inset 0 2px 0 rgb(var(--rgb-white) / 0.35);
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: box-shadow 0.15s ease;
+
+  // Подсветка — внутренняя тень во всю кнопку: ложится поверх подложки и плавно появляется
+  @media (hover: hover) {
+    &:hover {
+      box-shadow: inset 0 0 0 100vmax var(--g-surface);
+    }
+  }
 
   &:active {
-    box-shadow:
-      0 1px 0 var(--color-orange-dark),
-      inset 0 2px 0 rgb(var(--rgb-white) / 0.35);
+    box-shadow: inset 0 0 0 100vmax var(--g-surface-hover);
+  }
+
+  &:focus-visible {
+    outline: 3px solid var(--g-focus);
+    outline-offset: 3px;
+  }
+
+  &--scrim {
+    background-color: var(--g-card-scrim);
   }
 }
 
@@ -625,6 +710,7 @@ $rail-gap: 12px;
   }
 }
 
+// Тот же вид, что у карточки задания после вылета (EntranceCard): синяя рамка, скругление, точки окна
 .intro-player__console {
   position: relative;
   display: flex;
@@ -632,37 +718,35 @@ $rail-gap: 12px;
   flex-direction: column;
   align-items: flex-start;
   margin: auto 0;
-  padding: 40px 22px 28px;
-  border: 3px solid var(--color-blue-dark);
-  border-radius: 32px;
-  background: rgb(23 27 58 / 0.82);
-  box-shadow:
-    0 8px 0 $edge,
-    0 0 40px rgb(var(--rgb-blue) / 0.25);
+  padding: 16px 16px 20px;
+  border: 3px solid var(--color-blue);
+  border-radius: 24px;
 
   @include tablet {
     max-width: 560px;
     margin: auto;
-    padding: 34px 24px 20px;
+    padding: 20px 24px 24px;
+    border-radius: 32px;
+  }
+
+  &--scrim {
+    background: var(--g-card-scrim);
   }
 }
 
-.intro-player__leds {
-  position: absolute;
-  top: 14px;
-  left: 24px;
+.intro-player__dots {
   display: flex;
-  gap: 6px;
+  gap: 8px;
 }
 
-.intro-player__led {
+.intro-player__dot {
   display: block;
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
 
   &--green {
-    background: var(--color-green-light);
+    background: var(--color-green);
   }
 
   &--orange {
@@ -677,23 +761,22 @@ $rail-gap: 12px;
 .intro-player__type {
   display: inline-flex;
   align-items: center;
-  min-height: 40px;
-  margin: 0;
-  padding: 0 16px;
+  min-height: 36px;
+  margin: 16px 0 0;
+  padding: 0 14px;
   border-radius: 999px;
   background: var(--color-orange);
   color: var(--color-text);
   font-family: var(--font-body);
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  box-shadow: 0 3px 0 var(--color-orange-dark);
 }
 
 .intro-player__title {
-  margin: 18px 0 0;
-  color: var(--color-white);
+  margin: 14px 0 0;
+  color: var(--g-text);
   font-family: var(--font-display);
   font-size: 26px;
   font-weight: 700;
@@ -711,26 +794,19 @@ $rail-gap: 12px;
 }
 
 .intro-player__hint {
-  width: 100%;
-  margin: 14px 0 26px;
-  padding: 14px 16px;
-  border-radius: 16px;
-  background: rgb(0 0 0 / 0.3);
-  color: var(--color-white);
+  margin: 10px 0 24px;
+  color: var(--g-muted);
   font-family: var(--font-body);
   font-size: 18px;
   line-height: 1.4;
 
   @include tablet {
-    margin: 10px 0 18px;
-    padding: 10px 14px;
+    margin-bottom: 20px;
     font-size: 17px;
   }
 }
 
 .intro-player__start-button {
-  @include pressable(7px, 2px);
-
   display: flex;
   align-items: center;
   justify-content: center;
@@ -739,22 +815,33 @@ $rail-gap: 12px;
   min-height: 76px;
   padding: 0 16px;
   border: 0;
-  border-radius: 24px;
-  background: linear-gradient(var(--color-green-light), var(--color-green));
+  border-radius: 20px;
+  background: var(--color-green-light);
   color: var(--color-text);
   font-family: var(--font-display);
   font-size: 20px;
   font-weight: 700;
   text-transform: uppercase;
-  box-shadow:
-    0 7px 0 var(--color-green-dark),
-    inset 0 3px 0 rgb(var(--rgb-white) / 0.35);
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    transform 0.15s ease,
+    background-color 0.15s ease;
+
+  @media (hover: hover) {
+    &:hover {
+      background: var(--color-green);
+    }
+  }
 
   &:active {
-    box-shadow:
-      0 2px 0 var(--color-green-dark),
-      inset 0 3px 0 rgb(var(--rgb-white) / 0.2);
+    background: var(--color-green);
+    transform: scale(0.98);
+  }
+
+  &:focus-visible {
+    outline: 4px solid var(--g-focus);
+    outline-offset: 3px;
   }
 
   @include tablet {
@@ -796,40 +883,49 @@ $rail-gap: 12px;
   }
 }
 
+// Звук и полный экран — всегда в правом нижнем углу, плоские контурные, как «Пропустить».
+// Слот игры оставляет под ними место снизу, чтобы они не закрывали ответы
 .intro-player__controls {
   position: absolute;
-  right: 20px;
-  bottom: 28px;
+  right: $controls-edge;
+  bottom: $controls-bottom;
   z-index: var(--z-player-controls);
   display: flex;
   gap: 14px;
-
-  @include tablet {
-    top: 6px;
-    right: 12px;
-    bottom: auto;
-  }
 }
 
 .intro-player__control {
-  @include pressable(5px, 1px);
-
   display: flex;
   align-items: center;
   justify-content: center;
   width: 56px;
   height: 56px;
   padding: 0;
-  border: 3px solid var(--color-blue-light);
+  border: 2px solid var(--g-text);
   border-radius: 50%;
-  background: var(--color-night);
-  color: var(--color-white);
-  box-shadow: 0 5px 0 $edge;
+  background-color: transparent;
+  color: var(--g-text);
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: box-shadow 0.15s ease;
+
+  @media (hover: hover) {
+    &:hover {
+      box-shadow: inset 0 0 0 100vmax var(--g-surface);
+    }
+  }
 
   &:active {
-    background: var(--color-blue-dark);
-    box-shadow: 0 1px 0 $edge;
+    box-shadow: inset 0 0 0 100vmax var(--g-surface-hover);
+  }
+
+  &:focus-visible {
+    outline: 3px solid var(--g-focus);
+    outline-offset: 3px;
+  }
+
+  &--scrim {
+    background-color: var(--g-card-scrim);
   }
 
   @include tablet {
@@ -838,87 +934,22 @@ $rail-gap: 12px;
   }
 }
 
-// Полоса игры всегда тёмная, поэтому таймер в ней «ночной» в любой теме
-.intro-player__bar {
-  --g-timer-track: rgb(255 255 255 / 0.12);
-  --g-timer-fill: #ffffff;
-  --g-timer-text: #ffffff;
-  --g-timer-tick: #171b3a;
-  --g-timer-low: #e98d34;
-
-  position: relative;
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: 10px;
-  min-height: 56px;
-  padding: 4px 10px 4px 20px;
-  background: rgb(var(--rgb-night) / 0.85);
-  box-shadow: 0 1px 0 rgb(147 176 249 / 0.25);
-
-  @include tablet {
-    gap: 14px;
-    min-height: 48px;
-    padding: 2px 12px 2px 20px;
-  }
-}
-
-// Телефон: таймер по центру полосы. Широкий экран: в колонке слева под полосой, поверх поля слота
+// Телефон: таймер в левом верхнем углу, напротив кнопок. Широкий экран: в колонке слева
 .intro-player__timer {
+  position: absolute;
+  top: $game-corner-gap;
+  left: $game-corner-gap;
+  z-index: var(--z-player-rail);
   display: flex;
-  flex: 1;
-  justify-content: center;
-  min-width: 0;
+  align-items: center;
+  min-height: $game-corner-size;
+  pointer-events: none;
 
   @include tablet {
-    position: absolute;
-    top: calc(100% + 20px);
+    top: $game-corner-gap * 2;
     left: $rail-gap;
-    z-index: var(--z-player-rail);
     width: calc(var(--player-rail-width) - #{$rail-gap});
-    pointer-events: none;
-  }
-
-  .intro-player:fullscreen & {
-    @include desktop {
-      top: calc(100% + 28px);
-    }
-  }
-}
-
-.intro-player__screen {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  gap: 8px;
-  min-height: 44px;
-  margin-left: auto;
-  padding: 0 16px 0 12px;
-  border: 2px solid var(--color-blue-light);
-  border-radius: 999px;
-  background: var(--color-night);
-  color: var(--color-white);
-  font-family: var(--font-body);
-  font-size: 15px;
-  font-weight: 700;
-  box-shadow: 0 4px 0 $edge;
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-
-  @media (hover: hover) {
-    &:hover {
-      background: #222852;
-    }
-  }
-
-  &:active {
-    background: var(--color-blue-dark);
-    box-shadow: 0 1px 0 $edge;
-  }
-
-  &:focus-visible {
-    outline: 3px solid var(--color-white);
-    outline-offset: 2px;
+    min-height: 0;
   }
 }
 
@@ -931,14 +962,17 @@ $rail-gap: 12px;
 }
 
 // Отступы слота доступны игре: нижняя полоса «Проверить» растягивается на всю ширину окна
+// Полосы игры нет: на телефоне сверху место под таймер в углу, снизу — под кнопки звука и экрана.
+// Закреплённое в игре (лоток слов) встаёт ниже таймера; --player-controls-clearance — для нижних полос игр
 .intro-player__content {
-  --play-sticky-top: 0px;
+  --play-sticky-top: #{$game-top-clearance};
   --player-pad-start: calc(8px + var(--player-rail-width));
   --player-pad-end: 8px;
+  --player-controls-clearance: #{$controls-clearance};
 
   flex: 1;
   min-height: 0;
-  padding: 10px var(--player-pad-end) 0 var(--player-pad-start);
+  padding: $game-top-clearance var(--player-pad-end) $controls-clearance var(--player-pad-start);
   overflow-y: auto;
   // Во время игры свайп по слоту не уводит страницу; после итога прокрутка доходит до подвала
   overscroll-behavior-y: contain;
@@ -955,8 +989,10 @@ $rail-gap: 12px;
     // Без колонки таймера поля слева и справа одинаковые
     --player-pad-start: max(16px, calc(#{$rail-gap} + var(--player-rail-width)));
     --player-pad-end: 16px;
+    // Таймер на широком экране в колонке слева, сверху место не нужно
+    --play-sticky-top: 0px;
 
-    padding-top: 0;
+    padding-top: $game-corner-gap;
   }
 }
 
@@ -1018,9 +1054,69 @@ $rail-gap: 12px;
   .intro-player-fade-enter-active,
   .intro-player__skip,
   .intro-player__control,
-  .intro-player__start-button,
-  .intro-player__screen {
+  .intro-player__start-button {
     transition: none;
+  }
+
+  .intro-player__start-button:active {
+    transform: none;
+  }
+}
+
+// «Как играть» на стартовом экране — тихая ссылка под «Начать»
+.intro-player__rules-link {
+  align-self: center;
+  min-height: 44px;
+  margin-top: 4px;
+  padding: 8px 16px;
+  border: 0;
+  background: none;
+  color: var(--g-text);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 3px solid var(--g-focus);
+    outline-offset: 2px;
+    border-radius: 12px;
+  }
+}
+
+.intro-player__rules {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding-left: 22px;
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+.intro-player__rules-note {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.intro-player__rules-close {
+  min-height: 48px;
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--color-blue);
+  color: var(--color-white);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 3px solid var(--color-blue-dark);
+    outline-offset: 2px;
   }
 }
 </style>

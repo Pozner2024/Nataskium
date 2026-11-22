@@ -37,6 +37,7 @@ async function seedMatching(
       gradingScale: options.gradingScale === undefined ? 'five' : options.gradingScale,
       timerMode: 'limit',
       timeLimitSeconds: 600,
+      introTheme: 'nataskium-day',
       questions: options.pairs ?? PAIRS,
       deletedAt: options.deletedAt ?? null,
     },
@@ -95,7 +96,7 @@ describe('GET /api/play/:token — сопоставление', () => {
     for (const leak of ['pairs', 'term"', 'definition"', 'correct', 'gradingScale', row.id, row.teacherId, row.shareToken]) {
       expect(text).not.toContain(leak)
     }
-    expect(Object.keys(JSON.parse(text).matching).sort()).toEqual(['definitions', 'showAnswers', 'terms', 'timer', 'title', 'version'])
+    expect(Object.keys(JSON.parse(text).matching).sort()).toEqual(['definitions', 'introTheme', 'showAnswers', 'terms', 'timer', 'title', 'version'])
   })
 
   it('слова перемешиваются заново: за серию запросов встречаются разные порядки', async () => {

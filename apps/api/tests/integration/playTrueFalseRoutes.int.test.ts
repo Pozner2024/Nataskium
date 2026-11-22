@@ -31,6 +31,7 @@ async function seedTrueFalse(options: { deletedAt?: Date | null; showAnswers?: b
       gradingScale: options.gradingScale === undefined ? 'five' : options.gradingScale,
       timerMode: 'limit',
       timeLimitSeconds: 600,
+      introTheme: 'nataskium-day',
       questions: ITEMS,
       deletedAt: options.deletedAt ?? null,
     },
@@ -104,6 +105,7 @@ describe('GET /api/play/:token — да/нет', () => {
       title: 'Факты',
       showAnswers: false,
       timer: { mode: 'limit', seconds: 600 },
+      introTheme: 'nataskium-day',
       statements: ITEMS.map((item) => item.statement),
     })
   })
@@ -114,7 +116,7 @@ describe('GET /api/play/:token — да/нет', () => {
     const text = await (await request('GET', `/api/play/${row.shareToken}`)).text()
 
     for (const leak of ['answer', 'items', 'correct', 'gradingScale', row.id, row.teacherId, row.shareToken]) expect(text).not.toContain(leak)
-    expect(Object.keys(JSON.parse(text).trueFalse).sort()).toEqual(['showAnswers', 'statements', 'timer', 'title', 'version'])
+    expect(Object.keys(JSON.parse(text).trueFalse).sort()).toEqual(['introTheme', 'showAnswers', 'statements', 'timer', 'title', 'version'])
   })
 
   it('удалённое задание — 404', async () => {

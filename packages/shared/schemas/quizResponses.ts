@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { GRADING_SCALE_TYPES } from '../grading'
 import type { QuizResult } from '../grading'
 import { activityKindSchema } from './activity'
+import { introThemeKeySchema } from './introTheme'
 import {
   imageIdSchema,
   optionSchema,
@@ -43,6 +44,7 @@ export const quizResponseSchema = z.object({
     shareToken: shareTokenSchema,
     // Сервер всегда присылает таймер, поэтому здесь он обязателен (без default из quizInputSchema)
     timer: quizTimerSchema,
+    introTheme: introThemeKeySchema,
     questions: z.array(quizResponseQuestionSchema),
   }),
 })
@@ -55,6 +57,7 @@ export const playQuizResponseSchema = z.object({
     showAnswers: z.boolean(),
     version: z.string().min(1),
     timer: quizTimerSchema,
+    introTheme: introThemeKeySchema,
     questions: z.array(
       z.object({
         text: z.string(),

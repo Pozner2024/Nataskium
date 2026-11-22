@@ -15,6 +15,7 @@ const BASE: ActivitySettingsValue = {
   group: 'other',
   showAnswers: true,
   gradingScale: null,
+  introTheme: 'nataskium-night' as const,
   timer: { mode: 'none' },
 }
 
@@ -137,5 +138,43 @@ describe('ActivitySettings: откат при неудачном сохране�
     await flushPromises()
 
     expect((switchOf(wrapper, 'quiz-show-answers').element as HTMLInputElement).checked).toBe(true)
+  })
+})
+
+describe('ActivitySettings: визуальный стиль', () => {
+  it('у каждого стиля превью экрана вопроса с тоном темы, скрытое от скринридера, и название', async () => {
+    const { wrapper } = await mountSettings()
+    const styles = wrapper.findAll('.activity-settings__style')
+    expect(styles.map((style) => style.get('.activity-settings__style-name').text())).toEqual(['Nataskium: ночь', 'Nataskium: день'])
+    const previews = styles.map((style) => style.get('.intro-theme-preview'))
+    expect(previews[0]!.classes()).toContain('intro-theme-preview--dark')
+    expect(previews[1]!.classes()).toContain('intro-theme-preview--light')
+    for (const preview of previews) expect(preview.attributes('aria-hidden')).toBe('true')
+  })
+
+  it('текущий стиль отмечен; выбор другого отправляет patch только с introTheme', async () => {
+    const { wrapper, save } = await mountSettings()
+    const radios = wrapper.findAll<HTMLInputElement>('input[name="quiz-style"]')
+    expect(radios.map((radio) => radio.element.checked)).toEqual([true, false])
+
+    await radios[1]!.setValue(true)
+
+    expect(save).toHaveBeenCalledWith({ introTheme: 'nataskium-day' })
+  })
+
+  it('сохранить не удалось — отметка возвращается на прежний стиль', async () => {
+    const { wrapper, save } = await mountSettings(BASE, { save: async () => false })
+    const radios = wrapper.findAll<HTMLInputElement>('input[name="quiz-style"]')
+
+    await radios[1]!.setValue(true)
+    await flushPromises()
+
+    expect(save).toHaveBeenCalledOnce()
+    expect(radios.map((radio) => radio.element.checked)).toEqual([true, false])
+  })
+
+  it('disabled — стили не выбрать', async () => {
+    const { wrapper } = await mountSettings(BASE, { disabled: true })
+    for (const radio of wrapper.findAll('input[name="quiz-style"]')) expect(radio.attributes('disabled')).toBeDefined()
   })
 })

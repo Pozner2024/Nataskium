@@ -39,6 +39,7 @@ const COPY_SELECT = {
   groupSlug: true,
   timerMode: true,
   timeLimitSeconds: true,
+  introTheme: true,
   questions: true,
 } satisfies Prisma.QuizSelect
 

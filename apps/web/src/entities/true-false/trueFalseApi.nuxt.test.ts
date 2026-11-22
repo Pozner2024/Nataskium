@@ -11,6 +11,7 @@ const TRUE_FALSE = {
   title: 'T',
   showAnswers: true,
   gradingScale: null,
+  introTheme: 'nataskium-night' as const,
   group: 'english',
   timer: { mode: 'none' },
   items: [

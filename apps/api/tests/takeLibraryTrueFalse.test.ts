@@ -29,6 +29,7 @@ function copyRow(overrides: Partial<LibraryQuizCopyRow> = {}): LibraryQuizCopyRo
     groupSlug: 'other',
     timerMode: 'limit',
     timeLimitSeconds: 300,
+    introTheme: 'nataskium-day',
     questions: ITEMS,
     ...overrides,
   }
@@ -55,7 +56,7 @@ describe('takeLibraryQuiz: да/нет', () => {
     expect(await take(TEACHER, NUMBER)).toEqual({ quizId: 'new-truefalse-id', type: 'truefalse' })
     expect(createTrueFalse).toHaveBeenCalledWith(
       TEACHER,
-      { title: 'Факты', showAnswers: true, gradingScale: 'five', group: 'other', timer: { mode: 'limit', seconds: 300 }, items: ITEMS },
+      { title: 'Факты', showAnswers: true, gradingScale: 'five', group: 'other', timer: { mode: 'limit', seconds: 300 }, introTheme: 'nataskium-day', items: ITEMS },
       { isPublic: false },
     )
     expect(createQuiz).not.toHaveBeenCalled()
@@ -78,6 +79,13 @@ describe('takeLibraryQuiz: да/нет', () => {
 
   it('строка, не прошедшая схему, — внутренняя ошибка, а не копия', async () => {
     const { take, createTrueFalse } = setupTake({ row: copyRow({ questions: [ITEMS[0], ITEMS[0]] }) })
+
+    await expect(take(TEACHER, NUMBER)).rejects.toThrow('does not match the true-false schema')
+    expect(createTrueFalse).not.toHaveBeenCalled()
+  })
+
+  it('неизвестный визуальный стиль в строке — внутренняя ошибка, а не копия со стилем по умолчанию', async () => {
+    const { take, createTrueFalse } = setupTake({ row: copyRow({ introTheme: 'neon' }) })
 
     await expect(take(TEACHER, NUMBER)).rejects.toThrow('does not match the true-false schema')
     expect(createTrueFalse).not.toHaveBeenCalled()

@@ -32,6 +32,7 @@ function toTrueFalseResponse(activity: StoredTrueFalse): TrueFalseResponse {
       gradingScale: activity.gradingScale,
       group: activity.group,
       timer: activity.timer,
+      introTheme: activity.introTheme,
       items: activity.items.map(({ statement, answer }) => ({ statement, answer })),
       shareToken: activity.shareToken,
     },

@@ -36,6 +36,7 @@ function toQuizInput(quiz: Omit<QuizResponse['quiz'], 'id' | 'shareToken'>): Qui
     gradingScale: quiz.gradingScale,
     group: quiz.group,
     timer: quiz.timer,
+    introTheme: quiz.introTheme,
     questions: quiz.questions.map((question) => ({
       text: question.text,
       imageId: question.imageId,

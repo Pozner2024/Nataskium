@@ -32,6 +32,7 @@ const INPUT: QuizInput = {
   gradingScale: 'five',
   group: 'other',
   timer: { mode: 'none' },
+  introTheme: 'nataskium-night',
   questions: [
     {
       text: 'Столица Франции?',
@@ -120,6 +121,13 @@ describe('/api/play: режим «показывать»', () => {
     expect(finish.status).toBe(200)
     const finished: PlayFinishResponse = playFinishResponseSchema.parse(await finish.json())
     expect(finished.result).toEqual({ percent: 75, grade: '4', correctCount: 1, partialCount: 1, totalCount: 2 })
+  })
+
+  it('GET отдаёт визуальный стиль задания из базы', async () => {
+    const day = await createQuiz({ ...INPUT, introTheme: 'nataskium-day' })
+    expect((await loadPlay(day.shareToken)).introTheme).toBe('nataskium-day')
+    const night = await createQuiz({ ...INPUT, introTheme: 'nataskium-night' })
+    expect((await loadPlay(night.shareToken)).introTheme).toBe('nataskium-night')
   })
 
   it('GET отдаёт таймер; finish принимает пустой ответ как «не отвечено»', async () => {
