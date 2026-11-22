@@ -347,7 +347,6 @@ onBeforeUnmount(() => {
 @use '@/assets/styles/breakpoints.module' as *;
 
 // Место справа в нижней полосе «Проверить» под кнопки звука и полного экрана проигрывателя
-$footer-controls-room: 130px;
 
 // Высота нижней полосы «Проверить» и поля над колонкой слов: колонка не уходит под полосу
 $footer-height: 88px;
@@ -715,10 +714,10 @@ $board-max-width: 1240px;
     bottom: calc(-1 * var(--player-controls-clearance, 0px));
     z-index: var(--z-matching-tray);
     display: block;
-    // Полоса прижата к низу слота (под ней нет запаса под кнопки), а справа оставлено место кнопкам звука и экрана
+    // Полоса прижата к низу слота (под ней нет запаса под кнопки), а справа оставлено место кнопкам проигрывателя
     margin: 0 calc(-1 * var(--player-pad-end, 0px)) calc(-1 * var(--player-controls-clearance, 0px))
       calc(-1 * var(--player-pad-start, 0px));
-    padding: 14px calc(var(--player-pad-end, 0px) + #{$footer-controls-room}) 14px var(--player-pad-start, 0px);
+    padding: 14px var(--player-controls-room, 0px) 14px var(--player-pad-start, 0px);
     border-top: 1px solid var(--g-line);
     background: var(--g-sticky);
     box-shadow: 0 -8px 20px rgb(0 0 0 / 0.25);

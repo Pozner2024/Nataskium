@@ -123,17 +123,19 @@ describe('IntroPlayer: подложка стартового экрана', () =
   }
 })
 
-// Полосы игры нет (решение пользователя 2026-11-21): таймер и кнопки стоят в углах поверх слота
-describe('IntroPlayer: игра без полосы', () => {
+// Решение пользователя 2026-11-22 (заменило «полосы нет» от 2026-11-21): в игре на телефоне таймер и кнопки
+// стоят в сплошной полосе сверху, игра листается под ней; на планшете и шире полоса скрыта стилями
+describe('IntroPlayer: полоса игры', () => {
   for (const fullscreen of [false, true]) {
-    it(`полосы нет; кнопка полного экрана в углу игры ${fullscreen ? 'есть' : 'нет'}`, async () => {
+    it(`в игре полоса есть, кнопки в ней; кнопка полного экрана ${fullscreen ? 'есть' : 'нет'}`, async () => {
       game.withTimer = true
       allowFullscreen(fullscreen)
       const wrapper = await mountPlayer()
       await clickStart(wrapper)
 
       expect(wrapper.find('.game').exists()).toBe(true)
-      expect(wrapper.find('.intro-player__bar').exists()).toBe(false)
+      expect(wrapper.find('.intro-player__bar').exists()).toBe(true)
+      expect(wrapper.get('.intro-player__controls').classes()).toContain('intro-player__controls--bar')
       expect(isTimerShown(wrapper)).toBe(true)
       expect(wrapper.get('.intro-player__controls').find('[aria-label="На весь экран"]').exists()).toBe(fullscreen)
     })
@@ -146,6 +148,8 @@ describe('IntroPlayer: игра без полосы', () => {
     expect(wrapper.find('.intro-player__start').exists()).toBe(true)
     expect(isTimerShown(wrapper)).toBe(false)
     expect(wrapper.get('.intro-player__controls').classes()).not.toContain('intro-player__controls--game')
+    expect(wrapper.find('.intro-player__bar').exists()).toBe(false)
+    expect(wrapper.get('.intro-player__controls').classes()).not.toContain('intro-player__controls--bar')
   })
 
   it('intro=false: игра без таймера в углу, место для таймера в DOM', async () => {

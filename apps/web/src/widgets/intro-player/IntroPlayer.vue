@@ -87,13 +87,15 @@
         >
           <slot />
         </div>
+        <!-- Телефон: сплошная полоса сверху под таймером и кнопками, игра листается под ней -->
+        <div class="intro-player__bar" />
         <div v-if="hasMore" class="intro-player__more">
           <button type="button" class="intro-player__more-button" :aria-label="scrollDownLabel" @click="scrollToEnd" />
         </div>
       </div>
     </Transition>
 
-    <div class="intro-player__controls">
+    <div class="intro-player__controls" :class="{ 'intro-player__controls--bar': phase === 'done' }">
       <button
         v-if="phase === 'done' && rules.length > 0"
         type="button"
@@ -454,14 +456,29 @@ $edge: rgb(0 0 0 / 0.5);
 // Поля страницы над и под окном проигрывателя на планшете и десктопе
 $window-margin: 48px;
 $rail-gap: 12px;
-// Углы игры: таймер слева, кнопки справа; под них сверху слота оставлено место
+// Отступ от углов окна и размер угловых кнопок
 $game-corner-gap: 12px;
 $game-corner-size: 56px;
-$game-top-clearance: $game-corner-gap * 2 + $game-corner-size;
 // Кнопки звука и экрана: отступы от углов и место под ними в слоте игры
 $controls-edge: 20px;
 $controls-bottom: 28px;
 $controls-clearance: $controls-bottom + $game-corner-size + $game-corner-gap;
+// Телефон в игре: кнопки в верхней полосе, снизу место только под стрелку «листайте ниже»
+$slot-bottom-phone: 36px;
+// Кнопки в полосе на телефоне: меньше угловых, по центру полосы высотой с таймер
+$control-size-bar: 44px;
+$control-gap-bar: 10px;
+$control-icon-bar: 22px;
+// Высота полосы на телефоне: кнопка и по 8px сверху и снизу. Таймер на телефоне — только цифры, помещается
+$bar-pad: 8px;
+$bar-height: $control-size-bar + $bar-pad * 2;
+// Кнопки в углу на планшете и шире: «Как играть», звук, полный экран
+$controls-gap: 14px;
+$control-size-wide: 48px;
+$controls-count: 3;
+$controls-width-wide: $controls-count * $control-size-wide + ($controls-count - 1) * $controls-gap;
+// Центр кнопок вровень с кнопкой нижней полосы игры («Проверить»: 14px отступ + 56px кнопка): 18 + 48 / 2 = 14 + 56 / 2
+$controls-bottom-wide: 18px;
 
 @mixin pressable($shadow-size, $pressed-size) {
   transition:
@@ -891,7 +908,60 @@ $controls-clearance: $controls-bottom + $game-corner-size + $game-corner-gap;
   bottom: $controls-bottom;
   z-index: var(--z-player-controls);
   display: flex;
-  gap: 14px;
+  gap: $controls-gap;
+
+  @include tablet {
+    bottom: $controls-bottom-wide;
+  }
+
+  &--bar {
+    top: $bar-pad;
+    right: $game-corner-gap;
+    bottom: auto;
+    gap: $control-gap-bar;
+
+    .intro-player__control {
+      width: $control-size-bar;
+      height: $control-size-bar;
+    }
+
+    .intro-player__icon {
+      width: $control-icon-bar;
+      height: $control-icon-bar;
+    }
+
+    @include tablet {
+      top: auto;
+      right: $controls-edge;
+      bottom: $controls-bottom-wide;
+      gap: $controls-gap;
+
+      .intro-player__control {
+        width: $control-size-wide;
+        height: $control-size-wide;
+      }
+
+      .intro-player__icon {
+        width: 26px;
+        height: 26px;
+      }
+    }
+  }
+}
+
+.intro-player__bar {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: var(--z-player-bar);
+  height: $bar-height;
+  border-bottom: 1px solid var(--g-line);
+  background: var(--g-sticky);
+
+  @include tablet {
+    display: none;
+  }
 }
 
 .intro-player__control {
@@ -929,20 +999,20 @@ $controls-clearance: $controls-bottom + $game-corner-size + $game-corner-gap;
   }
 
   @include tablet {
-    width: 48px;
-    height: 48px;
+    width: $control-size-wide;
+    height: $control-size-wide;
   }
 }
 
 // Телефон: таймер в левом верхнем углу, напротив кнопок. Широкий экран: в колонке слева
 .intro-player__timer {
   position: absolute;
-  top: $game-corner-gap;
+  top: 0;
   left: $game-corner-gap;
   z-index: var(--z-player-rail);
   display: flex;
   align-items: center;
-  min-height: $game-corner-size;
+  min-height: $bar-height;
   pointer-events: none;
 
   @include tablet {
@@ -962,17 +1032,18 @@ $controls-clearance: $controls-bottom + $game-corner-size + $game-corner-gap;
 }
 
 // Отступы слота доступны игре: нижняя полоса «Проверить» растягивается на всю ширину окна
-// Полосы игры нет: на телефоне сверху место под таймер в углу, снизу — под кнопки звука и экрана.
-// Закреплённое в игре (лоток слов) встаёт ниже таймера; --player-controls-clearance — для нижних полос игр
+// Телефон: сверху место под полосу с таймером и кнопками, снизу — под стрелку «листайте ниже».
+// --player-controls-clearance — для нижних полос игр.
+// Закреплённое в игре (лоток слов) отсчитывает top от верхнего отступа слота, то есть уже от низа полосы
 .intro-player__content {
-  --play-sticky-top: #{$game-top-clearance};
+  --play-sticky-top: 0px;
   --player-pad-start: calc(8px + var(--player-rail-width));
   --player-pad-end: 8px;
-  --player-controls-clearance: #{$controls-clearance};
+  --player-controls-clearance: #{$slot-bottom-phone};
 
   flex: 1;
   min-height: 0;
-  padding: $game-top-clearance var(--player-pad-end) $controls-clearance var(--player-pad-start);
+  padding: $bar-height var(--player-pad-end) var(--player-controls-clearance) var(--player-pad-start);
   overflow-y: auto;
   // Во время игры свайп по слоту не уводит страницу; после итога прокрутка доходит до подвала
   overscroll-behavior-y: contain;
@@ -989,8 +1060,9 @@ $controls-clearance: $controls-bottom + $game-corner-size + $game-corner-gap;
     // Без колонки таймера поля слева и справа одинаковые
     --player-pad-start: max(16px, calc(#{$rail-gap} + var(--player-rail-width)));
     --player-pad-end: 16px;
-    // Таймер на широком экране в колонке слева, сверху место не нужно
-    --play-sticky-top: 0px;
+    --player-controls-clearance: #{$controls-clearance};
+    // Сколько места справа занимают кнопки в углу (с зазором): нижние полосы игр не заходят под них
+    --player-controls-room: #{$controls-edge + $controls-width-wide + $controls-gap};
 
     padding-top: $game-corner-gap;
   }

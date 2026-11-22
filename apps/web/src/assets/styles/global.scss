@@ -51,7 +51,8 @@
   --z-activity-menu: calc(var(--z-teacher-main) + 1);
   --z-player-more: calc(var(--z-activity-menu) + 1);
   --z-matching-tray: calc(var(--z-player-more) + 1);
-  --z-player-rail: calc(var(--z-matching-tray) + 1);
+  --z-player-bar: calc(var(--z-matching-tray) + 1);
+  --z-player-rail: calc(var(--z-player-bar) + 1);
   --z-player-controls: calc(var(--z-player-rail) + 1);
   --z-header: calc(var(--z-player-controls) + 1);
   --z-language-menu: calc(var(--z-header) + 1);
