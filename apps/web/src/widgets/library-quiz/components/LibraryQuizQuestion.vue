@@ -4,6 +4,7 @@
     <p v-if="question.text" class="library-quiz-question__text">{{ question.text }}</p>
 
     <div v-if="question.imageUrl && !isBroken(question.imageUrl)" class="library-quiz-question__image">
+      <img class="library-quiz-question__backdrop" :src="question.imageUrl" alt="" aria-hidden="true" loading="lazy">
       <img
         class="library-quiz-question__image-img"
         :src="question.imageUrl"
@@ -17,14 +18,16 @@
       <li v-for="(option, position) in question.options" :key="position" class="library-quiz-question__option">
         <span v-if="option.imageUrl" class="library-quiz-question__option-image">
           <span v-if="isBroken(option.imageUrl)" class="library-quiz-question__option-fallback">{{ t('play.imageFailed') }}</span>
-          <img
-            v-else
-            class="library-quiz-question__option-img"
-            :src="option.imageUrl"
-            alt=""
-            loading="lazy"
-            @error="markBroken(option.imageUrl)"
-          >
+          <template v-else>
+            <img class="library-quiz-question__backdrop" :src="option.imageUrl" alt="" aria-hidden="true" loading="lazy">
+            <img
+              class="library-quiz-question__option-img"
+              :src="option.imageUrl"
+              alt=""
+              loading="lazy"
+              @error="markBroken(option.imageUrl)"
+            >
+          </template>
         </span>
         <span v-if="option.text" class="library-quiz-question__option-text">{{ option.text }}</span>
       </li>
@@ -59,6 +62,9 @@ function markBroken(url: string): void {
 <style scoped lang="scss">
 @use '@/assets/styles/mixins' as *;
 
+$question-image-max-height: 34vh;
+$backdrop-blur: 18px;
+
 .library-quiz-question {
   display: flex;
   flex-direction: column;
@@ -90,7 +96,9 @@ function markBroken(url: string): void {
 
 .library-quiz-question__image {
   position: relative;
-  height: min(200px, 34vh);
+  width: min(100%, #{$question-image-max-height} * 16 / 9);
+  aspect-ratio: 16 / 9;
+  margin-inline: auto;
   border: 1px solid rgb(var(--rgb-blue) / 0.16);
   border-radius: 16px;
   overflow: hidden;
@@ -105,6 +113,18 @@ function markBroken(url: string): void {
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+
+// Картинка показывается целиком, пустые поля по краям закрывает её размытая затемнённая копия
+.library-quiz-question__backdrop {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: blur($backdrop-blur) brightness(0.75);
+  transform: scale(1.15);
 }
 
 .library-quiz-question__options {

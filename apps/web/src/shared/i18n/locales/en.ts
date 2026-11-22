@@ -530,6 +530,18 @@ const messages: Messages = {
         failed: 'Could not upload the image',
         questionLabel: 'Image for question {n}',
         optionLabel: 'Image for option {n}',
+        formatQuestion: 'A landscape 16:9 image works best. You can crop it after choosing',
+        recrop: 'Edit crop',
+        recropShort: 'Crop',
+      },
+      crop: {
+        title: 'Crop image',
+        caption: 'This is what students will see',
+        zoom: 'Zoom',
+        frameLabel: 'Crop area. Drag the image or move it with the arrow keys; + and − change the zoom',
+        done: 'Done',
+        noCrop: 'Don’t crop',
+        cancel: 'Cancel',
       },
       errors: {
         required: 'Fill in this field',

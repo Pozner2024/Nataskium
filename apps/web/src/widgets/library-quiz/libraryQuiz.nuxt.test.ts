@@ -173,8 +173,22 @@ describe('LibraryQuiz', () => {
     await mountQuiz()
 
     const images = wrapper.findAll('img')
-    expect(images).toHaveLength(2)
+    expect(images).toHaveLength(4)
     for (const image of images) expect(image.attributes('alt')).toBe('')
+  })
+
+  it('у картинок вопроса и варианта размытая копия-фон: скрыта от скринридера, тот же адрес', async () => {
+    const questions: Question[] = [
+      { text: 'Что на фото?', imageUrl: IMAGE_URL, options: [{ text: '', imageUrl: `${IMAGE_URL}?v=2` }] },
+    ]
+    vi.spyOn(libraryApi, 'get').mockResolvedValue(quizBody({ questions, questionCount: 1 }))
+    await mountQuiz()
+
+    const backdrops = wrapper.findAll('.library-quiz-question__backdrop')
+    expect(backdrops.map((image) => image.attributes('src'))).toEqual([IMAGE_URL, `${IMAGE_URL}?v=2`])
+    for (const image of backdrops) expect(image.attributes('aria-hidden')).toBe('true')
+    expect(wrapper.get('.library-quiz-question__image-img').attributes('src')).toBe(IMAGE_URL)
+    expect(wrapper.get('.library-quiz-question__option-img').attributes('src')).toBe(`${IMAGE_URL}?v=2`)
   })
 
   it('HTML-подобный текст выводится текстом, а не разметкой', async () => {

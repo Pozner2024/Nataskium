@@ -6,16 +6,31 @@
     :aria-label="label"
     :aria-busy="status === 'uploading'"
     tabindex="0"
-    @dragover.prevent="isDragOver = true"
+    @dragover.prevent="isDragOver = cropFile === null"
     @dragleave="onDragLeave"
     @drop.prevent="onDrop"
     @paste="onPaste"
   >
-    <img v-if="imageUrl" class="image-field__preview" :src="imageUrl" alt="">
+    <div v-if="imageUrl && variant === 'question'" class="image-field__frame">
+      <img class="image-field__backdrop" :src="imageUrl" alt="" aria-hidden="true">
+      <img class="image-field__frame-img" :src="imageUrl" alt="">
+    </div>
+    <img v-else-if="imageUrl" class="image-field__preview" :src="imageUrl" alt="">
     <p v-else class="image-field__hint">{{ t('teacher.quizEditor.image.hint') }}</p>
+    <p v-if="!imageUrl && variant === 'question'" class="image-field__format">{{ t('teacher.quizEditor.image.formatQuestion') }}</p>
 
     <button class="image-field__pick" type="button" :disabled="status === 'uploading'" @click="fileInput?.click()">
       {{ imageUrl ? t('teacher.quizEditor.image.replace') : t('teacher.quizEditor.image.add') }}
+    </button>
+    <button
+      v-if="imageUrl && sourceFile"
+      class="image-field__recrop"
+      type="button"
+      :disabled="status === 'uploading'"
+      :aria-label="t('teacher.quizEditor.image.recrop')"
+      @click="cropFile = sourceFile"
+    >
+      {{ variant === 'option' ? t('teacher.quizEditor.image.recropShort') : t('teacher.quizEditor.image.recrop') }}
     </button>
     <button
       v-if="imageUrl"
@@ -38,6 +53,15 @@
 
     <p class="image-field__status" role="status">{{ status === 'uploading' ? t('teacher.quizEditor.image.uploading') : '' }}</p>
     <p v-if="errorMessage" class="image-field__error" role="alert">{{ errorMessage }}</p>
+
+    <ImageCropDialog
+      v-if="cropFile"
+      :file="cropFile"
+      :aspect="variant === 'question' ? QUESTION_IMAGE_ASPECT : OPTION_IMAGE_ASPECT"
+      @done="onCropped"
+      @cancel="cropFile = null"
+      @failed="onCropFailed"
+    />
   </div>
 </template>
 
@@ -48,6 +72,8 @@ import { useI18n } from '#imports'
 import { ACCEPTED_IMAGE_TYPES, imageApi, pickImageFile, validateImageFile, type UploadedImage } from '@/entities/quiz'
 import { authorizedRequest } from '@/features/auth'
 import { ApiError } from '@/shared'
+import { OPTION_IMAGE_ASPECT, QUESTION_IMAGE_ASPECT } from '../imageCrop'
+import ImageCropDialog from './ImageCropDialog.vue'
 
 type FieldStatus = 'idle' | 'uploading' | 'tooLarge' | 'notImage' | 'failed'
 
@@ -62,19 +88,23 @@ const ERROR_KEYS: Partial<Record<FieldStatus, string>> = {
 
 defineProps<{
   imageUrl: string | null
+  // Исходный файл, если картинку загрузили в этом редакторе: тогда её можно обрезать заново
+  sourceFile?: File | null
   variant: 'question' | 'option'
   // Подпись группы для скринридера: у вариантов кнопки одинаковые, без неё их не различить
   label?: string
 }>()
 
 const emit = defineEmits<{
-  change: [image: UploadedImage | null]
+  change: [image: UploadedImage | null, source?: File]
 }>()
 
 const { t } = useI18n()
 const fileInput = ref<HTMLInputElement | null>(null)
 const status = ref<FieldStatus>('idle')
 const isDragOver = ref(false)
+// Выбранный файл ждёт в окне обрезки; загружается только после «Готово» или «Не обрезать»
+const cropFile = ref<File | null>(null)
 // Поле убрали (вопрос свернули, вариант удалили) до конца загрузки — картинка уже не для него
 let isUnmounted = false
 
@@ -92,19 +122,36 @@ function uploadErrorStatus(error: unknown): FieldStatus {
   return 'failed'
 }
 
-async function upload(file: File): Promise<void> {
+function openCrop(file: File): void {
   if (status.value === 'uploading') return
   const check = validateImageFile(file)
   if (check !== 'ok') {
     status.value = check
     return
   }
+  status.value = 'idle'
+  cropFile.value = file
+}
+
+function onCropped(file: File): void {
+  const source = cropFile.value ?? file
+  cropFile.value = null
+  void upload(file, source)
+}
+
+function onCropFailed(): void {
+  cropFile.value = null
+  status.value = 'notImage'
+}
+
+async function upload(file: File, source: File): Promise<void> {
+  if (status.value === 'uploading') return
   status.value = 'uploading'
   try {
     const image = await authorizedRequest((accessToken) => imageApi.upload(file, accessToken))
     if (isUnmounted) return
     status.value = 'idle'
-    emit('change', image)
+    emit('change', image, source)
   } catch (error) {
     if (isUnmounted) return
     status.value = uploadErrorStatus(error)
@@ -115,7 +162,7 @@ async function upload(file: File): Promise<void> {
 function uploadFrom(source: DataTransfer | FileList | null): void {
   const file = pickImageFile(source)
   const files = source && 'files' in source ? source.files : source
-  if (file) void upload(file)
+  if (file) openCrop(file)
   else if (files && files.length > 0) status.value = 'notImage'
 }
 
@@ -126,16 +173,19 @@ function onDragLeave(event: DragEvent): void {
   isDragOver.value = false
 }
 
+// Окно обрезки лежит внутри поля: перетаскивание и вставка в нём не должны открывать новую картинку
 function onDrop(event: DragEvent): void {
   isDragOver.value = false
+  if (cropFile.value) return
   uploadFrom(event.dataTransfer)
 }
 
 function onPaste(event: ClipboardEvent): void {
+  if (cropFile.value) return
   const file = pickImageFile(event.clipboardData)
   if (!file) return
   event.preventDefault()
-  void upload(file)
+  openCrop(file)
 }
 
 function onFileChange(event: Event): void {
@@ -156,6 +206,8 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped lang="scss">
+$question-image-max-height: 34vh;
+
 %button {
   display: inline-flex;
   align-items: center;
@@ -197,7 +249,10 @@ onBeforeUnmount(() => {
   text-align: center;
 }
 
+// Рамка как в игре: 16:9 и не выше трети экрана
 .image-field--question.image-field--filled {
+  width: min(100%, #{$question-image-max-height} * 16 / 9);
+  margin-inline: auto;
   justify-items: stretch;
   padding: 0;
   border-color: transparent;
@@ -225,12 +280,6 @@ onBeforeUnmount(() => {
   object-fit: contain;
   transition: opacity 0.2s ease;
 
-  .image-field--question & {
-    width: 100%;
-    height: 200px;
-    border-radius: 12px;
-  }
-
   .image-field--option & {
     flex: none;
     width: 48px;
@@ -241,6 +290,41 @@ onBeforeUnmount(() => {
   .image-field[aria-busy='true'] & {
     opacity: 0.5;
   }
+}
+
+.image-field__frame {
+  position: relative;
+  grid-area: 1 / 1;
+  aspect-ratio: 16 / 9;
+  border: 1px solid rgb(var(--rgb-blue) / 0.16);
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgb(var(--rgb-blue) / 0.06);
+  transition: opacity 0.2s ease;
+
+  .image-field[aria-busy='true'] & {
+    opacity: 0.5;
+  }
+}
+
+.image-field__backdrop,
+.image-field__frame-img {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+// Картинка целиком, поля закрывает её размытая затемнённая копия — как в игре
+.image-field__backdrop {
+  object-fit: cover;
+  filter: blur(18px) brightness(0.75);
+  transform: scale(1.15);
+}
+
+.image-field__frame-img {
+  object-fit: contain;
 }
 
 .image-field__hint {
@@ -260,6 +344,16 @@ onBeforeUnmount(() => {
     clip-path: inset(50%);
     white-space: nowrap;
   }
+}
+
+.image-field__format {
+  grid-row: 3;
+  grid-column: 1;
+  max-width: 32ch;
+  margin: 2px 0 0;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: 1.4;
 }
 
 .image-field__pick {
@@ -303,6 +397,7 @@ onBeforeUnmount(() => {
   }
 
   .image-field--filled:not(.image-field--option) & {
+    position: relative;
     font-size: 15px;
     align-self: end;
     justify-self: end;
@@ -336,12 +431,51 @@ onBeforeUnmount(() => {
   }
 }
 
+// У вопроса — белая кнопка в левом нижнем углу картинки, у варианта — в ряду с остальными
+.image-field__recrop {
+  @extend %button;
+
+  position: relative;
+  padding: 0 14px;
+  color: var(--color-blue-dark);
+
+  .image-field--question & {
+    grid-area: 1 / 1;
+    align-self: end;
+    justify-self: start;
+    margin: 8px;
+    background: var(--color-white);
+    box-shadow: 0 2px 8px rgb(var(--rgb-night) / 0.18);
+    font-size: 15px;
+
+    @media (hover: hover) {
+      &:hover:not(:disabled) {
+        background: linear-gradient(rgb(var(--rgb-blue) / 0.1), rgb(var(--rgb-blue) / 0.1)), var(--color-white);
+      }
+    }
+  }
+
+  .image-field--option & {
+    padding: 0 10px;
+    background: rgb(var(--rgb-blue) / 0.1);
+    font-size: 14px;
+    font-weight: 600;
+
+    @media (hover: hover) {
+      &:hover:not(:disabled) {
+        background: rgb(var(--rgb-blue) / 0.18);
+      }
+    }
+  }
+}
+
 .image-field__remove {
   @extend %button;
 
   color: var(--color-text);
 
   .image-field--question & {
+    position: relative;
     grid-area: 1 / 1;
     align-self: start;
     justify-self: end;
@@ -460,6 +594,7 @@ onBeforeUnmount(() => {
 
 @media (prefers-reduced-motion: reduce) {
   .image-field,
+  .image-field__frame,
   .image-field__preview,
   .image-field__pick,
   .image-field__remove {

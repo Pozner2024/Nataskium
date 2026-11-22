@@ -60,8 +60,9 @@
       <ImageField
         variant="question"
         :image-url="store.questionImageUrl(index)"
+        :source-file="store.questionImageSource(index)"
         :label="t('teacher.quizEditor.image.questionLabel', { n: index + 1 })"
-        @change="(image) => store.setQuestionImage(index, image)"
+        @change="(image, source) => store.setQuestionImage(index, image, source)"
       />
 
       <p class="question-card__hint">{{ t('teacher.quizEditor.optionsHint') }}</p>
@@ -102,8 +103,9 @@
             class="question-card__option-image"
             variant="option"
             :image-url="store.optionImageUrl(index, optionIndex)"
+            :source-file="store.optionImageSource(index, optionIndex)"
             :label="t('teacher.quizEditor.image.optionLabel', { n: optionIndex + 1 })"
-            @change="(image) => store.setOptionImage(index, optionIndex, image)"
+            @change="(image, source) => store.setOptionImage(index, optionIndex, image, source)"
           />
           <p v-if="errorOf(`options.${optionIndex}.text`)" class="question-card__error" role="alert">
             {{ errorOf(`options.${optionIndex}.text`) }}

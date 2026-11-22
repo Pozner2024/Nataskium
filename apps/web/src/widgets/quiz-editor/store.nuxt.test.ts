@@ -1,6 +1,7 @@
 import { MAX_OPTIONS, MAX_QUESTIONS, MIN_OPTIONS } from '@nataskium/shared/schemas'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { toRaw } from 'vue'
 import { quizApi } from '@/entities/quiz'
 import { useAuthStore } from '@/features/auth'
 import { ApiError } from '@/shared'
@@ -241,5 +242,56 @@ describe('useQuizEditorStore: картинки', () => {
     store.setQuestionImage(0, IMAGE)
     store.reset()
     expect(store.questionImageUrl(0)).toBeNull()
+  })
+})
+
+describe('useQuizEditorStore: исходные файлы картинок', () => {
+  const SOURCE = new File([new Uint8Array(3)], 'qa-question.png', { type: 'image/png' })
+  const OPTION_SOURCE = new File([new Uint8Array(3)], 'qa-option.jpg', { type: 'image/jpeg' })
+  // happy-dom File Vue оборачивает в reactive (в браузере — нет): сравниваем исходный объект
+  const raw = (file: File | null) => (file === null ? null : toRaw(file))
+
+  it('картинка с исходным файлом: его можно получить для повторной обрезки', () => {
+    store.setQuestionImage(0, IMAGE, SOURCE)
+    store.setOptionImage(0, 1, OPTION_IMAGE, OPTION_SOURCE)
+
+    expect(raw(store.questionImageSource(0))).toBe(SOURCE)
+    expect(raw(store.optionImageSource(0, 1))).toBe(OPTION_SOURCE)
+    expect(store.optionImageSource(0, 0)).toBeNull()
+  })
+
+  it('без исходного файла (или картинку убрали) — null', () => {
+    store.setQuestionImage(0, IMAGE)
+    expect(store.questionImageSource(0)).toBeNull()
+
+    store.setOptionImage(0, 1, OPTION_IMAGE, OPTION_SOURCE)
+    store.setOptionImage(0, 1, null)
+    expect(store.optionImageSource(0, 1)).toBeNull()
+  })
+
+  it('файл привязан к imageId, а не к месту: после удаления варианта он не достаётся соседу', () => {
+    store.setOptionImage(0, 2, OPTION_IMAGE, OPTION_SOURCE)
+    store.removeOption(0, 1)
+    expect(store.optionImageSource(0, 1)).not.toBeNull()
+    expect(raw(store.optionImageSource(0, 1))).toBe(OPTION_SOURCE)
+    expect(store.optionImageSource(0, 2)).toBeNull()
+  })
+
+  it('исходный файл не уходит на сервер', async () => {
+    const create = vi.spyOn(quizApi, 'create').mockImplementation(async (input) => ({
+      quiz: { ...input, id: QUIZ_ID, shareToken: SHARE_TOKEN, questions: input.questions.map((question) => ({ ...question, imageUrl: null, options: question.options.map((option) => ({ ...option, imageUrl: null })) })) },
+    }))
+    fillTexts()
+    store.setQuestionImage(0, IMAGE, SOURCE)
+
+    expect(await store.save()).toBe(true)
+    expect(JSON.stringify(create.mock.calls[0]?.[0])).not.toContain('qa-question')
+  })
+
+  it('reset забывает исходные файлы', () => {
+    store.setQuestionImage(0, IMAGE, SOURCE)
+    store.reset()
+    store.setQuestionImage(0, IMAGE)
+    expect(store.questionImageSource(0)).toBeNull()
   })
 })

@@ -531,6 +531,18 @@ const messages: Messages = {
         failed: 'Impossible d’envoyer l’image',
         questionLabel: 'Image de la question {n}',
         optionLabel: 'Image de la réponse {n}',
+        formatQuestion: 'Une image horizontale 16:9 convient le mieux. Vous pourrez la recadrer après l’avoir choisie',
+        recrop: 'Modifier le recadrage',
+        recropShort: 'Recadrer',
+      },
+      crop: {
+        title: 'Recadrer l’image',
+        caption: 'Voici ce que verront les élèves',
+        zoom: 'Zoom',
+        frameLabel: 'Zone de recadrage. Faites glisser l’image ou déplacez-la avec les flèches ; + et − changent le zoom',
+        done: 'Terminé',
+        noCrop: 'Ne pas recadrer',
+        cancel: 'Annuler',
       },
       errors: {
         required: 'Remplissez ce champ',

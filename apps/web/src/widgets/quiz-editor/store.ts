@@ -79,6 +79,8 @@ export const useQuizEditorStore = defineStore('quiz-editor', () => {
   const fieldErrors = ref<Record<string, string>>({})
   // Превью по imageId, а не по индексам: удаление вопроса или варианта не сдвигает картинки
   const imageUrls = ref<Record<string, string>>({})
+  // Исходные файлы картинок, загруженных в этом редакторе: по ним можно обрезать заново. Только в памяти браузера
+  const imageSources = ref<Record<string, File>>({})
   // Создание → переход на /teacher/quiz/<id>: старая страница не должна сбросить состояние при размонтировании
   const handoverId = ref<string | null>(null)
   // Растёт при reset: ответ load, начатого до сброса, уже не нужен
@@ -136,16 +138,36 @@ export const useQuizEditorStore = defineStore('quiz-editor', () => {
     return image.id
   }
 
-  function setQuestionImage(questionIndex: number, image: UploadedImage | null): void {
+  function rememberSource(imageId: string | null, source: File | undefined): void {
+    if (imageId === null || source === undefined) return
+    imageSources.value[imageId] = source
+  }
+
+  function setQuestionImage(questionIndex: number, image: UploadedImage | null, source?: File): void {
     const question = quiz.value.questions[questionIndex]
     if (!question) return
     question.imageId = rememberImage(image)
+    rememberSource(question.imageId, source)
   }
 
-  function setOptionImage(questionIndex: number, optionIndex: number, image: UploadedImage | null): void {
+  function setOptionImage(questionIndex: number, optionIndex: number, image: UploadedImage | null, source?: File): void {
     const option = quiz.value.questions[questionIndex]?.options[optionIndex]
     if (!option) return
     option.imageId = rememberImage(image)
+    rememberSource(option.imageId, source)
+  }
+
+  function sourceOf(imageId: string | null | undefined): File | null {
+    if (imageId === null || imageId === undefined) return null
+    return imageSources.value[imageId] ?? null
+  }
+
+  function questionImageSource(questionIndex: number): File | null {
+    return sourceOf(quiz.value.questions[questionIndex]?.imageId)
+  }
+
+  function optionImageSource(questionIndex: number, optionIndex: number): File | null {
+    return sourceOf(quiz.value.questions[questionIndex]?.options[optionIndex]?.imageId)
   }
 
   function previewOf(imageId: string | null | undefined): string | null {
@@ -248,6 +270,7 @@ export const useQuizEditorStore = defineStore('quiz-editor', () => {
     saveStatus.value = 'idle'
     fieldErrors.value = {}
     imageUrls.value = {}
+    imageSources.value = {}
     handoverId.value = null
     epoch++
     savedSnapshot.value = JSON.stringify(quiz.value)
@@ -274,6 +297,8 @@ export const useQuizEditorStore = defineStore('quiz-editor', () => {
     setOptionImage,
     questionImageUrl,
     optionImageUrl,
+    questionImageSource,
+    optionImageSource,
     load,
     save,
     reset,

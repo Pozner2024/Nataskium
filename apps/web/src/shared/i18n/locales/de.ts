@@ -530,6 +530,18 @@ const messages: Messages = {
         failed: 'Das Bild konnte nicht hochgeladen werden',
         questionLabel: 'Bild zu Frage {n}',
         optionLabel: 'Bild zu Antwort {n}',
+        formatQuestion: 'Am besten eignet sich ein Querformat 16:9. Nach der Auswahl können Sie es zuschneiden',
+        recrop: 'Zuschnitt ändern',
+        recropShort: 'Zuschneiden',
+      },
+      crop: {
+        title: 'Bild zuschneiden',
+        caption: 'So sehen es die Lernenden',
+        zoom: 'Zoom',
+        frameLabel: 'Zuschneidebereich. Ziehen Sie das Bild oder verschieben Sie es mit den Pfeiltasten, + und − ändern den Zoom',
+        done: 'Fertig',
+        noCrop: 'Nicht zuschneiden',
+        cancel: 'Abbrechen',
       },
       errors: {
         required: 'Füllen Sie dieses Feld aus',
