@@ -141,7 +141,8 @@ onBeforeUnmount(stop)
 </script>
 
 <style scoped lang="scss">
-$pulse-dot: 4px;
+// Точка импульса шире, но с мягким краем: соседние точки сливаются в размытую полоску
+$pulse-dot: 12px;
 $flash-size: 12px;
 
 .ambient-signals {
@@ -171,7 +172,7 @@ $flash-size: 12px;
   opacity: 0.35;
 }
 
-// Точка импульса; ореол — тень, она рисуется один раз
+// Размытие — градиентом, а не filter: точка рисуется один раз, двигаются только transform и opacity
 .ambient-signals__pulse {
   position: absolute;
   top: 0;
@@ -180,8 +181,7 @@ $flash-size: 12px;
   height: $pulse-dot;
   margin: calc(#{$pulse-dot} / -2) 0 0 calc(#{$pulse-dot} / -2);
   border-radius: 50%;
-  background: var(--pulse-core);
-  box-shadow: 0 0 6px var(--pulse-halo);
+  background: radial-gradient(closest-side, var(--pulse-core), var(--pulse-halo) 30%, transparent);
   opacity: 0;
   will-change: transform, opacity;
 }
