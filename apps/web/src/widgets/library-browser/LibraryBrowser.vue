@@ -32,18 +32,23 @@
     </p>
 
     <template v-else>
-      <ul class="library-browser__list">
+      <LibraryViewToggle :view="view" @update:view="setView" />
+
+      <ul class="library-browser__list" :class="`library-browser__list--${view}`">
         <li v-for="quiz in quizzes" :key="quiz.number" class="library-browser__card">
-          <h2 class="library-browser__title">
-            <NuxtLink class="library-browser__link" :to="localePath(libraryQuizPath(quiz.number, quiz.title))">{{ quiz.title }}</NuxtLink>
-          </h2>
-          <p class="library-browser__type">{{ t(`teacher.activityTypes.${quiz.type}.name`) }}</p>
-          <p class="library-browser__meta">
-            {{ groupName(quiz.groupSlug) }} · {{ countText(quiz.type, quiz.questionCount) }}
-          </p>
-          <p class="library-browser__grade" :class="{ 'library-browser__grade--none': !quiz.graded }">
-            {{ quiz.graded ? t('library.graded') : t('library.notGraded') }}
-          </p>
+          <LibraryQuizThumbnail :thumbnail="quiz.thumbnail" :intro-theme="quiz.introTheme" />
+          <div class="library-browser__info">
+            <h2 class="library-browser__title">
+              <NuxtLink class="library-browser__link" :to="localePath(libraryQuizPath(quiz.number, quiz.title))">{{ quiz.title }}</NuxtLink>
+            </h2>
+            <p class="library-browser__type">{{ t(`teacher.activityTypes.${quiz.type}.name`) }}</p>
+            <p class="library-browser__meta">
+              {{ groupName(quiz.groupSlug) }} · {{ countText(quiz.type, quiz.questionCount) }}
+            </p>
+            <p class="library-browser__grade" :class="{ 'library-browser__grade--none': !quiz.graded }">
+              {{ quiz.graded ? t('library.graded') : t('library.notGraded') }}
+            </p>
+          </div>
         </li>
       </ul>
 
@@ -62,7 +67,10 @@ import { onMounted, toRef } from 'vue'
 import { NuxtLink } from '#components'
 import { useI18n, useLocalePath } from '#imports'
 import { useLibraryGroups } from '@/entities/library'
+import LibraryQuizThumbnail from './components/LibraryQuizThumbnail.vue'
+import LibraryViewToggle from './components/LibraryViewToggle.vue'
 import { useLibraryBrowser } from './useLibraryBrowser'
+import { useLibraryView } from './useLibraryView'
 
 const props = defineProps<{
   group: string
@@ -96,6 +104,7 @@ const {
   loadMore,
   applySearch,
 } = useLibraryBrowser(toRef(props, 'group'))
+const { view, setView } = useLibraryView()
 
 function groupName(slug: string): string {
   return groups.value.find((item) => item.slug === slug)?.name ?? ''
@@ -236,14 +245,36 @@ onMounted(() => {
   list-style: none;
 }
 
+.library-browser__list--list {
+  gap: 10px;
+}
+
 .library-browser__card {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 16px;
+  gap: 12px;
+  padding: 12px;
   border-radius: 22px;
   @include card-surface;
+}
+
+.library-browser__list--list .library-browser__card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  align-items: center;
+}
+
+.library-browser__info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 0 4px 4px;
+}
+
+.library-browser__list--list .library-browser__info {
+  padding: 0;
 }
 
 .library-browser__title {

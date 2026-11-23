@@ -3,10 +3,12 @@ import type { LibraryQuizResponse } from '@nataskium/shared/schemas'
 export type {
   LibraryGroup,
   LibraryGroupsResponse,
+  LibraryListItem,
   LibraryListResponse,
   LibraryQuizResponse,
   LibraryQuizSummary,
   LibraryTakeResponse,
+  LibraryThumbnail,
 } from '@nataskium/shared/schemas'
 
 // Карточка задания любого типа: сводка и содержимое без правильных ответов

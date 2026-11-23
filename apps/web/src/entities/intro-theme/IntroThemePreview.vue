@@ -1,11 +1,14 @@
 <template>
-  <!-- Кусочек экрана вопроса в стиле: фон, узор платы, карточка с рамкой, вопрос и четыре ответа -->
+  <!-- Кусочек экрана вопроса в стиле: фон, узор платы, карточка с рамкой, вопрос и четыре ответа.
+       Слот заменяет полоски вопроса и ответов настоящим содержимым (превью в библиотеке) -->
   <span class="intro-theme-preview" :class="`intro-theme-preview--${tone}`" aria-hidden="true">
     <span class="intro-theme-preview__pcb" />
     <span class="intro-theme-preview__card">
       <span class="intro-theme-preview__dots"><i /><i /><i /></span>
-      <span class="intro-theme-preview__question" />
-      <span class="intro-theme-preview__options"><i /><i /><i /><i /></span>
+      <slot>
+        <span class="intro-theme-preview__question" />
+        <span class="intro-theme-preview__options"><i /><i /><i /><i /></span>
+      </slot>
     </span>
   </span>
 </template>
@@ -73,7 +76,9 @@ $preview-tile-size: 120px;
   flex-direction: column;
   gap: 7%;
   width: 72%;
+  min-width: 0;
   height: 76%;
+  overflow: hidden;
   padding: 6% 7%;
   border: 2px solid var(--color-blue);
   border-radius: 9px;

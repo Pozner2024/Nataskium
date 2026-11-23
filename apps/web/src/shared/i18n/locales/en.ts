@@ -258,6 +258,8 @@ const messages: Messages = {
     nothingFound: 'Nothing found',
     graded: 'Graded',
     more: 'Show more',
+    thumbnail: { yes: 'True', no: 'False' },
+    view: { label: 'List view', tiles: 'Tiles', list: 'List' },
     quiz: {
       backToGroup: '← To the section',
       addedOn: 'Added {date}',

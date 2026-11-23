@@ -259,6 +259,8 @@ const messages: Messages = {
     nothingFound: 'Aucun résultat',
     graded: 'Notée',
     more: 'Afficher plus',
+    thumbnail: { yes: 'Vrai', no: 'Faux' },
+    view: { label: 'Affichage', tiles: 'Vignettes', list: 'Liste' },
     quiz: {
       backToGroup: '← Vers la rubrique',
       addedOn: 'Ajoutée le {date}',

@@ -1,6 +1,6 @@
 import { LIBRARY_SEARCH_MIN_LENGTH } from '@nataskium/shared/schemas'
 import { type Ref, ref } from 'vue'
-import { type LibraryQuizSummary, libraryApi } from '@/entities/library'
+import { type LibraryListItem, libraryApi } from '@/entities/library'
 
 export type BrowserStatus = 'loading' | 'ready' | 'error'
 
@@ -8,7 +8,7 @@ export type BrowserStatus = 'loading' | 'ready' | 'error'
 export function useLibraryBrowser(group: Ref<string>) {
   const search = ref('')
   const appliedSearch = ref<string | null>(null)
-  const quizzes = ref<LibraryQuizSummary[]>([])
+  const quizzes = ref<LibraryListItem[]>([])
   const page = ref(1)
   const hasNext = ref(false)
   const status = ref<BrowserStatus>('loading')

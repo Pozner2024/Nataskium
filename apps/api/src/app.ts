@@ -447,7 +447,7 @@ export function createApp({ env, prisma, limits, passwordHasher, emailSender, go
     LIBRARY_ROUTES_BASE_PATH,
     makeLibraryRouter({
       listLibraryGroups: makeListLibraryGroups({ library }),
-      listLibraryQuizzes: makeListLibraryQuizzes({ library }),
+      listLibraryQuizzes: makeListLibraryQuizzes({ library, imageUrl }),
       getLibraryQuiz: makeGetLibraryQuiz({ library, imageUrl, shuffle: secureShuffle }),
       takeLibraryQuiz: makeTakeLibraryQuiz({
         library,

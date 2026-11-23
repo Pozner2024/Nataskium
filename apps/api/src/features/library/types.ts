@@ -1,4 +1,4 @@
-import type { ActivityKind, MatchingInput, QuizInput, TrueFalseInput } from '@nataskium/shared/schemas'
+import type { ActivityKind, IntroThemeKey, MatchingInput, QuizInput, TrueFalseInput } from '@nataskium/shared/schemas'
 
 export type LibraryGroupRow = { slug: string; names: unknown }
 
@@ -15,8 +15,9 @@ export type LibraryQuizMeta = {
 // Строка карточки задания. Содержимое (вопросы или пары, по type) — сырой jsonb, проверяет use-case
 export type LibraryQuizRow = LibraryQuizMeta & { questions: unknown }
 
-// Строка списка: вопросы не загружаются, их количество считает база
-export type LibraryQuizListRow = LibraryQuizMeta & { questionCount: number }
+// Строка списка: вопросы не загружаются, их количество считает база. head — первые элементы содержимого для превью,
+// introTheme уже приведён к ключу каталога
+export type LibraryQuizListRow = LibraryQuizMeta & { questionCount: number; introTheme: IntroThemeKey; head: unknown[] }
 
 // Публичное задание целиком, с правильными ответами: только для «Взять себе», в публичные ответы не попадает
 export type LibraryQuizCopyRow = {

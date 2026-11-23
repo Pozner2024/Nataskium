@@ -253,6 +253,8 @@ export default {
     nothingFound: 'Ничего не нашлось',
     graded: 'С оценкой',
     more: 'Показать ещё',
+    thumbnail: { yes: 'Да', no: 'Нет' },
+    view: { label: 'Вид списка', tiles: 'Плиткой', list: 'Списком' },
     quiz: {
       backToGroup: '← К разделу',
       addedOn: 'Добавлено {date}',

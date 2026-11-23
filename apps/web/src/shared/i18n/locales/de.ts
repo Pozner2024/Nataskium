@@ -258,6 +258,8 @@ const messages: Messages = {
     nothingFound: 'Nichts gefunden',
     graded: 'Mit Note',
     more: 'Mehr anzeigen',
+    thumbnail: { yes: 'Wahr', no: 'Falsch' },
+    view: { label: 'Listenansicht', tiles: 'Kacheln', list: 'Liste' },
     quiz: {
       backToGroup: '← Zum Bereich',
       addedOn: 'Hinzugefügt am {date}',

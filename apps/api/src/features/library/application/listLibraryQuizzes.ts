@@ -1,9 +1,10 @@
 import { LIBRARY_PAGE_SIZE, type LibraryListQuery, type LibraryListResponse } from '@nataskium/shared/schemas'
-import type { LibraryRepository } from '../types'
+import type { LibraryImageUrl, LibraryRepository } from '../types'
 import { libraryNotFound } from './libraryErrors'
 import { toLibrarySummary } from './toLibrarySummary'
+import { toLibraryThumbnail } from './toLibraryThumbnail'
 
-export function makeListLibraryQuizzes(deps: { library: LibraryRepository }) {
+export function makeListLibraryQuizzes(deps: { library: LibraryRepository; imageUrl: LibraryImageUrl }) {
   return async function listLibraryQuizzes(query: LibraryListQuery): Promise<LibraryListResponse> {
     if (query.group !== undefined && !(await deps.library.groupExists(query.group))) throw libraryNotFound()
     // На одну строку больше страницы: по ней видно, есть ли следующая, без отдельного count
@@ -14,7 +15,11 @@ export function makeListLibraryQuizzes(deps: { library: LibraryRepository }) {
       limit: LIBRARY_PAGE_SIZE + 1,
     })
     return {
-      quizzes: rows.slice(0, LIBRARY_PAGE_SIZE).map((row) => toLibrarySummary(row, row.questionCount)),
+      quizzes: rows.slice(0, LIBRARY_PAGE_SIZE).map((row) => ({
+        ...toLibrarySummary(row, row.questionCount),
+        introTheme: row.introTheme,
+        thumbnail: toLibraryThumbnail(row, deps.imageUrl),
+      })),
       page: query.page,
       hasNext: rows.length > LIBRARY_PAGE_SIZE,
     }
