@@ -89,18 +89,24 @@ export function makeLibraryRepository(prisma: PrismaClient): LibraryRepository {
 
     // Вопросы (до ~160 КБ jsonb на задание) не загружаются и не разбираются: количество считает база.
     // Prisma не умеет jsonb_array_length в select. Все значения — параметры тегированного шаблона, фильтры —
-    // фрагменты Prisma.sql. Набор полей явный: id, teacher_id и share_token в публичный ответ не попадают
+    // фрагменты Prisma.sql. Набор полей явный: id, teacher_id и share_token в публичный ответ не попадают.
+    // Сначала страница (только id), затем количество вопросов для её строк: иначе база распаковывала бы jsonb
+    // всех публичных заданий до сортировки
     async list({ group, q, offset, limit }) {
       const byGroup = group === undefined ? Prisma.empty : Prisma.sql`AND group_slug = ${group}`
       const byTitle = q === undefined ? Prisma.empty : Prisma.sql`AND title ILIKE ${`%${escapeLike(q)}%`}`
       const rows = await prisma.$queryRaw<unknown[]>`
-        SELECT public_number AS number, type, title, group_slug AS "groupSlug", grading_scale IS NOT NULL AS graded,
-          created_at AS "createdAt",
-          CASE WHEN jsonb_typeof(questions) = 'array' THEN jsonb_array_length(questions) END AS "questionCount"
-        FROM quizzes
-        WHERE ${PUBLIC_SQL} ${byGroup} ${byTitle}
-        ORDER BY created_at DESC, id DESC
-        OFFSET ${offset} LIMIT ${limit}
+        WITH page AS (
+          SELECT id FROM quizzes
+          WHERE ${PUBLIC_SQL} ${byGroup} ${byTitle}
+          ORDER BY created_at DESC, id DESC
+          OFFSET ${offset} LIMIT ${limit}
+        )
+        SELECT q.public_number AS number, q.type, q.title, q.group_slug AS "groupSlug",
+          q.grading_scale IS NOT NULL AS graded, q.created_at AS "createdAt",
+          CASE WHEN jsonb_typeof(q.questions) = 'array' THEN jsonb_array_length(q.questions) END AS "questionCount"
+        FROM quizzes q JOIN page USING (id)
+        ORDER BY q.created_at DESC, q.id DESC
       `
       return rows.map(toListRow)
     },

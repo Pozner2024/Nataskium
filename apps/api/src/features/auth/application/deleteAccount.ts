@@ -51,8 +51,9 @@ export function makeDeleteAccount(deps: DeleteAccountDeps) {
     reservation.release()
 
     const imageIds = await collectTeacherImageIds(deps.imageFiles, teacher.id)
-    const deleted = await deps.teachers.deleteAccount(teacher.id, teacher.email)
-    // Параллельный запрос успел удалить аккаунт раньше — и сам удалит файлы
+    const deleted = await deps.teachers.deleteAccount(teacher.id, teacher.email, teacher.passwordHash)
+    // Параллельный запрос успел удалить аккаунт раньше (и сам удалит файлы) или пароль сменили, пока шла сверка:
+    // сброс и смена пароля уже завершили все сессии
     if (!deleted) throw sessionInvalid()
     await removeTeacherImageFiles(deps.imageFiles, imageIds)
 

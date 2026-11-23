@@ -75,7 +75,7 @@ export function makeImageRouter(deps: ImageRouterDeps) {
 
   // Слот занимается до чтения тела и освобождается при любом исходе: 413, 408, обрыв соединения, сбой обработки
   const uploadSlot: MiddlewareHandler = async (c, next) => {
-    const release = slots.tryAcquire(c.get('teacherId'))
+    const release = slots.tryAcquire({ teacherId: c.get('teacherId'), ip: deps.clientIp(c) })
     if (release === null) throw new ServiceBusyError(UPLOADS_BUSY_RETRY_AFTER_SECONDS)
     try {
       await next()

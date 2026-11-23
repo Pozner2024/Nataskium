@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { SUPPORTED_LOCALES } from '../locales'
 import { activityKindSchema } from './activity'
+import { hasNoUnsafeChars } from './textChars'
 
 // Колонка quizzes.public_number — INT4
 export const MAX_LIBRARY_NUMBER = 2_147_483_647
@@ -37,7 +38,14 @@ export const libraryGroupsResponseSchema = z.object({
 
 export const libraryListQuerySchema = z.object({
   group: groupSlugSchema.optional(),
-  q: z.string().trim().min(LIBRARY_SEARCH_MIN_LENGTH).max(LIBRARY_SEARCH_MAX_LENGTH).optional(),
+  // Без управляющих символов: NUL Postgres не примет в параметре, и вместо 400 был бы 500
+  q: z
+    .string()
+    .trim()
+    .min(LIBRARY_SEARCH_MIN_LENGTH)
+    .max(LIBRARY_SEARCH_MAX_LENGTH)
+    .refine((text) => hasNoUnsafeChars(text), 'Search contains unsupported characters')
+    .optional(),
   page: z.coerce.number().int().min(1).max(LIBRARY_MAX_PAGE).default(1),
 })
 
@@ -58,7 +66,8 @@ export const libraryListResponseSchema = z.object({
   hasNext: z.boolean(),
 })
 
-const imageUrlSchema = z.url().nullable()
+// Только http(s): адрес картинки строит сервер, а javascript:/data: не должны пройти ни в какой приёмник
+const imageUrlSchema = z.url({ protocol: /^https?$/ }).nullable()
 
 // Без isCorrect и selectCount: правильные ответы публично не показываются
 const libraryQuizCardSchema = libraryQuizSummarySchema.extend({

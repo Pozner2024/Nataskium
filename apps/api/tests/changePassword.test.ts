@@ -174,6 +174,22 @@ describe('changePassword: успех', () => {
     expect(await rejectionOf(changePassword(TEACHER_ID, input()))).toMatchObject(SESSION_INVALID)
     expect(refresh.families).toHaveLength(0)
   })
+
+  it('пароль сбросили, пока шла сверка, — 401, хэш из сброса не перезаписан, сессия не выдаётся', async () => {
+    const { changePassword, accounts, hasher, refresh } = setup()
+    const resetHash = hasher.hashOf('qa-reset-password-2040')
+    const verify = hasher.hasher.verify
+    hasher.hasher.verify = async (hash, password) => {
+      const valid = await verify(hash, password)
+      // Новый объект: findById фейка отдаёт ссылку, а use-case держит прочитанную до сверки копию
+      accounts[0] = { ...accounts[0]!, passwordHash: resetHash }
+      return valid
+    }
+
+    expect(await rejectionOf(changePassword(TEACHER_ID, input()))).toMatchObject(SESSION_INVALID)
+    expect(accounts[0]!.passwordHash).toBe(resetHash)
+    expect(refresh.families).toHaveLength(0)
+  })
 })
 
 describe('changePasswordSchema', () => {

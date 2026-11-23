@@ -48,6 +48,10 @@ describe('PRODUCTION_LIMITS', () => {
       mePerIp: { max: 300, windowMs: WINDOW_MS },
       resetEmailsPerHour: { max: 3, windowMs: 60 * MS_PER_MINUTE },
       resetEmailsPerDay: { max: 5, windowMs: 24 * 60 * MS_PER_MINUTE },
+      registrationEmailsTotalPerHour: { max: 20, windowMs: 60 * MS_PER_MINUTE },
+      registrationEmailsTotalPerDay: { max: 60, windowMs: 24 * 60 * MS_PER_MINUTE },
+      resetEmailsTotalPerHour: { max: 10, windowMs: 60 * MS_PER_MINUTE },
+      resetEmailsTotalPerDay: { max: 30, windowMs: 24 * 60 * MS_PER_MINUTE },
       forgotPasswordPerIp: { max: 30, windowMs: 60 * MS_PER_MINUTE },
       resetPasswordPerIp: { max: 30, windowMs: WINDOW_MS },
       googleStartPerIp: { max: 30, windowMs: WINDOW_MS },
@@ -312,6 +316,19 @@ describe('makeClientIpResolver', () => {
 
     expect(await (await resolve('10.0.0.1', realIp)).text()).toBe('10.0.0.1')
     if (realIp !== '') expect(inspect(warnings, { depth: null })).not.toContain(realIp)
+  })
+
+  it('поток неверных X-Real-IP — одно предупреждение в минуту, а не на каждый запрос', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const resolver = makeClientIpResolver(TRUSTED)
+    const app = new Hono()
+    app.get('/', (c) => c.text(resolver(c)))
+
+    for (let attempt = 0; attempt < 5; attempt++) {
+      await app.request('/', { headers: { 'x-real-ip': 'not-an-ip' } }, fromIp('10.0.0.1'))
+    }
+
+    expect(warn).toHaveBeenCalledTimes(1)
   })
 
   // Клиенту IPv6 выдают целую /64: по полному адресу он обходил бы лимит, меняя адрес внутри сети

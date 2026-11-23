@@ -94,6 +94,9 @@ export function makeClientIpResolver(trustedProxies: readonly string[]): (c: Con
     else trusted.addSubnet(network, Number(prefix), family)
   }
 
+  // Не чаще раза в минуту: заголовок присылает клиент, если прокси его пропускает — иначе им можно засорить лог
+  let lastInvalidRealIpWarningAt = Number.NEGATIVE_INFINITY
+
   function isTrusted(address: string): boolean {
     const family = ipFamily(address)
     return family !== null && trusted.check(address, family)
@@ -108,7 +111,11 @@ export function makeClientIpResolver(trustedProxies: readonly string[]): (c: Con
     const realIp = normalizeIp(c.req.header(REAL_IP_HEADER))
     if (realIp !== undefined && ipFamily(realIp) !== null) return rateLimitKey(realIp)
     // Значение заголовка в лог не пишем: его прислал клиент
-    console.warn('Ignoring invalid X-Real-IP from trusted proxy')
+    const now = Date.now()
+    if (now - lastInvalidRealIpWarningAt >= FULL_WARNING_INTERVAL_MS) {
+      lastInvalidRealIpWarningAt = now
+      console.warn('Ignoring invalid X-Real-IP from trusted proxy')
+    }
     return rateLimitKey(socket)
   }
 }

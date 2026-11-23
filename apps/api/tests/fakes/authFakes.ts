@@ -126,18 +126,19 @@ export function makeFakeTeachers(calls: CallLog, accounts: TeacherAccount[] = []
       accounts.push(teacher)
       return { status: 'signedIn', teacher }
     },
-    async changePassword(teacherId, passwordHash) {
+    async changePassword(teacherId, verifiedPasswordHash, passwordHash) {
       calls.push('teachers.changePassword')
       const account = accounts.find((each) => each.id === teacherId)
-      if (account === undefined) return false
+      if (account === undefined || account.passwordHash !== verifiedPasswordHash) return false
       account.passwordHash = passwordHash
       return true
     },
     // false — учителя уже нет (параллельное удаление)
-    async deleteAccount(teacherId, email) {
+    async deleteAccount(teacherId, email, verifiedPasswordHash) {
       calls.push(`teachers.deleteAccount:${email}`)
       const index = accounts.findIndex((account) => account.id === teacherId)
       if (index === -1) return false
+      if (verifiedPasswordHash !== undefined && accounts[index]!.passwordHash !== verifiedPasswordHash) return false
       accounts.splice(index, 1)
       return true
     },

@@ -184,6 +184,21 @@ describe('deleteAccount: после удаления', () => {
     expect(logged).toEqual([])
   })
 
+  it('пароль сбросили, пока шла сверка, — 401, аккаунт цел', async () => {
+    const { deleteAccount, accounts, hasher } = setup()
+    const resetHash = hasher.hashOf('qa-reset-password-2040')
+    const verify = hasher.hasher.verify
+    hasher.hasher.verify = async (hash, password) => {
+      const valid = await verify(hash, password)
+      // Новый объект: findById фейка отдаёт ссылку, а use-case держит прочитанную до сверки копию
+      accounts[0] = { ...accounts[0]!, passwordHash: resetHash }
+      return valid
+    }
+
+    expect(await rejectionOf(deleteAccount(TEACHER_ID, input()))).toMatchObject(SESSION_INVALID)
+    expect(accounts).toHaveLength(1)
+  })
+
   it('повторное удаление тем же учителем — 401', async () => {
     vi.spyOn(console, 'info').mockImplementation(() => {})
     const { deleteAccount } = setup()

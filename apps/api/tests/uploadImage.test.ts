@@ -276,7 +276,7 @@ describe('POST /api/quiz-images (без базы)', () => {
     return { stream, state, abort: () => abort() }
   }
 
-  function postStream(app: ReturnType<typeof createTestApp>, headers: Record<string, string>, stream: ReadableStream<Uint8Array>) {
+  function postStream(app: ReturnType<typeof createTestApp>, headers: Record<string, string>, stream: ReadableStream<Uint8Array>, ip?: string) {
     return app.request(
       UPLOAD_PATH,
       {
@@ -285,13 +285,13 @@ describe('POST /api/quiz-images (без базы)', () => {
         body: stream,
         duplex: 'half',
       } as RequestInit,
-      fromIp(),
+      fromIp(ip),
     )
   }
 
-  async function occupy(app: ReturnType<typeof createTestApp>, headers: Record<string, string>) {
+  async function occupy(app: ReturnType<typeof createTestApp>, headers: Record<string, string>, ip?: string) {
     const body = stalledBody()
-    const response = postStream(app, headers, body.stream)
+    const response = postStream(app, headers, body.stream, ip)
     // Тело начали читать — слот уже занят
     await vi.waitFor(() => expect(body.state.pulls).toBe(1))
     return { ...body, response }
@@ -309,8 +309,8 @@ describe('POST /api/quiz-images (без базы)', () => {
     expect(busy.status).toBe(503)
     expect(Number(busy.headers.get('retry-after'))).toBeGreaterThan(0)
     expect(extra.state.pulls).toBe(0)
-    // Другой учитель не упирается в лимит этого
-    expect((await post(app, await auth(), form(HTML))).status).toBe(400)
+    // Другой учитель с другого адреса не упирается в лимит этого (лимит на IP — свой)
+    expect((await post(app, await auth(), form(HTML), '198.51.100.20')).status).toBe(400)
 
     for (const upload of running) upload.abort()
     for (const upload of running) expect((await upload.response).status).toBe(400)
@@ -330,10 +330,11 @@ describe('POST /api/quiz-images (без базы)', () => {
   it('пятая одновременная загрузка (разные учителя) → 503 до чтения тела; после ошибок слоты не утекают', async () => {
     const app = createTestApp({ imageStorage: makeMemoryImageStorage().storage })
     const running = []
-    for (let i = 0; i < MAX_CONCURRENT_UPLOADS; i++) running.push(await occupy(app, await auth()))
+    // Разные адреса: лимит на IP не должен сработать раньше общего
+    for (let i = 0; i < MAX_CONCURRENT_UPLOADS; i++) running.push(await occupy(app, await auth(), `198.51.100.${i + 1}`))
 
     const extra = stalledBody()
-    const busy = await postStream(app, await auth(), extra.stream)
+    const busy = await postStream(app, await auth(), extra.stream, '198.51.100.9')
 
     expect(busy.status).toBe(503)
     expect(extra.state.pulls).toBe(0)

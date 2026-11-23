@@ -49,8 +49,9 @@ export function makeChangePassword(deps: ChangePasswordDeps) {
 
     // Новый пароль уже прошёл passwordSchema (NFC, минимум, блок-лист): хэшируется результат разбора
     const passwordHash = await deps.hasher.hash(input.newPassword)
-    const changed = await deps.teachers.changePassword(teacher.id, passwordHash)
-    // Параллельный запрос успел удалить аккаунт
+    const changed = await deps.teachers.changePassword(teacher.id, teacher.passwordHash, passwordHash)
+    // Параллельный запрос успел удалить аккаунт или пароль сменили, пока шла сверка: сброс и смена пароля
+    // уже завершили все сессии
     if (!changed) throw sessionInvalid()
 
     const session = await issueSession(deps, { ...teacher, passwordHash })

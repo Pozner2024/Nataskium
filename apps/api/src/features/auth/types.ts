@@ -34,12 +34,15 @@ export type TeacherRepository = {
   // не меняя; иначе создать без пароля. Ожидающие регистрации email удаляются: пароли до подтверждения отбрасываются
   signInWithGoogle(profile: GoogleTeacherProfile, now: Date): Promise<GoogleSignInResult>
   // Одна транзакция под lockEmail: удалить ожидающие регистрации этого email и учителя. Каскад удаляет его
-  // refresh-токены, ссылки сброса и привязки Google. false — учителя уже нет
+  // refresh-токены, ссылки сброса и привязки Google
   // Взаимоблокировка — один повтор, затем ServiceBusyError (503)
-  deleteAccount(teacherId: string, email: string): Promise<boolean>
+  // verifiedPasswordHash — CAS по хэшу, с которым сверили пароль: false — учителя нет или пароль уже сменили
+  // (сброс, смена). Без него — удаление без сверки хэша (служебные вызовы)
+  deleteAccount(teacherId: string, email: string, verifiedPasswordHash?: string): Promise<boolean>
   // Одна транзакция: новый хэш пароля, удалить все refresh-токены учителя, его ссылки сброса и ожидающие привязки
-  // Google (они ждали старый пароль). false — учителя уже нет
-  changePassword(teacherId: string, passwordHash: string): Promise<boolean>
+  // Google (они ждали старый пароль)
+  // CAS по хэшу, с которым сверили текущий пароль: false — учителя нет или пароль уже сменили (сброс, другая смена)
+  changePassword(teacherId: string, verifiedPasswordHash: string, passwordHash: string): Promise<boolean>
 }
 
 export type RefreshSession = {

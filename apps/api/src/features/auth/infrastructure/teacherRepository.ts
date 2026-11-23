@@ -14,6 +14,9 @@ export const TEACHER_ACCOUNT_SELECT = {
   emailVerifiedAt: true,
 } satisfies Prisma.TeacherSelect
 
+// Пароль сменили между сверкой и записью: откат транзакции, токены остаются
+class StalePasswordHash extends Error {}
+
 // Взаимоблокировка удаления аккаунта с параллельной записью токена: одна повторная попытка, затем 503
 const DELETE_ACCOUNT_ATTEMPTS = 2
 const DELETE_ACCOUNT_RETRY_AFTER_SECONDS = 1
@@ -31,15 +34,20 @@ export async function withDeleteAccountRetry<T>(run: () => Promise<T>): Promise<
 }
 
 // Внутри транзакции после lockEmail(email). Каскад удаляет refresh-токены, ссылки сброса, привязки и подтверждения
-// Google. false — учителя уже нет
-export async function deleteTeacherRows(tx: Prisma.TransactionClient, teacherId: string, email: string): Promise<boolean> {
+// Google. false — учителя уже нет или (при verifiedPasswordHash) пароль сменили после сверки: вызывающий откатывает транзакцию
+export async function deleteTeacherRows(
+  tx: Prisma.TransactionClient,
+  teacherId: string,
+  email: string,
+  verifiedPasswordHash?: string,
+): Promise<boolean> {
   // У pending_registrations нет FK на учителя — каскад их не удалит
   await tx.pendingRegistration.deleteMany({ where: { email } })
   // Токены — до строки учителя, в том же порядке, что у rotate (токен, затем FK на учителя):
   // иначе каскад ждал бы токен, а rotate — учителя, и PostgreSQL прерывал бы одну из транзакций
   await tx.refreshToken.deleteMany({ where: { teacherId } })
   // Задания и шкалы учителя (когда появятся) — FK с onDelete: Cascade, удалятся этой же командой
-  const { count } = await tx.teacher.deleteMany({ where: { id: teacherId } })
+  const { count } = await tx.teacher.deleteMany({ where: { id: teacherId, passwordHash: verifiedPasswordHash } })
   return count === 1
 }
 
@@ -48,29 +56,45 @@ export function makeTeacherRepository(prisma: PrismaClient): TeacherRepository {
     findByEmail: (email) => prisma.teacher.findUnique({ where: { email }, select: TEACHER_ACCOUNT_SELECT }),
     findById: (id) => prisma.teacher.findUnique({ where: { id }, select: TEACHER_ACCOUNT_SELECT }),
 
-    deleteAccount(teacherId, email) {
-      return withDeleteAccountRetry(() =>
-        prisma.$transaction(async (tx) => {
-          // Та же очередь по email, что у подтверждения регистрации и входа через Google: удаление не разойдётся
-          // с одновременным созданием учителя по ожидающей регистрации этого же email
-          await lockEmail(tx, email)
-          return deleteTeacherRows(tx, teacherId, email)
-        }),
-      )
+    async deleteAccount(teacherId, email, verifiedPasswordHash) {
+      try {
+        return await withDeleteAccountRetry(() =>
+          prisma.$transaction(async (tx) => {
+            // Та же очередь по email, что у подтверждения регистрации и входа через Google: удаление не разойдётся
+            // с одновременным созданием учителя по ожидающей регистрации этого же email
+            await lockEmail(tx, email)
+            const deleted = await deleteTeacherRows(tx, teacherId, email, verifiedPasswordHash)
+            // Откат: ожидающие регистрации и токены, удалённые выше, остаются
+            if (!deleted) throw new StalePasswordHash()
+            return true
+          }),
+        )
+      } catch (error) {
+        if (error instanceof StalePasswordHash) return false
+        throw error
+      }
     },
 
-    changePassword(teacherId, passwordHash) {
-      return prisma.$transaction(async (tx) => {
-        // Токены — до строки учителя, в том же порядке, что у rotate и deleteAccount: иначе взаимоблокировка
-        await tx.refreshToken.deleteMany({ where: { teacherId } })
-        const { count } = await tx.teacher.updateMany({ where: { id: teacherId }, data: { passwordHash } })
-        if (count !== 1) return false
-        await tx.passwordReset.deleteMany({ where: { teacherId } })
-        await tx.pendingGoogleLink.deleteMany({ where: { teacherId } })
-        // Удаление через Google — только для аккаунта без пароля: подтверждение, начатое до смены, гасится
-        await tx.pendingGoogleReauth.deleteMany({ where: { teacherId } })
-        return true
-      })
+    async changePassword(teacherId, verifiedPasswordHash, passwordHash) {
+      try {
+        return await prisma.$transaction(async (tx) => {
+          // Токены — до строки учителя, в том же порядке, что у rotate и deleteAccount: иначе взаимоблокировка
+          await tx.refreshToken.deleteMany({ where: { teacherId } })
+          const { count } = await tx.teacher.updateMany({
+            where: { id: teacherId, passwordHash: verifiedPasswordHash },
+            data: { passwordHash },
+          })
+          if (count !== 1) throw new StalePasswordHash()
+          await tx.passwordReset.deleteMany({ where: { teacherId } })
+          await tx.pendingGoogleLink.deleteMany({ where: { teacherId } })
+          // Удаление через Google — только для аккаунта без пароля: подтверждение, начатое до смены, гасится
+          await tx.pendingGoogleReauth.deleteMany({ where: { teacherId } })
+          return true
+        })
+      } catch (error) {
+        if (error instanceof StalePasswordHash) return false
+        throw error
+      }
     },
 
     async signInWithGoogle(profile, now) {

@@ -24,6 +24,12 @@ export type AuthLimits = {
   // Письма сброса на адрес — отдельный бюджет: спам регистрациями не блокирует учителю сброс
   resetEmailsPerHour: RateLimit
   resetEmailsPerDay: RateLimit
+  // Общий потолок писем на весь сервер поверх лимитов на адрес: случайные адреса не выбирают квоту Resend
+  // (бесплатный тариф — 100 писем в сутки). У сброса свой запас: флуд регистраций его не трогает
+  registrationEmailsTotalPerHour: RateLimit
+  registrationEmailsTotalPerDay: RateLimit
+  resetEmailsTotalPerHour: RateLimit
+  resetEmailsTotalPerDay: RateLimit
   forgotPasswordPerIp: RateLimit
   resetPasswordPerIp: RateLimit
   googleStartPerIp: RateLimit
@@ -60,6 +66,10 @@ const SESSION_PER_IP = 60
 const ME_PER_IP = 300
 const RESET_EMAILS_PER_HOUR = 3
 const RESET_EMAILS_PER_DAY = 5
+const REGISTRATION_EMAILS_TOTAL_PER_HOUR = 20
+const REGISTRATION_EMAILS_TOTAL_PER_DAY = 60
+const RESET_EMAILS_TOTAL_PER_HOUR = 10
+const RESET_EMAILS_TOTAL_PER_DAY = 30
 const FORGOT_PASSWORD_PER_IP = 30
 const RESET_PASSWORD_PER_IP = 30
 const GOOGLE_START_PER_IP = 30
@@ -84,6 +94,10 @@ export const PRODUCTION_LIMITS: AuthLimits = {
   mePerIp: { max: ME_PER_IP, windowMs: FIFTEEN_MINUTES_MS },
   resetEmailsPerHour: { max: RESET_EMAILS_PER_HOUR, windowMs: MS_PER_HOUR },
   resetEmailsPerDay: { max: RESET_EMAILS_PER_DAY, windowMs: MS_PER_DAY },
+  registrationEmailsTotalPerHour: { max: REGISTRATION_EMAILS_TOTAL_PER_HOUR, windowMs: MS_PER_HOUR },
+  registrationEmailsTotalPerDay: { max: REGISTRATION_EMAILS_TOTAL_PER_DAY, windowMs: MS_PER_DAY },
+  resetEmailsTotalPerHour: { max: RESET_EMAILS_TOTAL_PER_HOUR, windowMs: MS_PER_HOUR },
+  resetEmailsTotalPerDay: { max: RESET_EMAILS_TOTAL_PER_DAY, windowMs: MS_PER_DAY },
   forgotPasswordPerIp: { max: FORGOT_PASSWORD_PER_IP, windowMs: MS_PER_HOUR },
   resetPasswordPerIp: { max: RESET_PASSWORD_PER_IP, windowMs: FIFTEEN_MINUTES_MS },
   googleStartPerIp: { max: GOOGLE_START_PER_IP, windowMs: FIFTEEN_MINUTES_MS },

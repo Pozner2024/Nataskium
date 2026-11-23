@@ -29,7 +29,8 @@ export const quizListResponseSchema = z.object({
   quizzes: z.array(quizSummarySchema),
 })
 
-const imageUrlSchema = z.url().nullable()
+// Только http(s): адрес картинки строит сервер, а javascript:/data: не должны пройти ни в какой приёмник
+const imageUrlSchema = z.url({ protocol: /^https?$/ }).nullable()
 
 const quizResponseQuestionSchema = z.object({
   text: z.string(),
@@ -86,7 +87,7 @@ export const playFinishResponseSchema = z.object({
 })
 
 export const imageUploadResponseSchema = z.object({
-  image: z.object({ id: imageIdSchema, url: z.url() }),
+  image: z.object({ id: imageIdSchema, url: z.url({ protocol: /^https?$/ }) }),
 })
 
 export type QuizSummary = z.infer<typeof quizSummarySchema>
