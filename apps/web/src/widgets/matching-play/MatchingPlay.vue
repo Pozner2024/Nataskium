@@ -28,13 +28,14 @@ import { onBeforeUnmount, onMounted, provide } from 'vue'
 import { useI18n, useSeoMeta } from '#imports'
 import type { PlayMatchingResponse } from '@/entities/matching'
 import { PLAY_TIMER_KEY, usePlayerPause, usePlayerScrollRelease } from '@/features/play-session'
+import type { PlaySource } from '@/shared'
 import MatchingBoard from './components/MatchingBoard.vue'
 import MatchingResult from './components/MatchingResult.vue'
 import { useMatchingPlayStore } from './store'
 import { useMatchingPlayTimer } from './useMatchingPlayTimer'
 
 // initial — ответ GET, уже полученный PlayPage; без него виджет загружает задание сам
-const props = defineProps<{ token: string; initial?: PlayMatchingResponse }>()
+const props = defineProps<{ source: PlaySource; initial?: PlayMatchingResponse }>()
 
 const { t } = useI18n()
 const store = useMatchingPlayStore()
@@ -46,7 +47,7 @@ usePlayerScrollRelease(() => store.status !== 'ready' || store.phase === 'result
 
 useSeoMeta({ title: () => store.title, robots: 'noindex, nofollow' })
 
-onMounted(() => store.start(props.token, props.initial))
+onMounted(() => store.start(props.source, props.initial))
 // Стор живёт между показами: без очистки следующий показ на миг рисует старое задание и теряет вылет
 onBeforeUnmount(() => store.dispose())
 </script>

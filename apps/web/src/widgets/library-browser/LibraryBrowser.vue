@@ -32,11 +32,13 @@
     </p>
 
     <template v-else>
-      <LibraryViewToggle :view="view" @update:view="setView" />
+      <ViewToggle :view="view" @update:view="setView" />
 
       <ul class="library-browser__list" :class="`library-browser__list--${view}`">
         <li v-for="quiz in quizzes" :key="quiz.number" class="library-browser__card">
-          <LibraryQuizThumbnail :thumbnail="quiz.thumbnail" :intro-theme="quiz.introTheme" />
+          <IntroThemePreview :tone="findTheme(quiz.introTheme).tone">
+            <ActivityThumbnail v-if="quiz.thumbnail" :thumbnail="quiz.thumbnail" />
+          </IntroThemePreview>
           <div class="library-browser__info">
             <h2 class="library-browser__title">
               <NuxtLink class="library-browser__link" :to="localePath(libraryQuizPath(quiz.number, quiz.title))">{{ quiz.title }}</NuxtLink>
@@ -49,6 +51,16 @@
               {{ quiz.graded ? t('library.graded') : t('library.notGraded') }}
             </p>
           </div>
+          <div class="library-browser__actions">
+            <TakeLibraryQuizButton
+              compact
+              :is-signed-in="auth.isAuthenticated"
+              :is-ready="isSessionChecked"
+              :take="() => take(quiz.number)"
+              @taken="(quizId) => onTaken(quiz, quizId)"
+              @login-required="isLoginOpen = true"
+            />
+          </div>
         </li>
       </ul>
 
@@ -57,18 +69,24 @@
         {{ isLoadingMore ? t('library.loading') : t('library.more') }}
       </button>
     </template>
+
+    <LibraryLoginDialog :open="isLoginOpen" :login-to="loginTo" :register-to="localePath(AUTH_PATHS.register)" @close="isLoginOpen = false" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { libraryQuizPath } from '@nataskium/shared/routes'
 import { type ActivityKind, LIBRARY_SEARCH_MAX_LENGTH, LIBRARY_SEARCH_MIN_LENGTH } from '@nataskium/shared/schemas'
-import { onMounted, toRef } from 'vue'
+import { computed, onMounted, ref, toRef } from 'vue'
 import { NuxtLink } from '#components'
-import { useI18n, useLocalePath } from '#imports'
-import { useLibraryGroups } from '@/entities/library'
-import LibraryQuizThumbnail from './components/LibraryQuizThumbnail.vue'
-import LibraryViewToggle from './components/LibraryViewToggle.vue'
+import { navigateTo, useI18n, useLocalePath, useRoute } from '#imports'
+import { ActivityThumbnail } from '@/entities/activity'
+import { IntroThemePreview, findTheme } from '@/entities/intro-theme'
+import { type LibraryListItem, libraryApi, useLibraryGroups } from '@/entities/library'
+import { authorizedRequest, restoreSession, useAuthStore } from '@/features/auth'
+import { TakeLibraryQuizButton, type TakenActivity, takenEditPath } from '@/features/take-library-quiz'
+import { AUTH_PATHS, ViewToggle } from '@/shared'
+import LibraryLoginDialog from './components/LibraryLoginDialog.vue'
 import { useLibraryBrowser } from './useLibraryBrowser'
 import { useLibraryView } from './useLibraryView'
 
@@ -110,13 +128,38 @@ function groupName(slug: string): string {
   return groups.value.find((item) => item.slug === slug)?.name ?? ''
 }
 
-onMounted(() => {
+const route = useRoute()
+const auth = useAuthStore()
+// Пока сессия не проверена, кнопки «Взять себе» выключены: гостя не примут за вошедшего
+const isSessionChecked = ref(false)
+const isLoginOpen = ref(false)
+
+function take(number: number): Promise<TakenActivity> {
+  return authorizedRequest((token) => libraryApi.take(number, token))
+}
+
+// Копия того же типа, что и задание в списке: по нему выбирается редактор
+function onTaken(quiz: LibraryListItem, quizId: string): void {
+  void navigateTo(localePath(takenEditPath({ quizId, type: quiz.type })))
+}
+
+// После входа учитель возвращается в тот же раздел и поиск; next проверит safeNextPath на странице входа
+const loginTo = computed(() => ({ path: localePath(AUTH_PATHS.login), query: { next: route.fullPath } }))
+
+onMounted(async () => {
   void loadGroups()
   void reload()
+  // Статус 'unknown' после сетевой ошибки считаем гостем: кнопка включается и ведёт к окну входа
+  try {
+    await restoreSession()
+  } finally {
+    isSessionChecked.value = true
+  }
 })
 </script>
 
 <style scoped lang="scss">
+@use '@/assets/styles/breakpoints.module' as *;
 @use '@/assets/styles/mixins' as *;
 
 .library-browser {
@@ -245,6 +288,19 @@ onMounted(() => {
   list-style: none;
 }
 
+.library-browser__list--tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+
+  @include tablet {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  @include desktop {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
 .library-browser__list--list {
   gap: 10px;
 }
@@ -275,6 +331,19 @@ onMounted(() => {
 
 .library-browser__list--list .library-browser__info {
   padding: 0;
+}
+
+// Над растянутой ссылкой карточки: позиционированный блок позже в дереве рисуется поверх её ::after
+.library-browser__actions {
+  position: relative;
+  margin-top: auto;
+}
+
+.library-browser__list--list .library-browser__actions {
+  grid-column: 2;
+  justify-self: start;
+  width: min(100%, 220px);
+  margin-top: 0;
 }
 
 .library-browser__title {

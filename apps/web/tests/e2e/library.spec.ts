@@ -14,6 +14,7 @@ const SESSION = {
 
 const NUMBER = 12
 const TITLE = 'Столицы Европы'
+const SHARE_TOKEN = 'abcdefghijklmnopqrstuv'
 const QUIZ_PATH = /\/library\/quiz\/12-/
 const COPY_ID = '0b6a9c1e-7f3d-4a52-9e1b-3c5d7f9a1b2c'
 const TAKE_DELAY_MS = 300
@@ -28,34 +29,54 @@ const GROUPS = {
   ],
 }
 
-const SUMMARY = { number: NUMBER, type: 'quiz', title: TITLE, groupSlug: 'geography', questionCount: 2, graded: true, createdAt: CREATED_AT }
+const SUMMARY = {
+  number: NUMBER,
+  type: 'quiz',
+  title: TITLE,
+  groupSlug: 'geography',
+  questionCount: 2,
+  graded: true,
+  createdAt: CREATED_AT,
+  introTheme: 'nataskium-night',
+  thumbnail: null,
+}
 
-// Без isCorrect и selectCount: публичная карточка не отдаёт правильные ответы
-const QUIZ = {
+// Ответ игры без shareToken и без правильных ответов: ровно то, что отдаёт /api/library/play/<номер>
+const PLAY = {
+  type: 'quiz',
   quiz: {
-    ...SUMMARY,
+    title: TITLE,
+    showAnswers: false,
+    timer: { mode: 'none' },
+    version: 'v1',
+    introTheme: 'nataskium-night',
     questions: [
-      { text: 'Столица Франции?', imageUrl: null, options: [{ text: 'Париж', imageUrl: null }, { text: 'Лион', imageUrl: null }] },
-      { text: 'ОченьДлинноеСловоБезПробеловОченьДлинноеСловоБезПробеловОченьДлинное', imageUrl: null, options: [{ text: 'Да', imageUrl: null }] },
+      { text: 'Столица Франции?', imageUrl: null, selectCount: 1, options: [{ text: 'Париж', imageUrl: null }, { text: 'Лион', imageUrl: null }] },
     ],
   },
 }
 
-type MockOptions = { quizStatus?: number }
+type MockOptions = { playStatus?: number }
 
 async function waitForHydration(page: Page) {
   await page.waitForFunction(() => window.useNuxtApp?.().isHydrating === false)
 }
 
 // API подменён: проверяется поведение сайта, а не сервер. Все чтения библиотеки — одним обработчиком по адресу
-async function mockLibrary(page: Page, { quizStatus = 200 }: MockOptions = {}) {
+async function mockLibrary(page: Page, { playStatus = 200 }: MockOptions = {}) {
+  const playRequests: string[] = []
   await page.route((url) => url.pathname.startsWith('/api/library'), async (route) => {
     const { pathname } = new URL(route.request().url())
     if (pathname === '/api/library/groups') return route.fulfill({ json: GROUPS })
     if (pathname === '/api/library') return route.fulfill({ json: { quizzes: [SUMMARY], page: 1, hasNext: false } })
-    if (quizStatus !== 200) return route.fulfill({ status: quizStatus, json: { error: 'Not found' } })
-    return route.fulfill({ json: QUIZ })
+    if (pathname.startsWith('/api/library/play/')) {
+      playRequests.push(pathname)
+      if (playStatus !== 200) return route.fulfill({ status: playStatus, json: { error: 'Quiz not found' } })
+      return route.fulfill({ json: PLAY })
+    }
+    return route.fallback()
   })
+  return playRequests
 }
 
 async function signInOnReload(page: Page) {
@@ -77,66 +98,51 @@ async function mockTake(page: Page, respond: (count: number) => { status: number
   return calls
 }
 
-async function openQuiz(page: Page, path = `/library/quiz/${NUMBER}-stolitsy`) {
-  await page.goto(path)
+async function openGroup(page: Page) {
+  await page.goto('/library/geography')
   await waitForHydration(page)
-  await expect(page.locator('h1')).toHaveText(TITLE)
+  await expect(page.getByRole('link', { name: TITLE })).toBeVisible()
 }
 
 function takeButton(page: Page) {
-  return page.locator('.library-quiz__actions button.app-button')
+  return page.locator('.library-browser__card .take-library-quiz-button__compact')
 }
 
-test.describe('библиотека: страницы', () => {
-  test('список группы: клик по плитке открывает карточку без правильных ответов', async ({ page }) => {
-    await mockLibrary(page)
+test.describe('библиотека: игра', () => {
+  test('клик по плитке открывает игру: интро с «Начать», запрос на /api/library/play/<номер>', async ({ page }) => {
+    const playRequests = await mockLibrary(page)
+    const bodies: string[] = []
+    page.on('response', async (response) => {
+      if (new URL(response.url()).pathname.startsWith('/api/library/play/')) bodies.push(await response.text())
+    })
 
-    await page.goto('/library/geography')
-    await waitForHydration(page)
+    await openGroup(page)
     await page.getByRole('link', { name: TITLE }).click()
 
     await expect(page).toHaveURL(QUIZ_PATH)
-    await expect(page.locator('h1')).toHaveText(TITLE)
-    await expect(page.locator('.library-quiz__question')).toHaveCount(2)
-    await expect(takeButton(page)).toBeVisible()
-    await expect(takeButton(page)).toBeEnabled()
-    // В карточке нет ни переключателей, ни пометок «правильно»
-    await expect(page.locator('.library-quiz__card input, .library-quiz__card [aria-checked]')).toHaveCount(0)
-    expect(await page.locator('.library-quiz__card').innerText()).not.toMatch(/правильн/i)
+    await expect(page.locator('.intro-player')).toBeVisible()
+    await expect(page.locator('.intro-player__start-button')).toHaveText('Начать')
+    expect(playRequests).toContain(`/api/library/play/${NUMBER}`)
+    for (const body of bodies) expect(body).not.toContain(SHARE_TOKEN)
   })
 
-  test('карточка запрашивается без токена и без тела', async ({ page }) => {
-    await mockLibrary(page)
-    const requests: { method: string; authorization: string | undefined }[] = []
-    page.on('request', (request) => {
-      if (new URL(request.url()).pathname === `/api/library/${NUMBER}`) {
-        requests.push({ method: request.method(), authorization: request.headers()['authorization'] })
-      }
-    })
-
-    await openQuiz(page)
-
-    expect(requests.length).toBeGreaterThan(0)
-    for (const request of requests) expect(request).toEqual({ method: 'GET', authorization: undefined })
-  })
-
-  test('404 от API показывает страницу 404', async ({ page }) => {
-    await mockLibrary(page, { quizStatus: 404 })
+  test('404 от API: «не найдено» внутри проигрывателя', async ({ page }) => {
+    await mockLibrary(page, { playStatus: 404 })
 
     await page.goto(`/library/quiz/${NUMBER}-stolitsy`)
     await waitForHydration(page)
 
-    await expect(page.locator('.error-page__code')).toHaveText('404')
-    await expect(page.locator('h1')).toHaveText('Такой страницы нет')
-    await expect(page.locator('.library-quiz__card')).toHaveCount(0)
+    await expect(page.locator('.quiz-play [role="alert"]')).toHaveText('Задание не найдено или удалено')
+    await expect(page.locator('.intro-player__start-button')).toHaveCount(0)
   })
 
-  test(`нет горизонтальной прокрутки на ${NARROW_WIDTH} px, в том числе с окном входа`, async ({ page }) => {
+  test(`нет горизонтальной прокрутки на ${NARROW_WIDTH} px: карточка с кнопкой и окно входа`, async ({ page }) => {
     await mockLibrary(page)
     await page.setViewportSize({ width: NARROW_WIDTH, height: VIEWPORT_HEIGHT })
     const overflow = () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
 
-    await openQuiz(page)
+    await openGroup(page)
+    await expect(takeButton(page)).toBeEnabled()
     expect(await overflow()).toBeLessThanOrEqual(0)
 
     await takeButton(page).click()
@@ -145,36 +151,35 @@ test.describe('библиотека: страницы', () => {
   })
 })
 
-test.describe('библиотека: «Взять себе»', () => {
-  test('гость: окно входа, «Войти» ведёт на /auth/login?next= на эту же карточку', async ({ page }) => {
+test.describe('библиотека: «Взять себе» на карточке', () => {
+  test('гость: окно входа, «Войти» ведёт на /auth/login?next= на этот же раздел', async ({ page }) => {
     await mockLibrary(page)
     let takeCalls = 0
     await page.route('**/api/library/*/take', (route) => {
       takeCalls += 1
       return route.fulfill({ status: 401, json: { error: 'Unauthorized' } })
     })
-    await openQuiz(page)
-    const cardUrl = new URL(page.url())
+    await openGroup(page)
+    const groupUrl = new URL(page.url())
 
     await takeButton(page).click()
 
     const dialog = page.locator('.app-dialog')
     await expect(dialog).toBeVisible()
     await expect(dialog.getByRole('heading')).toHaveText('Войдите, чтобы взять задание')
+    await expect(page).toHaveURL(groupUrl.href)
     expect(takeCalls).toBe(0)
-    // Регистрация без next
     await expect(dialog.getByRole('link', { name: 'Зарегистрироваться' })).toHaveAttribute('href', '/auth/register')
 
     await dialog.getByRole('link', { name: 'Войти' }).click()
 
     await expect(page).toHaveURL(/\/auth\/login\?next=/)
-    const next = new URL(page.url()).searchParams.get('next')
-    expect(next).toBe(cardUrl.pathname)
+    expect(new URL(page.url()).searchParams.get('next')).toBe(groupUrl.pathname)
   })
 
-  test('окно закрывается кнопкой «Закрыть» и клавишей Esc, прокрутка страницы блокируется только пока оно открыто', async ({ page }) => {
+  test('окно закрывается кнопкой «Закрыть» и клавишей Esc', async ({ page }) => {
     await mockLibrary(page)
-    await openQuiz(page)
+    await openGroup(page)
     const isLocked = () => page.evaluate(() => document.documentElement.classList.contains('is-scroll-locked'))
 
     await takeButton(page).click()
@@ -197,7 +202,7 @@ test.describe('библиотека: «Взять себе»', () => {
     await mockLibrary(page)
     await page.route('**/api/quizzes/**', (route) => route.fulfill({ status: 404, json: { error: 'Not found' } }))
     const calls = await mockTake(page, () => ({ status: 201, json: { quizId: COPY_ID, type: 'quiz' } }))
-    await openQuiz(page)
+    await openGroup(page)
     await expect(takeButton(page)).toBeEnabled()
 
     await takeButton(page).dblclick()
@@ -205,41 +210,37 @@ test.describe('библиотека: «Взять себе»', () => {
     await expect(page).toHaveURL(new RegExp(`/teacher/quiz/${COPY_ID}$`))
     expect(calls.count).toBe(1)
     expect(calls.authorization).toEqual([`Bearer ${SESSION.accessToken}`])
-    await expect(page.locator('.library-quiz')).toHaveCount(0)
   })
 
-  test('вошедший, 409: видно сообщение про лимит и ссылку в «Мои задания», остаёмся на карточке', async ({ page }) => {
+  test('вошедший, 409: в карточке сообщение про лимит и ссылка в «Мои задания», остаёмся в разделе', async ({ page }) => {
     await signInOnReload(page)
     await mockLibrary(page)
     await mockTake(page, () => ({ status: 409, json: { error: 'Quiz limit reached' } }))
-    await openQuiz(page)
+    await openGroup(page)
     await expect(takeButton(page)).toBeEnabled()
 
     await takeButton(page).click()
 
-    const alert = page.locator('.library-quiz__actions [role="alert"]')
+    const alert = page.locator('.library-browser__card [role="alert"]')
     await expect(alert).toContainText('Достигнут лимит: не больше')
-    await expect(alert).toContainText(/\d+ заданий/)
     await expect(alert.getByRole('link', { name: 'Перейти в «Мои задания»' })).toHaveAttribute('href', '/teacher')
-    await expect(page).toHaveURL(QUIZ_PATH)
+    await expect(page).toHaveURL(/\/library\/geography$/)
     await expect(takeButton(page)).toBeEnabled()
   })
 
-  test('вошедший, 503: видно сообщение про хранилище, повторное нажатие работает', async ({ page }) => {
+  test('вошедший, 503: в карточке сообщение про хранилище, повторное нажатие работает', async ({ page }) => {
     await signInOnReload(page)
     await mockLibrary(page)
     await page.route('**/api/quizzes/**', (route) => route.fulfill({ status: 404, json: { error: 'Not found' } }))
     const calls = await mockTake(page, (count) =>
       count === 1 ? { status: 503, json: { error: 'Storage unavailable' } } : { status: 201, json: { quizId: COPY_ID, type: 'quiz' } },
     )
-    await openQuiz(page)
+    await openGroup(page)
     await expect(takeButton(page)).toBeEnabled()
 
     await takeButton(page).click()
 
-    const alert = page.locator('.library-quiz__actions [role="alert"]')
-    await expect(alert).toContainText('Не получилось скопировать картинки')
-    await expect(page).toHaveURL(QUIZ_PATH)
+    await expect(page.locator('.library-browser__card [role="alert"]')).toContainText('Не получилось скопировать картинки')
 
     await takeButton(page).click()
 

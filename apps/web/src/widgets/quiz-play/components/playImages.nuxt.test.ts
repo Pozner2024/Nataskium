@@ -10,6 +10,7 @@ vi.mock('@/entities/quiz', () => ({
 }))
 
 const TOKEN = 'abcdefghijklmnopqrstuv'
+const SOURCE = { kind: 'share', token: TOKEN } as const
 const RESULT = { percent: 100, grade: null, correctCount: 1, partialCount: 0, totalCount: 1 }
 const IMAGE_Q = 'https://storage.example/quiz-images/q.webp'
 const IMAGE_A = 'https://storage.example/quiz-images/a.webp'
@@ -42,7 +43,7 @@ async function startQuiz(showAnswers = false) {
   })
   vi.mocked(playApi.finish).mockResolvedValue({ result: RESULT })
   const store = usePlayStore()
-  await store.start(TOKEN, () => 0)
+  await store.start(SOURCE, () => 0)
   const wrapper = await mountSuspended(PlayQuestion)
   mounted.push(wrapper)
   await flushPromises()
@@ -86,7 +87,7 @@ describe('картинки на странице задания', () => {
     await button.trigger('click')
     expect(store.selected).toEqual([2])
     await vi.advanceTimersByTimeAsync(ANSWER_ADVANCE_MS)
-    expect(playApi.finish).toHaveBeenCalledWith(TOKEN, { version: 'v1', answers: [[2]] })
+    expect(playApi.finish).toHaveBeenCalledWith(SOURCE, { version: 'v1', answers: [[2]] })
   })
 
   it('после проверки отметка входит в название варианта без текста', async () => {

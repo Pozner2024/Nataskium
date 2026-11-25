@@ -2,8 +2,8 @@ import { randomBytes } from 'node:crypto'
 import {
   MAX_QUIZZES_PER_TEACHER,
   libraryListResponseSchema,
-  libraryQuizResponseSchema,
   libraryTakeResponseSchema,
+  playActivityResponseSchema,
   quizListResponseSchema,
 } from '@nataskium/shared/schemas'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -199,14 +199,14 @@ describe('строка matching и маршруты викторин', () => {
     expect((await request('POST', `${path}/finish`, { body: { version: 'v1', answers: [[0]] } })).status).toBe(404)
   })
 
-  // С шага 7 библиотека показывает оба типа: карточка и «Взять себе» ветвятся по type
-  it('библиотека: карточка matching — 200 с type matching; «Взять себе» — непубличная копия matching', async () => {
+  // Библиотека показывает оба типа: игра и «Взять себе» ветвятся по type
+  it('библиотека: игра matching — 200 с type matching; «Взять себе» — непубличная копия matching', async () => {
     const author = await createTeacher(prisma)
     const taker = await createTeacher(prisma)
     const { publicNumber } = await seedMatching(author.id)
 
-    const card = libraryQuizResponseSchema.parse(await (await request('GET', `/api/library/${publicNumber}`)).json())
-    expect(card.quiz.type).toBe('matching')
+    const activity = playActivityResponseSchema.parse(await (await request('GET', `/api/library/play/${publicNumber}`)).json())
+    expect(activity.type).toBe('matching')
     const taken = await request('POST', `/api/library/${publicNumber}/take`, { teacherId: taker.id })
     expect(taken.status).toBe(201)
     const { quizId, type } = libraryTakeResponseSchema.parse(await taken.json())
@@ -269,16 +269,16 @@ describe('строка matching и маршруты викторин', () => {
     expect(await real.json()).toEqual(await missing.json())
   })
 
-  it('библиотека: карточки викторины и matching открываются, у каждой свой type', async () => {
+  it('библиотека: игры викторины и matching открываются, у каждой свой type', async () => {
     const author = await createTeacher(prisma)
     const quiz = await prisma.quiz.create({
       data: { teacherId: author.id, title: 'Квиз', shareToken: randomBytes(SHARE_TOKEN_BYTES).toString('base64url'), showAnswers: true, questions: QUIZ_INPUT.questions, isPublic: true },
     })
     const matching = await seedMatching(author.id)
 
-    const quizCard = libraryQuizResponseSchema.parse(await (await request('GET', `/api/library/${quiz.publicNumber}`)).json())
-    const matchingCard = libraryQuizResponseSchema.parse(await (await request('GET', `/api/library/${matching.publicNumber}`)).json())
-    expect([quizCard.quiz.type, matchingCard.quiz.type]).toEqual(['quiz', 'matching'])
+    const quizPlay = playActivityResponseSchema.parse(await (await request('GET', `/api/library/play/${quiz.publicNumber}`)).json())
+    const matchingPlay = playActivityResponseSchema.parse(await (await request('GET', `/api/library/play/${matching.publicNumber}`)).json())
+    expect([quizPlay.type, matchingPlay.type]).toEqual(['quiz', 'matching'])
   })
 
   it('«Взять себе» matching тратит общий лимит: 99 викторин + копия matching — 201, следующая — 409', async () => {

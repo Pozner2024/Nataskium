@@ -3,18 +3,18 @@ import {
   playCheckResponseSchema,
   playFinishResponseSchema,
 } from '@nataskium/shared/schemas'
-import { apiRequest } from '@/shared'
+import { apiRequest, type PlaySource, playApiPath } from '@/shared'
 import type { PlayActivityResponse, PlayCheckInput, PlayCheckResponse, PlayFinishInput, PlayFinishResponse } from './types'
 
-// Публичные маршруты ученика /api/play/*: без авторизации, правильных ответов до проверки нет
+// Публичные маршруты игры /api/play/* и /api/library/play/*: без авторизации, правильных ответов до проверки нет
 export const playApi = {
-  // Одна ссылка для задания любого типа: ответ различается по type
-  get: (token: string): Promise<PlayActivityResponse> =>
-    apiRequest(`/play/${encodeURIComponent(token)}`, playActivityResponseSchema, { method: 'GET' }),
+  // Один адрес для задания любого типа: ответ различается по type
+  get: (source: PlaySource): Promise<PlayActivityResponse> =>
+    apiRequest(playApiPath(source), playActivityResponseSchema, { method: 'GET' }),
 
-  check: (token: string, input: PlayCheckInput): Promise<PlayCheckResponse> =>
-    apiRequest(`/play/${encodeURIComponent(token)}/check`, playCheckResponseSchema, { method: 'POST', body: input }),
+  check: (source: PlaySource, input: PlayCheckInput): Promise<PlayCheckResponse> =>
+    apiRequest(`${playApiPath(source)}/check`, playCheckResponseSchema, { method: 'POST', body: input }),
 
-  finish: (token: string, input: PlayFinishInput): Promise<PlayFinishResponse> =>
-    apiRequest(`/play/${encodeURIComponent(token)}/finish`, playFinishResponseSchema, { method: 'POST', body: input }),
+  finish: (source: PlaySource, input: PlayFinishInput): Promise<PlayFinishResponse> =>
+    apiRequest(`${playApiPath(source)}/finish`, playFinishResponseSchema, { method: 'POST', body: input }),
 }

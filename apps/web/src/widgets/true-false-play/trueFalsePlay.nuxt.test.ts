@@ -18,6 +18,7 @@ const finish = vi.mocked(trueFalsePlayApi.finish)
 const get = vi.mocked(playApi.get)
 
 const TOKEN = 'abcdefghijklmnopqrstuv'
+const SOURCE = { kind: 'share', token: TOKEN } as const
 const RESULT = { percent: 50, grade: '3', correctCount: 1, partialCount: 0, totalCount: 2 }
 const START = new Date('2026-01-01T10:00:00Z').getTime()
 const SECOND = 1000
@@ -32,7 +33,7 @@ function initial(showAnswers = true, timer: unknown = { mode: 'none' }, statemen
 const mounted: { unmount: () => void }[] = []
 
 async function mountPlay(response = initial()) {
-  const wrapper = await mountSuspended(TrueFalsePlay, { props: { token: TOKEN, initial: response }, attachTo: document.body })
+  const wrapper = await mountSuspended(TrueFalsePlay, { props: { source: SOURCE, initial: response }, attachTo: document.body })
   mounted.push(wrapper)
   await flushPromises()
   return wrapper
@@ -137,7 +138,7 @@ describe('TrueFalsePlay: без показа ответов', () => {
     await no(wrapper).trigger('click')
     await advance(ANSWER_ADVANCE_MS)
 
-    expect(finish).toHaveBeenCalledWith(TOKEN, { version: 'v1', answers: [true, false] })
+    expect(finish).toHaveBeenCalledWith(SOURCE, { version: 'v1', answers: [true, false] })
     expect(wrapper.get('h1').text()).toBe('Вы прошли задание «Факты»')
     expect(wrapper.text()).toContain('50%')
     expect(wrapper.text()).toContain('Оценка: 3')
@@ -164,7 +165,7 @@ describe('TrueFalsePlay: без показа ответов', () => {
     await no(wrapper).trigger('click')
     await advance(ANSWER_FEEDBACK_MS)
     expect(finish).toHaveBeenCalledOnce()
-    expect(finish).toHaveBeenCalledWith(TOKEN, { version: 'v1', answers: [true, false] })
+    expect(finish).toHaveBeenCalledWith(SOURCE, { version: 'v1', answers: [true, false] })
   })
 })
 
@@ -178,7 +179,7 @@ describe('TrueFalsePlay: с показом ответов', () => {
     await no(wrapper).trigger('click')
     await flushPromises()
 
-    expect(check).toHaveBeenCalledWith(TOKEN, { version: 'v1', index: 0, answer: false })
+    expect(check).toHaveBeenCalledWith(SOURCE, { version: 'v1', index: 0, answer: false })
     expect(live(wrapper)).toBe('Верно')
     expect(wrapper.find('.true-false-play__verdict').exists()).toBe(false)
     expect(visibleWords(wrapper, 'Верно')).toHaveLength(0)
@@ -223,7 +224,7 @@ describe('TrueFalsePlay: с показом ответов', () => {
     await flushPromises()
     await advance(ANSWER_FEEDBACK_MS)
 
-    expect(finish).toHaveBeenCalledWith(TOKEN, { version: 'v1', answers: [true, true] })
+    expect(finish).toHaveBeenCalledWith(SOURCE, { version: 'v1', answers: [true, true] })
     expect(document.activeElement).toBe(wrapper.get('h1').element)
     const rows = wrapper.findAll('.review-row')
     expect(rows).toHaveLength(2)
@@ -410,7 +411,7 @@ describe('TrueFalsePlay: ошибки', () => {
     await wrapper.get('.true-false-play__button').trigger('click')
     await flushPromises()
 
-    expect(get).toHaveBeenCalledWith(TOKEN)
+    expect(get).toHaveBeenCalledWith(SOURCE)
     expect(wrapper.get('h1').text()).toBe('Земля плоская')
   })
 
@@ -426,7 +427,7 @@ describe('TrueFalsePlay: ошибки', () => {
     await wrapper.get('.true-false-play__button').trigger('click')
     await flushPromises()
 
-    expect(check).toHaveBeenLastCalledWith(TOKEN, { version: 'v1', index: 0, answer: false })
+    expect(check).toHaveBeenLastCalledWith(SOURCE, { version: 'v1', index: 0, answer: false })
     expect(live(wrapper)).toBe('Верно')
   })
 })
@@ -445,7 +446,7 @@ describe('TrueFalsePlay: таймер', () => {
     await vi.advanceTimersByTimeAsync(SECOND)
     await flushPromises()
 
-    expect(finish).toHaveBeenCalledWith(TOKEN, { version: 'v1', answers: [true, null] })
+    expect(finish).toHaveBeenCalledWith(SOURCE, { version: 'v1', answers: [true, null] })
     expect(wrapper.text()).toContain('Время вышло: неотвеченные утверждения засчитаны как неверные')
   })
 

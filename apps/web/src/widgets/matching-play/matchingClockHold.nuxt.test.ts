@@ -14,6 +14,7 @@ vi.mock('@/entities/quiz', async (importOriginal) => ({
 }))
 
 const TOKEN = 'abcdefghijklmnopqrstuv'
+const SOURCE = { kind: 'share', token: TOKEN } as const
 const BAD_TOKEN = 'short'
 const START = new Date('2026-01-01T10:00:00Z').getTime()
 const SECOND = 1000
@@ -53,7 +54,7 @@ const mounted: { unmount: () => void }[] = []
 
 async function mountPlay(context: PlayerEntrance | null, response: unknown) {
   const provide = context ? { [PLAYER_ENTRANCE_KEY as symbol]: context } : {}
-  const wrapper = await mountSuspended(MatchingPlay, { props: { token: TOKEN, initial: response as never }, attachTo: document.body, global: { provide } })
+  const wrapper = await mountSuspended(MatchingPlay, { props: { source: SOURCE, initial: response as never }, attachTo: document.body, global: { provide } })
   mounted.push(wrapper)
   await flushPromises()
   return wrapper
@@ -129,7 +130,7 @@ describe('MatchingPlay: видимый таймер во время вылета
 describe('useMatchingPlayStore.holdClock / restartClock', () => {
   it('до загрузки задания holdClock ничего не придерживает: restartClock отсчёт не запускает', async () => {
     const store = useMatchingPlayStore()
-    await store.start(BAD_TOKEN)
+    await store.start({ kind: 'share', token: BAD_TOKEN })
     store.holdClock()
     expect(store.startedAt).toBeNull()
     store.restartClock()
@@ -138,7 +139,7 @@ describe('useMatchingPlayStore.holdClock / restartClock', () => {
 
   it('holdClock останавливает отсчёт, restartClock ставит его на момент приземления', async () => {
     const store = useMatchingPlayStore()
-    await store.start(TOKEN, initial())
+    await store.start(SOURCE, initial())
     expect(store.startedAt).toBe(START)
 
     store.holdClock()
@@ -150,7 +151,7 @@ describe('useMatchingPlayStore.holdClock / restartClock', () => {
 
   it('повторный holdClock не теряет придержанный отсчёт', async () => {
     const store = useMatchingPlayStore()
-    await store.start(TOKEN, initial())
+    await store.start(SOURCE, initial())
     store.holdClock()
     store.holdClock()
     vi.setSystemTime(START + FLIGHT_MS)
@@ -160,7 +161,7 @@ describe('useMatchingPlayStore.holdClock / restartClock', () => {
 
   it('время в итоге считается от приземления, полёт в него не входит', async () => {
     const store = useMatchingPlayStore()
-    await store.start(TOKEN, initial())
+    await store.start(SOURCE, initial())
     store.holdClock()
     vi.setSystemTime(START + FLIGHT_MS)
     store.restartClock()
@@ -174,9 +175,9 @@ describe('useMatchingPlayStore.holdClock / restartClock', () => {
   // Последним в файле: стор живёт между тестами, и невыполненный сброс флага не должен задеть соседей
   it('сброс прохождения снимает придержку: после неудачного старта restartClock отсчёт не запускает', async () => {
     const store = useMatchingPlayStore()
-    await store.start(TOKEN, initial())
+    await store.start(SOURCE, initial())
     store.holdClock()
-    await store.start(BAD_TOKEN)
+    await store.start({ kind: 'share', token: BAD_TOKEN })
     expect(store.status).toBe('notFound')
     store.restartClock()
     expect(store.startedAt).toBeNull()

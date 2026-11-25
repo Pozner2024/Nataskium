@@ -1,5 +1,5 @@
 <template>
-  <PlayPage :token="token" />
+  <PlayPage :address="{ kind: 'share', token }" />
 </template>
 
 <script setup lang="ts">

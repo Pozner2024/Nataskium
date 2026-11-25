@@ -1,15 +1,15 @@
 <template>
-  <div class="library-view-toggle" role="group" :aria-label="t('library.view.label')">
+  <div class="view-toggle" role="group" :aria-label="t('viewToggle.label')">
     <button
       v-for="option in OPTIONS"
       :key="option"
-      class="library-view-toggle__button"
+      class="view-toggle__button"
       type="button"
       :data-view="option"
       :aria-pressed="view === option"
       @click="emit('update:view', option)"
     >
-      <svg class="library-view-toggle__icon" viewBox="0 0 20 20" aria-hidden="true">
+      <svg class="view-toggle__icon" viewBox="0 0 20 20" aria-hidden="true">
         <template v-if="option === 'tiles'">
           <rect x="2" y="2" width="16" height="7" rx="2" />
           <rect x="2" y="11" width="16" height="7" rx="2" />
@@ -21,26 +21,26 @@
           <rect x="10" y="13.5" width="8" height="2" rx="1" />
         </template>
       </svg>
-      {{ t(`library.view.${option}`) }}
+      {{ t(`viewToggle.${option}`) }}
     </button>
   </div>
 </template>
 
 <script setup lang="ts">
 import { useI18n } from '#imports'
-import type { LibraryView } from '../useLibraryView'
+import type { ListView } from '../lib'
 
-const OPTIONS: LibraryView[] = ['tiles', 'list']
+const OPTIONS: ListView[] = ['tiles', 'list']
 
-defineProps<{ view: LibraryView }>()
+defineProps<{ view: ListView }>()
 
-const emit = defineEmits<{ 'update:view': [view: LibraryView] }>()
+const emit = defineEmits<{ 'update:view': [view: ListView] }>()
 
 const { t } = useI18n()
 </script>
 
 <style scoped lang="scss">
-.library-view-toggle {
+.view-toggle {
   display: flex;
   align-self: flex-end;
   gap: 4px;
@@ -49,7 +49,7 @@ const { t } = useI18n()
   background: rgb(var(--rgb-blue) / 0.1);
 }
 
-.library-view-toggle__button {
+.view-toggle__button {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -76,7 +76,7 @@ const { t } = useI18n()
   }
 }
 
-.library-view-toggle__icon {
+.view-toggle__icon {
   width: 18px;
   height: 18px;
   fill: currentcolor;

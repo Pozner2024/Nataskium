@@ -1,6 +1,8 @@
 import {
+  DEFAULT_INTRO_THEME_KEY,
+  LIBRARY_THUMBNAIL_DEFINITIONS,
   QUIZ_ACTIVITY,
-  type QuizSummary,
+  introThemeKeySchema,
   quizInputSchema,
   quizSummarySchema,
   timerFromColumns,
@@ -8,7 +10,8 @@ import {
 } from '@nataskium/shared/schemas'
 import type { Prisma } from '../../../generated/prisma/client'
 import { isForeignKeyViolation, isUniqueViolation } from '../../../shared/infrastructure'
-import type { QuizRepository, StoredQuiz } from '../types'
+import { z } from 'zod'
+import type { QuizListRow, QuizRepository, StoredQuiz } from '../types'
 
 const QUIZ_SELECT = {
   id: true,
@@ -42,9 +45,15 @@ function toStoredQuiz(row: QuizRow): StoredQuiz {
   return { ...parsed.data, id: row.id, shareToken: row.shareToken, updatedAt: row.updatedAt }
 }
 
-// Поля строки списка проверяются той же схемой, что и ответ: шкала из сырого запроса — просто строка
-function toQuizSummary(row: unknown): QuizSummary {
-  const parsed = quizSummarySchema.safeParse(row)
+// Поля строки списка проверяются той же схемой, что и ответ: шкала из сырого запроса — просто строка.
+// Стиль убрали из каталога — стиль по умолчанию, как в библиотеке: одно такое задание не должно ронять весь список
+const listRowSchema = quizSummarySchema.omit({ thumbnail: true }).extend({
+  introTheme: introThemeKeySchema.catch(DEFAULT_INTRO_THEME_KEY),
+  head: z.array(z.unknown()),
+})
+
+function toQuizListRow(row: unknown): QuizListRow {
+  const parsed = listRowSchema.safeParse(row)
   if (!parsed.success) throw new Error('Stored quiz does not match the quiz summary schema')
   return parsed.data
 }
@@ -56,16 +65,20 @@ export function makeQuizRepository(prisma: Prisma.TransactionClient): QuizReposi
   return {
     // Вопросы (до ~160 КБ jsonb на викторину) не загружаются и не разбираются: количество считает база.
     // Prisma не умеет jsonb_array_length в select; запрос параметризован тегированным шаблоном.
-    // Не массив — NULL, и строка не пройдёт схему (500), как и прежде при рассинхроне
+    // Не массив — NULL, и строка не пройдёт схему (500), как и прежде при рассинхроне.
+    // Для превью — только первые элементы содержимого (как в библиотеке), а не все вопросы
     async listByTeacher(teacherId) {
+      const headPath = `$[0 to ${LIBRARY_THUMBNAIL_DEFINITIONS - 1}]`
       const rows = await prisma.$queryRaw<unknown[]>`
         SELECT id::text AS id, type, title, share_token AS "shareToken", grading_scale AS "gradingScale",
-          CASE WHEN jsonb_typeof(questions) = 'array' THEN jsonb_array_length(questions) END AS "questionCount"
+          CASE WHEN jsonb_typeof(questions) = 'array' THEN jsonb_array_length(questions) END AS "questionCount",
+          intro_theme AS "introTheme",
+          CASE WHEN jsonb_typeof(questions) = 'array' THEN jsonb_path_query_array(questions, ${headPath}::jsonpath) END AS head
         FROM quizzes
         WHERE teacher_id = ${teacherId}::uuid AND deleted_at IS NULL
         ORDER BY created_at DESC
       `
-      return rows.map(toQuizSummary)
+      return rows.map(toQuizListRow)
     },
 
     async countByTeacher(teacherId) {

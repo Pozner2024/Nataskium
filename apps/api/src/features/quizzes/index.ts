@@ -10,6 +10,7 @@ export { QUIZ_ROUTES_BASE_PATH, makeQuizRouter } from './presentation/quizRoutes
 export type {
   QuizImageFiles,
   QuizImageLinks,
+  QuizListRow,
   QuizRepository,
   QuizTransaction,
   QuizTransactionRepositories,

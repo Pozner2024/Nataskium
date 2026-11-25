@@ -12,8 +12,8 @@ mockNuxtImport('navigateTo', () => navigateToMock)
 
 const TEACHER = { id: 't1', email: 'qa-anna@example.test', displayName: 'Анна', hasPassword: true, hasGoogle: false }
 const QUIZZES = [
-  { id: 'q1', type: 'quiz' as const, title: 'Столицы', questionCount: 3, gradingScale: null, shareToken: 'tok-1' },
-  { id: 'q2', type: 'quiz' as const, title: 'Дроби', questionCount: 5, gradingScale: null, shareToken: 'tok-2' },
+  { id: 'q1', type: 'quiz' as const, title: 'Столицы', questionCount: 3, gradingScale: null, shareToken: 'tok-1', introTheme: 'nataskium-night' as const, thumbnail: null },
+  { id: 'q2', type: 'quiz' as const, title: 'Дроби', questionCount: 5, gradingScale: null, shareToken: 'tok-2', introTheme: 'nataskium-night' as const, thumbnail: null },
 ]
 
 beforeEach(() => {
@@ -129,7 +129,7 @@ describe('Мои задания', () => {
 })
 
 describe('Мои задания: сопоставление', () => {
-  const MATCHING = { id: 'm1', type: 'matching' as const, title: 'Животные', questionCount: 4, gradingScale: null, shareToken: 'tok-3' }
+  const MATCHING = { id: 'm1', type: 'matching' as const, title: 'Животные', questionCount: 4, gradingScale: null, shareToken: 'tok-3', introTheme: 'nataskium-night' as const, thumbnail: null }
 
   it('карточка подписана типом и числом пар, у викторины — число вопросов', async () => {
     vi.spyOn(quizApi, 'list').mockResolvedValue({ quizzes: [QUIZZES[0]!, MATCHING] })
@@ -168,7 +168,7 @@ describe('Мои задания: сопоставление', () => {
 })
 
 describe('Мои задания: да/нет', () => {
-  const TRUE_FALSE = { id: 't1', type: 'truefalse' as const, title: 'Факты', questionCount: 5, gradingScale: null, shareToken: 'tok-4' }
+  const TRUE_FALSE = { id: 't1', type: 'truefalse' as const, title: 'Факты', questionCount: 5, gradingScale: null, shareToken: 'tok-4', introTheme: 'nataskium-night' as const, thumbnail: null }
 
   it('карточка подписана типом и числом утверждений', async () => {
     vi.spyOn(quizApi, 'list').mockResolvedValue({ quizzes: [TRUE_FALSE] })

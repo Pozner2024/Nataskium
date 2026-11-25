@@ -3,6 +3,7 @@ import { GRADING_SCALE_TYPES } from '../grading'
 import type { QuizResult } from '../grading'
 import { activityKindSchema } from './activity'
 import { introThemeKeySchema } from './introTheme'
+import { libraryThumbnailSchema } from './library'
 import {
   imageIdSchema,
   optionSchema,
@@ -23,6 +24,9 @@ export const quizSummarySchema = z.object({
   questionCount: z.number().int().min(0),
   gradingScale: z.enum(GRADING_SCALE_TYPES).nullable(),
   shareToken: shareTokenSchema,
+  introTheme: introThemeKeySchema,
+  // null — у задания нет содержимого или его начало не прошло схему
+  thumbnail: libraryThumbnailSchema.nullable(),
 })
 
 export const quizListResponseSchema = z.object({

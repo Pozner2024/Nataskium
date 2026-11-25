@@ -28,13 +28,15 @@ import { onBeforeUnmount, onMounted, provide } from 'vue'
 import { useI18n, useSeoMeta } from '#imports'
 import type { PlayQuizResponse } from '@/entities/quiz'
 import { PLAY_TIMER_KEY, usePlayerPause, usePlayerScrollRelease } from '@/features/play-session'
+import type { PlaySource } from '@/shared'
 import PlayQuestion from './components/PlayQuestion.vue'
 import PlayResult from './components/PlayResult.vue'
 import { usePlayStore } from './store'
 import { useQuizPlayTimer } from './useQuizPlayTimer'
 
-// initial — ответ GET, уже полученный PlayPage; без него виджет загружает задание сам
-const props = defineProps<{ token: string; initial?: PlayQuizResponse }>()
+// initial — ответ GET, уже полученный PlayPage; без него виджет загружает задание сам.
+// source null — адрес не разобран: «не найдено» без запроса
+const props = defineProps<{ source: PlaySource | null; initial?: PlayQuizResponse }>()
 
 const { t } = useI18n()
 const store = usePlayStore()
@@ -47,7 +49,7 @@ usePlayerScrollRelease(() => store.status !== 'ready' || store.phase === 'result
 useSeoMeta({ title: () => store.title, robots: 'noindex, nofollow' })
 
 // Язык игры выбирает PlayPage до загрузки (usePlayLocaleRedirect)
-onMounted(() => store.start(props.token, undefined, props.initial))
+onMounted(() => store.start(props.source, undefined, props.initial))
 // Стор живёт между показами: без очистки следующий показ на миг рисует старое задание и теряет вылет
 onBeforeUnmount(() => store.dispose())
 </script>

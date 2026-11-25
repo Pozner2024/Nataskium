@@ -62,13 +62,14 @@
 </template>
 
 <script setup lang="ts">
+import { libraryQuizPath } from '@nataskium/shared/routes'
 import { INTRO_THEME_KEYS, type IntroThemeKey } from '@nataskium/shared/schemas'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { navigateTo, useI18n, useLocalePath, useRoute, useRouter } from '#imports'
 import { restoreSession, useAuthStore } from '@/features/auth'
 import { IntroThemePreview, findTheme } from '@/entities/intro-theme'
 import { playUrl } from '@/entities/quiz'
-import { AppButton, AppDialog, AUTH_PATHS, TEACHER_PATHS } from '@/shared'
+import { AppButton, AppDialog, AUTH_PATHS, type PlaySource, TEACHER_PATHS } from '@/shared'
 
 const COPY_STATUS_MS = 2500
 const SETTINGS_ITEMS = ['embed', 'qr'] as const
@@ -78,7 +79,7 @@ const GEAR_ICON =
 
 const props = defineProps<{
   title: string
-  token: string
+  source: PlaySource
 }>()
 
 const introTheme = defineModel<IntroThemeKey>('introTheme', { required: true })
@@ -99,6 +100,12 @@ let sessionCheck: Promise<void> = Promise.resolve()
 
 const loginHref = computed(() => router.resolve({ path: localePath(AUTH_PATHS.login), query: { next: route.fullPath } }).href)
 
+// Ссылка учителя — без языка (язык ученик получает по браузеру); задание библиотеки — на текущем языке сайта
+function shareLink(): string {
+  if (props.source.kind === 'share') return playUrl(props.source.token)
+  return window.location.origin + router.resolve(localePath(libraryQuizPath(props.source.number, props.title))).href
+}
+
 onMounted(() => {
   sessionCheck = restoreSession()
 })
@@ -114,7 +121,7 @@ async function createActivity(): Promise<void> {
 
 async function copyLink(): Promise<void> {
   try {
-    await navigator.clipboard.writeText(playUrl(props.token))
+    await navigator.clipboard.writeText(shareLink())
     copyMessage.value = t('playPanel.linkCopied')
   } catch {
     copyMessage.value = t('playPanel.copyFailed')

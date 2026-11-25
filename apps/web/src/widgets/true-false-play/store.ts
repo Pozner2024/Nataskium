@@ -1,9 +1,9 @@
-import { shareTokenSchema, type QuizTimer } from '@nataskium/shared/schemas'
+import type { QuizTimer } from '@nataskium/shared/schemas'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { playApi, type QuizResult } from '@/entities/quiz'
 import { trueFalsePlayApi, type PlayTrueFalseFinishResponse, type PlayTrueFalseResponse } from '@/entities/true-false'
-import { ApiError } from '@/shared'
+import { ApiError, isPlaySourceValid, type PlaySource } from '@/shared'
 import type { TrueFalsePhase, TrueFalseStatus } from './types'
 
 type Review = NonNullable<PlayTrueFalseFinishResponse['review']>
@@ -18,7 +18,8 @@ export const ANSWER_ADVANCE_MS = 500
 // Прохождение живёт только во вкладке; ответы на сервере не хранятся.
 // Правильный ответ приходит лишь после check (только вердикт) и в review итога, и только при showAnswers
 export const useTrueFalsePlayStore = defineStore('true-false-play', () => {
-  const token = ref('')
+  // null — адрес не разобран (мусорный slug библиотеки): «не найдено» без запроса
+  const source = ref<PlaySource | null>(null)
   const title = ref('')
   const showAnswers = ref(false)
   const version = ref('')
@@ -76,6 +77,12 @@ export const useTrueFalsePlayStore = defineStore('true-false-play', () => {
     advanceTimer = null
     advanceHeld = false
     advancing.value = false
+  }
+
+  // Проверка и итог идут только после успешной загрузки, когда источник уже проверен в start
+  function activeSource(): PlaySource {
+    if (source.value === null) throw new ApiError(NOT_FOUND_STATUS)
+    return source.value
   }
 
   // Сбой загрузки повторяется полным стартом (retryAction = null), остальные — тем же запросом
@@ -137,16 +144,17 @@ export const useTrueFalsePlayStore = defineStore('true-false-play', () => {
 
   // initial — ответ GET, уже полученный PlayPage: первый показ без второго запроса.
   // «Пройти ещё раз», повтор и смена версии загружают задание заново (initial не передаётся)
-  async function start(newToken?: string, initial?: PlayTrueFalseResponse): Promise<void> {
-    if (newToken !== undefined) token.value = newToken
+  async function start(newSource?: PlaySource | null, initial?: PlayTrueFalseResponse): Promise<void> {
+    if (newSource !== undefined) source.value = newSource
     reset()
-    if (!shareTokenSchema.safeParse(token.value).success) {
+    const loadFrom = source.value
+    if (!isPlaySourceValid(loadFrom)) {
       status.value = 'notFound'
       return
     }
     const runEpoch = epoch
     await run(async () => {
-      const response = initial ?? (await playApi.get(token.value))
+      const response = initial ?? (await playApi.get(loadFrom))
       if (runEpoch !== epoch) return
       // По ссылке теперь другой тип задания — для этой игры его нет
       if (response.type !== 'truefalse') throw new ApiError(NOT_FOUND_STATUS)
@@ -166,7 +174,7 @@ export const useTrueFalsePlayStore = defineStore('true-false-play', () => {
     const runEpoch = epoch
     finishing = true
     try {
-      const response = await trueFalsePlayApi.finish(token.value, { version: version.value, answers: answers.value })
+      const response = await trueFalsePlayApi.finish(activeSource(), { version: version.value, answers: answers.value })
       if (runEpoch !== epoch) return
       elapsedSeconds.value = elapsedAtFinish()
       result.value = response.result
@@ -207,7 +215,7 @@ export const useTrueFalsePlayStore = defineStore('true-false-play', () => {
     }
     const runEpoch = epoch
     await run(async () => {
-      const response = await trueFalsePlayApi.check(token.value, { version: version.value, index, answer: value })
+      const response = await trueFalsePlayApi.check(activeSource(), { version: version.value, index, answer: value })
       if (runEpoch !== epoch || timedOut.value) return
       verdicts.value = verdicts.value.map((existing, position) => (position === index ? response.correct : existing))
       scheduleAdvance(ANSWER_FEEDBACK_MS)
@@ -316,7 +324,7 @@ export const useTrueFalsePlayStore = defineStore('true-false-play', () => {
   }
 
   return {
-    token, title, showAnswers, timer, statements, current, viewing, answers, verdict, verdicts, advancing, phase, status, busy, result, review,
+    source, title, showAnswers, timer, statements, current, viewing, answers, verdict, verdicts, advancing, phase, status, busy, result, review,
     startedAt, timedOut, elapsedSeconds,
     statement, isLast, canAnswer, canPrev, canForward,
     start, answer, prev, forward, expire, retry, dispose, holdClock, restartClock, pauseClock, resumeClock,

@@ -1,16 +1,19 @@
 <template>
-  <LibraryQuizPage :key="slug" :slug="slug" />
+  <PlayPage :address="{ kind: 'library', slug }" />
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { parseQuizSlug } from '@nataskium/shared/library'
 import { useRoute } from '#imports'
-import LibraryQuizPage from '@/pages/LibraryQuizPage.vue'
+import PlayPage from '@/pages/PlayPage.vue'
 
-definePageMeta({ name: 'library-quiz', preFooter: false })
+// Ключ — номер задания: исправление slug (replace) не пересоздаёт страницу, переход на другое задание — пересоздаёт
+definePageMeta({
+  name: 'library-quiz',
+  layout: 'play',
+  key: (route) => String(parseQuizSlug(String(route.params.slug))?.number ?? route.params.slug),
+})
 
 const route = useRoute()
-// key на странице в шаблоне: при переходе на другое задание она создаётся заново, и карточка, заголовок
-// и проверка адреса идут с нуля
-const slug = computed(() => String(route.params.slug))
+const slug = String(route.params.slug)
 </script>

@@ -11,9 +11,6 @@ export const LIBRARY_PAGE_SIZE = 24
 export const LIBRARY_MAX_PAGE = 200
 export const LIBRARY_SEARCH_MIN_LENGTH = 2
 export const LIBRARY_SEARCH_MAX_LENGTH = 60
-// Сколько вопросов викторины видно на странице задания в библиотеке; остальные учитель получает после «Взять себе».
-// У сопоставления видны все пары (ADR-0013)
-export const LIBRARY_PREVIEW_QUESTIONS = 5
 
 // Превью первого вопроса в списке: тексты короткие — в миниатюре длиннее всё равно не прочитать, а ответ остаётся лёгким
 export const LIBRARY_THUMBNAIL_TEXT_MAX_LENGTH = 120
@@ -30,7 +27,7 @@ export function clipThumbnailText(text: string, maxLength: number): string {
   return chars.slice(0, maxLength - 1).join('') + ELLIPSIS
 }
 
-// Занят адресом карточки: /library/quiz/<номер>
+// Занят адресом задания: /library/quiz/<номер>
 const RESERVED_GROUP_SLUGS = ['quiz']
 
 export const groupSlugSchema = z
@@ -106,35 +103,6 @@ export const libraryListResponseSchema = z.object({
   hasNext: z.boolean(),
 })
 
-// Без isCorrect и selectCount: правильные ответы публично не показываются
-const libraryQuizCardSchema = libraryQuizSummarySchema.extend({
-  type: z.literal('quiz'),
-  questions: z.array(
-    z.object({
-      text: z.string(),
-      imageUrl: imageUrlSchema,
-      options: z.array(z.object({ text: z.string(), imageUrl: imageUrlSchema })),
-    }),
-  ),
-})
-
-// Все определения по порядку и все слова, перемешанные сервером: ровно то же, что отдаёт игра (ADR-0013)
-const libraryMatchingCardSchema = libraryQuizSummarySchema.extend({
-  type: z.literal('matching'),
-  definitions: z.array(z.string()),
-  terms: z.array(z.string()),
-})
-
-// Только утверждения: правильные ответы публично не показываются
-const libraryTrueFalseCardSchema = libraryQuizSummarySchema.extend({
-  type: z.literal('truefalse'),
-  statements: z.array(z.string()),
-})
-
-export const libraryQuizResponseSchema = z.object({
-  quiz: z.discriminatedUnion('type', [libraryQuizCardSchema, libraryMatchingCardSchema, libraryTrueFalseCardSchema]),
-})
-
 // type — какой редактор открыть после копирования
 export const libraryTakeResponseSchema = z.object({
   quizId: z.uuid(),
@@ -148,5 +116,4 @@ export type LibraryQuizSummary = z.infer<typeof libraryQuizSummarySchema>
 export type LibraryThumbnail = z.infer<typeof libraryThumbnailSchema>
 export type LibraryListItem = z.infer<typeof libraryListItemSchema>
 export type LibraryListResponse = z.infer<typeof libraryListResponseSchema>
-export type LibraryQuizResponse = z.infer<typeof libraryQuizResponseSchema>
 export type LibraryTakeResponse = z.infer<typeof libraryTakeResponseSchema>

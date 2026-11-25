@@ -18,12 +18,18 @@
         </span>
       </NuxtLink>
 
-      <ul class="my-activities__list">
+      <ViewToggle :view="view" @update:view="setView" />
+
+      <ul class="my-activities__list" :class="`my-activities__list--${view}`">
         <li v-for="activity in activities" :key="activity.id">
-          <ActivityCard :activity="activity">
+          <ActivityCard :activity="activity" :layout="view === 'tiles' ? 'tile' : 'row'" :to="playPreviewPath(activity)">
+            <template #preview>
+              <IntroThemePreview :tone="findTheme(activity.introTheme).tone">
+                <ActivityThumbnail v-if="activity.thumbnail" :thumbnail="activity.thumbnail" />
+              </IntroThemePreview>
+            </template>
             <template #actions>
-              <PlayActivityLink :title="activity.title" :share-token="activity.shareToken" />
-              <ShareLinkButton :title="activity.title" :status="statusOf(activity.id)" @copy="copyLink(activity)" />
+              <ShareLinkButton :title="activity.title" :status="statusOf(activity.id)" :compact="view === 'tiles'" @copy="copyLink(activity)" />
               <ActivityMenu :title="activity.title" @edit="emit('edit', activity)" @delete="emit('delete', activity)" />
             </template>
           </ActivityCard>
@@ -45,11 +51,11 @@
 import { onBeforeUnmount, ref } from 'vue'
 import { NuxtLink } from '#components'
 import { useI18n, useLocalePath } from '#imports'
-import { ActivityCard, type Activity } from '@/entities/activity'
-import { playUrl } from '@/entities/quiz'
-import { AppButton, AppEmptyState, TEACHER_PATHS } from '@/shared'
+import { ActivityCard, ActivityThumbnail, type Activity } from '@/entities/activity'
+import { IntroThemePreview, findTheme } from '@/entities/intro-theme'
+import { PREVIEW_QUERY, playUrl } from '@/entities/quiz'
+import { AppButton, AppEmptyState, TEACHER_PATHS, useStoredView, ViewToggle } from '@/shared'
 import ActivityMenu from './components/ActivityMenu.vue'
-import PlayActivityLink from './components/PlayActivityLink.vue'
 import ShareLinkButton from './components/ShareLinkButton.vue'
 import type { ActivitiesStatus, ShareLinkStatus } from './types'
 
@@ -64,15 +70,24 @@ const emit = defineEmits<{
   retry: []
 }>()
 
+// Свой ключ, не библиотечный: вид в кабинете и в библиотеке выбирается отдельно
+const VIEW_STORAGE_KEY = 'nataskium.activities-view'
+
 // Сколько кнопка показывает «Ссылка скопирована» перед возвратом к обычной подписи
 const COPY_STATUS_MS = 2500
 
 const { t } = useI18n()
 const localePath = useLocalePath()
+const { view, setView } = useStoredView(VIEW_STORAGE_KEY)
 
 const copied = ref<{ id: string; status: ShareLinkStatus } | null>(null)
 const announcement = ref('')
 let resetTimer: ReturnType<typeof setTimeout> | undefined
+
+// На странице задания по этой пометке появляется кнопка «Назад»
+function playPreviewPath(activity: Activity): string {
+  return `/play/${encodeURIComponent(activity.shareToken)}?${PREVIEW_QUERY}`
+}
 
 function statusOf(id: string): ShareLinkStatus {
   return copied.value?.id === id ? copied.value.status : 'idle'
@@ -98,6 +113,7 @@ onBeforeUnmount(() => clearTimeout(resetTimer))
 </script>
 
 <style scoped lang="scss">
+@use '@/assets/styles/breakpoints.module' as *;
 @use '@/assets/styles/mixins' as *;
 
 .my-activities {
@@ -171,6 +187,19 @@ onBeforeUnmount(() => clearTimeout(resetTimer))
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.my-activities__list--tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+
+  @include tablet {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  @include desktop {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 .my-activities__status {

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { LIBRARY_THUMBNAIL_DEFINITIONS } from '@nataskium/shared/schemas'
 import type { QuizImageFiles, QuizImageLinks, QuizRepository, QuizTransaction, StoredQuiz } from '../../src/features/quizzes'
 
 // Группы, которые «есть в БД» у фейка
@@ -23,6 +24,8 @@ export function makeFakeQuizRepository(takenTokens: string[] = []) {
           questionCount: quiz.questions.length,
           gradingScale: quiz.gradingScale,
           shareToken: quiz.shareToken,
+          introTheme: quiz.introTheme,
+          head: quiz.questions.slice(0, LIBRARY_THUMBNAIL_DEFINITIONS),
         }))
     },
     async countByTeacher(teacherId) {

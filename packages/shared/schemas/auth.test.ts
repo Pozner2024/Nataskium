@@ -650,7 +650,6 @@ describe('схемы auth: публичный API', () => {
       'libraryListQuerySchema',
       'libraryListResponseSchema',
       'libraryNumberSchema',
-      'libraryQuizResponseSchema',
       'libraryQuizSummarySchema',
       'libraryTakeResponseSchema',
       'libraryThumbnailSchema',

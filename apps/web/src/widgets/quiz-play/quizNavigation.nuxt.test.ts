@@ -10,6 +10,7 @@ vi.mock('@/entities/quiz', () => ({
 }))
 
 const TOKEN = 'abcdefghijklmnopqrstuv'
+const SOURCE = { kind: 'share', token: TOKEN } as const
 const NO_SHUFFLE = () => 0.99
 const mounted: { unmount: () => void }[] = []
 
@@ -39,7 +40,7 @@ async function startQuiz(showAnswers: boolean, secondSelectCount = 1) {
   vi.mocked(playApi.get).mockResolvedValue(quiz(showAnswers, secondSelectCount))
   vi.mocked(playApi.check).mockResolvedValue({ correct: [0] })
   const store = usePlayStore()
-  await store.start(TOKEN, NO_SHUFFLE)
+  await store.start(SOURCE, NO_SHUFFLE)
   return store
 }
 
@@ -126,7 +127,7 @@ describe('стрелки викторины: store', () => {
     expect(store.canSubmit).toBe(false)
     store.toggle(1)
     await vi.advanceTimersByTimeAsync(0)
-    expect(playApi.check).toHaveBeenLastCalledWith(TOKEN, { version: 'v1', questionIndex: 1, selected: [0, 1] })
+    expect(playApi.check).toHaveBeenLastCalledWith(SOURCE, { version: 'v1', questionIndex: 1, selected: [0, 1] })
   })
 
   it('пока идёт запрос и держится подсветка, стрелки неактивны', async () => {

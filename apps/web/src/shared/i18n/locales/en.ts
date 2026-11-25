@@ -231,6 +231,7 @@ const messages: Messages = {
     description: 'Join Nataskium and turn knowledge checks into a game.',
     cta: 'Start now, it’s free',
   },
+  viewToggle: { label: 'List view', tiles: 'Tiles', list: 'List' },
   footer: {
     navigation: 'Navigation',
     about: 'About',
@@ -259,28 +260,11 @@ const messages: Messages = {
     graded: 'Graded',
     more: 'Show more',
     thumbnail: { yes: 'True', no: 'False' },
-    view: { label: 'List view', tiles: 'Tiles', list: 'List' },
-    quiz: {
-      backToGroup: '← To the section',
-      addedOn: 'Added {date}',
-      previewTitle: 'Questions',
-      questionNumber: 'Question {n}',
-      previewNote: 'Showing the first {shown} of {total}. You will see the remaining questions and the correct answers in your own copy',
-      noQuestions: 'This activity has no questions yet',
-    },
-    matching: {
-      previewTitle: 'Pairs',
-      definitionsTitle: 'Definitions',
-      termsTitle: 'Words',
-      termsNote: 'The words are shown in random order; the student will get a different one. You will see the correct pairs in your copy',
-    },
-    trueFalse: {
-      previewTitle: 'Statements',
-    },
     take: {
       button: 'Take for myself',
       taking: 'Copying…',
       taken: 'Done! Opening your copy…',
+      takenShort: 'Done',
       toMyActivities: 'Go to My activities',
       toLibrary: 'Back to library sections',
       errors: {

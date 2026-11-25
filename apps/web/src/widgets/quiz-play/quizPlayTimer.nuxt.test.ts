@@ -12,6 +12,7 @@ vi.mock('@/entities/quiz', async (importOriginal) => ({
 }))
 
 const TOKEN = 'abcdefghijklmnopqrstuv'
+const SOURCE = { kind: 'share', token: TOKEN } as const
 const START = new Date('2026-01-01T10:00:00Z').getTime()
 const SECOND = 1000
 const RESULT = { percent: 0, grade: null, correctCount: 0, partialCount: 1, totalCount: 1 }
@@ -32,7 +33,7 @@ function body(timer: unknown) {
 
 async function mountPlay(timer: unknown) {
   vi.mocked(playApi.get).mockResolvedValue(body(timer))
-  const wrapper = await mountSuspended(QuizPlay, { props: { token: TOKEN } })
+  const wrapper = await mountSuspended(QuizPlay, { props: { source: SOURCE } })
   mounted.push(wrapper)
   await flushPromises()
   return wrapper
@@ -73,7 +74,7 @@ describe('QuizPlay: таймер', () => {
     await vi.advanceTimersByTimeAsync(60 * SECOND)
     await flushPromises()
     expect(playApi.finish).toHaveBeenCalledTimes(1)
-    expect(playApi.finish).toHaveBeenCalledWith(TOKEN, { version: 'v1', answers: [[]] })
+    expect(playApi.finish).toHaveBeenCalledWith(SOURCE, { version: 'v1', answers: [[]] })
     expect(wrapper.get('.play-result__note').text()).toContain('Время вышло')
     expect(wrapper.get('.quiz-play__sr-only').text()).toBe('Время вышло')
   })

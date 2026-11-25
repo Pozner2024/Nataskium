@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { trueFalsePlayApi } from './trueFalsePlayApi'
 
 const TOKEN = 'abcdefghijklmnopqrstuv'
+const SOURCE = { kind: 'share', token: TOKEN } as const
 const RESULT = { percent: 50, grade: null, correctCount: 1, partialCount: 0, totalCount: 2 }
 
 type FetchCall = { url: string; init: RequestInit }
@@ -29,7 +30,7 @@ describe('trueFalsePlayApi.check', () => {
     respondWith({ correct: true })
     const input = { version: 'v1', index: 1, answer: false }
 
-    const response = await trueFalsePlayApi.check(TOKEN, input)
+    const response = await trueFalsePlayApi.check(SOURCE, input)
 
     expect(calls[0]?.url).toBe(`/api/play/${TOKEN}/true-false/check`)
     expect(calls[0]?.init.method).toBe('POST')
@@ -41,21 +42,30 @@ describe('trueFalsePlayApi.check', () => {
   it('экранирует токен в пути', async () => {
     respondWith({ correct: false })
 
-    await trueFalsePlayApi.check('../auth', { version: 'v1', index: 0, answer: true })
+    await trueFalsePlayApi.check({ kind: 'share', token: '../auth' }, { version: 'v1', index: 0, answer: true })
 
     expect(calls[0]?.url).toBe('/api/play/..%2Fauth/true-false/check')
+  })
+
+  it('библиотека: POST /api/library/play/<номер>/true-false/check', async () => {
+    respondWith({ correct: true })
+
+    await trueFalsePlayApi.check({ kind: 'library', number: 12 }, { version: 'v1', index: 0, answer: true })
+
+    expect(calls[0]?.url).toBe('/api/library/play/12/true-false/check')
+    expect(calls[0]?.init.method).toBe('POST')
   })
 
   it('ответ не по схеме — ошибка', async () => {
     respondWith({ correct: 'yes' })
 
-    await expect(trueFalsePlayApi.check(TOKEN, { version: 'v1', index: 0, answer: true })).rejects.toBeInstanceOf(Error)
+    await expect(trueFalsePlayApi.check(SOURCE, { version: 'v1', index: 0, answer: true })).rejects.toBeInstanceOf(Error)
   })
 
   it('409 приходит как ApiError со статусом', async () => {
     vi.stubGlobal('fetch', () => Promise.resolve(new Response(JSON.stringify({ error: 'changed' }), { status: 409 })))
 
-    await expect(trueFalsePlayApi.check(TOKEN, { version: 'v1', index: 0, answer: true })).rejects.toMatchObject({ status: 409 })
+    await expect(trueFalsePlayApi.check(SOURCE, { version: 'v1', index: 0, answer: true })).rejects.toMatchObject({ status: 409 })
   })
 })
 
@@ -64,7 +74,7 @@ describe('trueFalsePlayApi.finish', () => {
     respondWith({ result: RESULT })
     const input = { version: 'v1', answers: [true, null] }
 
-    const response = await trueFalsePlayApi.finish(TOKEN, input)
+    const response = await trueFalsePlayApi.finish(SOURCE, input)
 
     expect(calls[0]?.url).toBe(`/api/play/${TOKEN}/true-false/finish`)
     expect(calls[0]?.init.method).toBe('POST')
@@ -77,7 +87,7 @@ describe('trueFalsePlayApi.finish', () => {
     const review = [{ correct: true, answer: true }, { correct: false, answer: false }]
     respondWith({ result: RESULT, review })
 
-    const response = await trueFalsePlayApi.finish(TOKEN, { version: 'v1', answers: [true, true] })
+    const response = await trueFalsePlayApi.finish(SOURCE, { version: 'v1', answers: [true, true] })
 
     expect(response.review).toEqual(review)
   })
@@ -85,14 +95,23 @@ describe('trueFalsePlayApi.finish', () => {
   it('экранирует токен в пути', async () => {
     respondWith({ result: RESULT })
 
-    await trueFalsePlayApi.finish('../auth', { version: 'v1', answers: [] })
+    await trueFalsePlayApi.finish({ kind: 'share', token: '../auth' }, { version: 'v1', answers: [] })
 
     expect(calls[0]?.url).toBe('/api/play/..%2Fauth/true-false/finish')
+  })
+
+  it('библиотека: POST /api/library/play/<номер>/true-false/finish', async () => {
+    respondWith({ result: RESULT })
+
+    await trueFalsePlayApi.finish({ kind: 'library', number: 12 }, { version: 'v1', answers: [] })
+
+    expect(calls[0]?.url).toBe('/api/library/play/12/true-false/finish')
+    expect(calls[0]?.init.method).toBe('POST')
   })
 
   it('ответ не по схеме — ошибка', async () => {
     respondWith({ result: { percent: 'many' } })
 
-    await expect(trueFalsePlayApi.finish(TOKEN, { version: 'v1', answers: [] })).rejects.toBeInstanceOf(Error)
+    await expect(trueFalsePlayApi.finish(SOURCE, { version: 'v1', answers: [] })).rejects.toBeInstanceOf(Error)
   })
 })

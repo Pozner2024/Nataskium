@@ -1,5 +1,5 @@
 import { playTrueFalseCheckResponseSchema, playTrueFalseFinishResponseSchema } from '@nataskium/shared/schemas'
-import { apiRequest } from '@/shared'
+import { apiRequest, type PlaySource, playApiPath } from '@/shared'
 import type {
   PlayTrueFalseCheckInput,
   PlayTrueFalseCheckResponse,
@@ -7,16 +7,16 @@ import type {
   PlayTrueFalseFinishResponse,
 } from './types'
 
-// Публичные маршруты ученика. Задание загружается общим playApi.get: одна ссылка для всех типов
+// Публичные маршруты игры (ссылка учителя или библиотека). Задание загружается общим playApi.get: один адрес для всех типов
 export const trueFalsePlayApi = {
-  check: (token: string, input: PlayTrueFalseCheckInput): Promise<PlayTrueFalseCheckResponse> =>
-    apiRequest(`/play/${encodeURIComponent(token)}/true-false/check`, playTrueFalseCheckResponseSchema, {
+  check: (source: PlaySource, input: PlayTrueFalseCheckInput): Promise<PlayTrueFalseCheckResponse> =>
+    apiRequest(`${playApiPath(source)}/true-false/check`, playTrueFalseCheckResponseSchema, {
       method: 'POST',
       body: input,
     }),
 
-  finish: (token: string, input: PlayTrueFalseFinishInput): Promise<PlayTrueFalseFinishResponse> =>
-    apiRequest(`/play/${encodeURIComponent(token)}/true-false/finish`, playTrueFalseFinishResponseSchema, {
+  finish: (source: PlaySource, input: PlayTrueFalseFinishInput): Promise<PlayTrueFalseFinishResponse> =>
+    apiRequest(`${playApiPath(source)}/true-false/finish`, playTrueFalseFinishResponseSchema, {
       method: 'POST',
       body: input,
     }),

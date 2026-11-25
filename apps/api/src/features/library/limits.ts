@@ -7,7 +7,6 @@ const MAX_TRACKED_KEYS = 100_000
 const GROUPS_PER_MINUTE = 120
 const LIST_PER_MINUTE = 120
 const SEARCH_PER_MINUTE = 30
-const QUIZ_PER_MINUTE = 120
 const TAKE_PER_TEACHER_PER_HOUR = 30
 const TAKE_PER_IP_PER_HOUR = 100
 
@@ -16,7 +15,6 @@ export const LIBRARY_LIMITS = {
   groups: { max: GROUPS_PER_MINUTE, windowMs: MS_PER_MINUTE },
   list: { max: LIST_PER_MINUTE, windowMs: MS_PER_MINUTE },
   search: { max: SEARCH_PER_MINUTE, windowMs: MS_PER_MINUTE },
-  quiz: { max: QUIZ_PER_MINUTE, windowMs: MS_PER_MINUTE },
   take: {
     perTeacher: { max: TAKE_PER_TEACHER_PER_HOUR, windowMs: MS_PER_HOUR },
     perIp: { max: TAKE_PER_IP_PER_HOUR, windowMs: MS_PER_HOUR },

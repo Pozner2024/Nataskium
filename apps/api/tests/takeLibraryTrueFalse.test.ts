@@ -3,9 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   type LibraryCreateTrueFalseCopy,
   type LibraryQuizCopyRow,
-  type LibraryQuizRow,
   type LibraryRepository,
-  makeGetLibraryQuiz,
   makeTakeLibraryQuiz,
 } from '../src/features/library'
 import { AppError } from '../src/shared/errors'
@@ -89,43 +87,5 @@ describe('takeLibraryQuiz: да/нет', () => {
 
     await expect(take(TEACHER, NUMBER)).rejects.toThrow('does not match the true-false schema')
     expect(createTrueFalse).not.toHaveBeenCalled()
-  })
-})
-
-describe('getLibraryQuiz: карточка да/нет', () => {
-  const ROW: LibraryQuizRow = {
-    number: NUMBER,
-    type: 'truefalse',
-    title: 'Факты',
-    groupSlug: 'other',
-    graded: true,
-    createdAt: new Date('2026-11-16T10:00:00.000Z'),
-    questions: ITEMS,
-  }
-
-  function getCard() {
-    const library = { findByNumber: async () => ROW } as unknown as LibraryRepository
-    return makeGetLibraryQuiz({ library, imageUrl: () => null, shuffle: (items) => [...items] })(NUMBER)
-  }
-
-  it('утверждения по порядку, questionCount — их число', async () => {
-    expect(await getCard()).toEqual({
-      quiz: {
-        number: NUMBER,
-        type: 'truefalse',
-        title: 'Факты',
-        groupSlug: 'other',
-        questionCount: ITEMS.length,
-        graded: true,
-        createdAt: '2026-11-16T10:00:00.000Z',
-        statements: ITEMS.map((item) => item.statement),
-      },
-    })
-  })
-
-  it('no-leak: JSON не содержит answer, правильных ответов и шкалы', async () => {
-    const body = JSON.stringify(await getCard())
-
-    for (const leak of ['answer', 'correct', 'gradingScale', 'items']) expect(body).not.toContain(leak)
   })
 })

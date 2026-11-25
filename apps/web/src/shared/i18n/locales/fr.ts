@@ -232,6 +232,7 @@ const messages: Messages = {
     description: 'Rejoignez Nataskium et transformez les évaluations en jeu.',
     cta: 'Commencez maintenant, c’est gratuit',
   },
+  viewToggle: { label: 'Affichage', tiles: 'Vignettes', list: 'Liste' },
   footer: {
     navigation: 'Navigation',
     about: 'À propos',
@@ -260,28 +261,11 @@ const messages: Messages = {
     graded: 'Notée',
     more: 'Afficher plus',
     thumbnail: { yes: 'Vrai', no: 'Faux' },
-    view: { label: 'Affichage', tiles: 'Vignettes', list: 'Liste' },
-    quiz: {
-      backToGroup: '← Vers la rubrique',
-      addedOn: 'Ajoutée le {date}',
-      previewTitle: 'Questions',
-      questionNumber: 'Question {n}',
-      previewNote: 'Aperçu des {shown} premières questions sur {total}. Vous verrez les autres questions et les bonnes réponses dans votre copie',
-      noQuestions: 'Cette activité ne contient pas encore de questions',
-    },
-    matching: {
-      previewTitle: 'Paires',
-      definitionsTitle: 'Définitions',
-      termsTitle: 'Mots',
-      termsNote: 'Les mots sont affichés dans un ordre aléatoire, l’élève les verra dans un autre ordre. Vous verrez les bonnes paires dans votre copie',
-    },
-    trueFalse: {
-      previewTitle: 'Énoncés',
-    },
     take: {
       button: 'Ajouter à mes activités',
       taking: 'Copie en cours…',
       taken: 'C’est fait ! Ouverture de votre copie…',
+      takenShort: 'C’est fait',
       toMyActivities: 'Aller à « Mes activités »',
       toLibrary: 'Retour aux rubriques de la bibliothèque',
       errors: {

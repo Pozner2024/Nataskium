@@ -11,6 +11,7 @@ vi.mock('@/entities/quiz', () => ({
 }))
 
 const TOKEN = 'abcdefghijklmnopqrstuv'
+const SOURCE = { kind: 'share', token: TOKEN } as const
 const RESULT = { percent: 100, grade: null, correctCount: 2, partialCount: 0, totalCount: 2 }
 const mounted: { unmount: () => void }[] = []
 
@@ -32,7 +33,7 @@ async function startQuiz() {
   vi.mocked(playApi.check).mockResolvedValue({ correct: [0] })
   vi.mocked(playApi.finish).mockResolvedValue({ result: RESULT })
   const store = usePlayStore()
-  await store.start(TOKEN, () => 0.99)
+  await store.start(SOURCE, () => 0.99)
   return store
 }
 

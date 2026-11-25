@@ -4,13 +4,14 @@
     :class="`share-link-button--${status}`"
     type="button"
     :aria-label="t('teacher.activities.copyLinkLabel', { title })"
+    :title="compact ? label : undefined"
     @click="emit('copy')"
   >
     <svg v-if="status === 'copied'" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
     <svg v-else viewBox="0 0 24 24" aria-hidden="true">
       <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" />
     </svg>
-    <span class="share-link-button__text">{{ label }}</span>
+    <span v-if="!compact" class="share-link-button__text">{{ label }}</span>
   </button>
 </template>
 
@@ -23,6 +24,8 @@ const props = defineProps<{
   // Название задания: видимая подпись короткая, диктор слышит, ссылку на какое задание копирует кнопка
   title: string
   status: ShareLinkStatus
+  // Только значок: в узкой плитке подпись не помещается. Итог копирования виден по значку и цвету кнопки
+  compact?: boolean
 }>()
 
 const emit = defineEmits<{

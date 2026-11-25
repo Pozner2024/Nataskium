@@ -1,9 +1,9 @@
-import { shareTokenSchema, type QuizTimer } from '@nataskium/shared/schemas'
+import type { QuizTimer } from '@nataskium/shared/schemas'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { matchingPlayApi, type PlayMatchingFinishResponse, type PlayMatchingResponse } from '@/entities/matching'
 import { playApi, type QuizResult } from '@/entities/quiz'
-import { ApiError } from '@/shared'
+import { ApiError, isPlaySourceValid, type PlaySource } from '@/shared'
 import type { MatchingStatus, PlaceOutcome } from './types'
 
 type MatchingPhase = 'play' | 'result'
@@ -16,7 +16,8 @@ const CONFLICT_STATUS = 409
 // Прохождение живёт только во вкладке; ответы на сервере не хранятся.
 // Слова перемешивает сервер, определения идут в порядке учителя: номер определения — его индекс
 export const useMatchingPlayStore = defineStore('matching-play', () => {
-  const token = ref('')
+  // null — адрес не разобран (мусорный slug библиотеки): «не найдено» без запроса
+  const source = ref<PlaySource | null>(null)
   const title = ref('')
   const showAnswers = ref(false)
   const version = ref('')
@@ -86,6 +87,12 @@ export const useMatchingPlayStore = defineStore('matching-play', () => {
     return term
   }
 
+  // Проверка и итог идут только после успешной загрузки, когда источник уже проверен в start
+  function activeSource(): PlaySource {
+    if (source.value === null) throw new ApiError(NOT_FOUND_STATUS)
+    return source.value
+  }
+
   function fail(error: unknown, retryWith: (() => Promise<void>) | null): void {
     if (error instanceof ApiError && error.status === NOT_FOUND_STATUS) {
       status.value = 'notFound'
@@ -137,16 +144,17 @@ export const useMatchingPlayStore = defineStore('matching-play', () => {
 
   // initial — ответ GET, уже полученный PlayPage: первый показ без второго запроса.
   // «Пройти ещё раз», повтор и смена версии загружают задание заново — сервер перемешивает слова снова
-  async function start(newToken?: string, initial?: PlayMatchingResponse): Promise<void> {
-    if (newToken !== undefined) token.value = newToken
+  async function start(newSource?: PlaySource | null, initial?: PlayMatchingResponse): Promise<void> {
+    if (newSource !== undefined) source.value = newSource
     reset()
-    if (!shareTokenSchema.safeParse(token.value).success) {
+    const loadFrom = source.value
+    if (!isPlaySourceValid(loadFrom)) {
       status.value = 'notFound'
       return
     }
     const runEpoch = epoch
     await run(async () => {
-      const response = initial ?? (await playApi.get(token.value))
+      const response = initial ?? (await playApi.get(loadFrom))
       if (runEpoch !== epoch) return
       // По ссылке теперь другой тип задания — для этой игры его нет
       if (response.type !== 'matching') throw new ApiError(NOT_FOUND_STATUS)
@@ -171,7 +179,7 @@ export const useMatchingPlayStore = defineStore('matching-play', () => {
     const runEpoch = epoch
     finishing = true
     try {
-      const response = await matchingPlayApi.finish(token.value, { version: version.value, answers: answers() })
+      const response = await matchingPlayApi.finish(activeSource(), { version: version.value, answers: answers() })
       if (runEpoch !== epoch) return
       elapsedSeconds.value = elapsedAtFinish()
       result.value = response.result
@@ -261,7 +269,7 @@ export const useMatchingPlayStore = defineStore('matching-play', () => {
   }
 
   return {
-    token, title, showAnswers, timer, definitions, terms, placements, picked, phase, status, busy, result, review,
+    source, title, showAnswers, timer, definitions, terms, placements, picked, phase, status, busy, result, review,
     startedAt, timedOut, elapsedSeconds,
     pool, placedCount, isComplete, isLocked, canCheck,
     definitionOf, pick, cancelPick, place, unplace, start, check, expire, retry, holdClock, restartClock, pauseClock, resumeClock, dispose,

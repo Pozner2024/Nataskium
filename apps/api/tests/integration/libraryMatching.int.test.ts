@@ -2,9 +2,9 @@ import { randomBytes } from 'node:crypto'
 import {
   MAX_ACTIVITIES_PER_TEACHER,
   libraryListResponseSchema,
-  libraryQuizResponseSchema,
   libraryTakeResponseSchema,
   matchingResponseSchema,
+  playActivityResponseSchema,
 } from '@nataskium/shared/schemas'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { makeTokenService } from '../../src/features/auth'
@@ -79,18 +79,25 @@ describe('библиотека: сопоставление', () => {
     ])
   })
 
-  it('карточка: все определения по порядку, все слова (больше 5), без связи пар и служебных полей', async () => {
+  it('игра из библиотеки: все определения по порядку, все слова, без связи пар и служебных полей', async () => {
     const author = await createTeacher(prisma)
     const row = await seedMatching(author.id)
 
-    const text = await (await request('GET', `/api/library/${row.publicNumber}`)).text()
-    const { quiz } = libraryQuizResponseSchema.parse(JSON.parse(text))
+    const text = await (await request('GET', `/api/library/play/${row.publicNumber}`)).text()
+    const activity = playActivityResponseSchema.parse(JSON.parse(text))
 
-    if (quiz.type !== 'matching') throw new Error('expected matching')
-    expect(quiz.definitions).toEqual(PAIRS.map((pair) => pair.definition))
-    expect([...quiz.terms].sort()).toEqual(PAIRS.map((pair) => pair.term).sort())
-    expect(Object.keys(quiz).sort()).toEqual(['createdAt', 'definitions', 'graded', 'groupSlug', 'number', 'questionCount', 'terms', 'title', 'type'])
+    if (activity.type !== 'matching') throw new Error('expected matching')
+    expect(activity.matching.definitions).toEqual(PAIRS.map((pair) => pair.definition))
+    expect([...activity.matching.terms].sort()).toEqual(PAIRS.map((pair) => pair.term).sort())
+    expect(Object.keys(activity.matching).sort()).toEqual(['definitions', 'introTheme', 'showAnswers', 'terms', 'timer', 'title', 'version'])
     for (const leak of ['pairs', 'term"', 'definition"', 'correct', 'shareToken', row.id, row.shareToken, author.id]) expect(text).not.toContain(leak)
+  })
+
+  it('карточки задания больше нет: GET /api/library/<номер> — 404', async () => {
+    const author = await createTeacher(prisma)
+    const row = await seedMatching(author.id)
+
+    expect((await request('GET', `/api/library/${row.publicNumber}`)).status).toBe(404)
   })
 
   it('«Взять себе»: копия учителя непубличная, с теми же парами и настройками, в библиотеке не появляется', async () => {
@@ -123,7 +130,7 @@ describe('библиотека: сопоставление', () => {
     expect(await prisma.quiz.count({ where: { teacherId: taker.id, type: 'matching' } })).toBe(0)
   })
 
-  it('непубличное и скрытое модерацией сопоставление — карточка и «Взять себе» 404, в списке не видно', async () => {
+  it('непубличное и скрытое модерацией сопоставление — игра и «Взять себе» 404, в списке не видно', async () => {
     const author = await createTeacher(prisma)
     const taker = await createTeacher(prisma)
     const unpublished = await prisma.quiz.create({
@@ -134,7 +141,7 @@ describe('библиотека: сопоставление', () => {
     })
 
     for (const row of [unpublished, hidden]) {
-      expect((await request('GET', `/api/library/${row.publicNumber}`)).status).toBe(404)
+      expect((await request('GET', `/api/library/play/${row.publicNumber}`)).status).toBe(404)
       expect((await request('POST', `/api/library/${row.publicNumber}/take`, taker.id)).status).toBe(404)
     }
     expect(await prisma.quiz.count({ where: { teacherId: taker.id } })).toBe(0)
@@ -189,7 +196,7 @@ describe('библиотека: сопоставление', () => {
     expect(quizzes.map((quiz) => quiz.number)).toEqual([source.publicNumber])
   })
 
-  it('сопоставление, скрытое модерацией: карточка и «Взять себе» 404 с тем же ответом, что и несуществующий номер, копия не создана', async () => {
+  it('сопоставление, скрытое модерацией: игра и «Взять себе» 404 с тем же ответом, что и несуществующий номер, копия не создана', async () => {
     const author = await createTeacher(prisma)
     const taker = await createTeacher(prisma)
     const hidden = await prisma.quiz.create({
@@ -205,8 +212,8 @@ describe('библиотека: сопоставление', () => {
     })
     const missingNumber = hidden.publicNumber + 1000
 
-    const reference = await request('GET', `/api/library/${missingNumber}`)
-    const card = await request('GET', `/api/library/${hidden.publicNumber}`)
+    const reference = await request('GET', `/api/library/play/${missingNumber}`)
+    const card = await request('GET', `/api/library/play/${hidden.publicNumber}`)
     const takeHidden = await request('POST', `/api/library/${hidden.publicNumber}/take`, taker.id)
     const takeMissing = await request('POST', `/api/library/${missingNumber}/take`, taker.id)
 
@@ -217,13 +224,13 @@ describe('библиотека: сопоставление', () => {
     expect(await prisma.quiz.count({ where: { teacherId: taker.id } })).toBe(0)
   })
 
-  it('автор удалил аккаунт — карточка и «Взять себе» 404', async () => {
+  it('автор удалил аккаунт — игра и «Взять себе» 404', async () => {
     const author = await createTeacher(prisma)
     const taker = await createTeacher(prisma)
     const source = await seedMatching(author.id)
     await prisma.teacher.delete({ where: { id: author.id } })
 
-    expect((await request('GET', `/api/library/${source.publicNumber}`)).status).toBe(404)
+    expect((await request('GET', `/api/library/play/${source.publicNumber}`)).status).toBe(404)
     expect((await request('POST', `/api/library/${source.publicNumber}/take`, taker.id)).status).toBe(404)
     expect(await prisma.quiz.count({ where: { teacherId: taker.id } })).toBe(0)
   })

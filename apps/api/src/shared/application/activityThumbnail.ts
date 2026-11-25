@@ -3,6 +3,7 @@ import {
   LIBRARY_THUMBNAIL_OPTION_MAX_LENGTH,
   LIBRARY_THUMBNAIL_OPTIONS,
   LIBRARY_THUMBNAIL_TEXT_MAX_LENGTH,
+  type ActivityKind,
   type LibraryThumbnail,
   MATCHING_ACTIVITY,
   TRUE_FALSE_ACTIVITY,
@@ -12,20 +13,26 @@ import {
   trueFalseItemSchema,
 } from '@nataskium/shared/schemas'
 import { z } from 'zod'
-import type { LibraryImageUrl, LibraryQuizListRow } from '../types'
+
+// Адрес картинки по id; null — хранилище не настроено. Связывание с хранилищем — в app.ts
+export type ImageUrl = (imageId: string) => string | null
+
+// Строка задания для превью: тип и первые элементы содержимого (head). Вопросы целиком не загружаются
+export type ThumbnailSource = { type: ActivityKind; head: unknown[] }
 
 const clipText = (text: string) => clipThumbnailText(text, LIBRARY_THUMBNAIL_TEXT_MAX_LENGTH)
 
 // Поэлементные схемы, а не схемы всего задания: у тех min на число вопросов, а здесь только начало.
 // null — начало не прошло схему: битое задание показывается без превью, как и раньше не ломая список
-function parseHead<T extends z.ZodType>(row: LibraryQuizListRow, element: T): z.infer<T>[] | null {
+function parseHead<T extends z.ZodType>(row: ThumbnailSource, element: T): z.infer<T>[] | null {
   const parsed = z.array(element).safeParse(row.head)
   return parsed.success ? parsed.data : null
 }
 
-// Поля собираются явно: правильные ответы и слова сопоставления не должны попасть в публичный ответ ни при каких правках.
+// Превью одно для библиотеки и «Моих заданий». Поля собираются явно: правильные ответы и слова сопоставления
+// не должны попасть в публичный ответ ни при каких правках.
 // У сопоставления только определения: набор показанных слов выдал бы связь с ними (ADR-0013)
-export function toLibraryThumbnail(row: LibraryQuizListRow, imageUrl: LibraryImageUrl): LibraryThumbnail | null {
+export function toActivityThumbnail(row: ThumbnailSource, imageUrl: ImageUrl): LibraryThumbnail | null {
   if (row.head.length === 0) return null
   if (row.type === MATCHING_ACTIVITY) {
     const pairs = parseHead(row, matchingPairSchema)

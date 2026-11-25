@@ -190,7 +190,16 @@ describe('/api/matchings', () => {
     const response = await request('GET', '/api/quizzes', { teacherId: teacher.id })
     const { quizzes } = quizListResponseSchema.parse(await response.json())
     expect(quizzes).toEqual([
-      { id: created.id, type: 'matching', title: INPUT.title, questionCount: INPUT.pairs.length, gradingScale: 'five', shareToken: created.shareToken },
+      {
+        id: created.id,
+        type: 'matching',
+        title: INPUT.title,
+        questionCount: INPUT.pairs.length,
+        gradingScale: 'five',
+        shareToken: created.shareToken,
+        introTheme: 'nataskium-night',
+        thumbnail: { type: 'matching', definitions: ['мяукает', 'лает'] },
+      },
     ])
   })
 

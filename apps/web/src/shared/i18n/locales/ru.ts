@@ -226,6 +226,7 @@ export default {
     description: 'Присоединяйтесь к Nataskium и превратите проверку знаний в игру.',
     cta: 'Начните сейчас — это бесплатно',
   },
+  viewToggle: { label: 'Вид списка', tiles: 'Плиткой', list: 'Списком' },
   footer: {
     navigation: 'Навигация',
     about: 'О проекте',
@@ -254,28 +255,11 @@ export default {
     graded: 'С оценкой',
     more: 'Показать ещё',
     thumbnail: { yes: 'Да', no: 'Нет' },
-    view: { label: 'Вид списка', tiles: 'Плиткой', list: 'Списком' },
-    quiz: {
-      backToGroup: '← К разделу',
-      addedOn: 'Добавлено {date}',
-      previewTitle: 'Вопросы',
-      questionNumber: 'Вопрос {n}',
-      previewNote: 'Показаны первые {shown} из {total}. Остальные вопросы и правильные ответы вы увидите в своей копии',
-      noQuestions: 'В этом задании пока нет вопросов',
-    },
-    matching: {
-      previewTitle: 'Пары',
-      definitionsTitle: 'Определения',
-      termsTitle: 'Слова',
-      termsNote: 'Слова показаны в случайном порядке, у ученика он будет другим. Правильные пары вы увидите в своей копии',
-    },
-    trueFalse: {
-      previewTitle: 'Утверждения',
-    },
     take: {
       button: 'Взять себе',
       taking: 'Копируем…',
       taken: 'Готово! Открываем вашу копию…',
+      takenShort: 'Готово',
       toMyActivities: 'Перейти в «Мои задания»',
       toLibrary: 'К разделам библиотеки',
       errors: {

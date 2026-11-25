@@ -231,6 +231,7 @@ const messages: Messages = {
     description: 'Werden Sie Teil von Nataskium und machen Sie Wissensabfragen zum Spiel.',
     cta: 'Jetzt starten – kostenlos',
   },
+  viewToggle: { label: 'Listenansicht', tiles: 'Kacheln', list: 'Liste' },
   footer: {
     navigation: 'Navigation',
     about: 'Über das Projekt',
@@ -259,28 +260,11 @@ const messages: Messages = {
     graded: 'Mit Note',
     more: 'Mehr anzeigen',
     thumbnail: { yes: 'Wahr', no: 'Falsch' },
-    view: { label: 'Listenansicht', tiles: 'Kacheln', list: 'Liste' },
-    quiz: {
-      backToGroup: '← Zum Bereich',
-      addedOn: 'Hinzugefügt am {date}',
-      previewTitle: 'Fragen',
-      questionNumber: 'Frage {n}',
-      previewNote: 'Angezeigt werden die ersten {shown} von {total}. Die übrigen Fragen und die richtigen Antworten sehen Sie in Ihrer eigenen Kopie',
-      noQuestions: 'Diese Aufgabe enthält noch keine Fragen',
-    },
-    matching: {
-      previewTitle: 'Paare',
-      definitionsTitle: 'Definitionen',
-      termsTitle: 'Wörter',
-      termsNote: 'Die Wörter stehen in zufälliger Reihenfolge, bei den Lernenden ist sie eine andere. Die richtigen Paare sehen Sie in Ihrer Kopie',
-    },
-    trueFalse: {
-      previewTitle: 'Aussagen',
-    },
     take: {
       button: 'Für mich übernehmen',
       taking: 'Wird kopiert…',
       taken: 'Fertig! Ihre Kopie wird geöffnet…',
+      takenShort: 'Fertig',
       toMyActivities: 'Zu „Meine Aufgaben“',
       toLibrary: 'Zu den Bibliotheksbereichen',
       errors: {

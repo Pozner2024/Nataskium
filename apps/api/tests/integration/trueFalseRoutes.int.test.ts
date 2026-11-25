@@ -149,7 +149,16 @@ describe('/api/true-false', () => {
     const { quizzes } = quizListResponseSchema.parse(await (await request('GET', '/api/quizzes', { teacherId: teacher.id })).json())
 
     expect(quizzes).toEqual([
-      { id: created.id, type: 'truefalse', title: INPUT.title, questionCount: INPUT.items.length, gradingScale: 'five', shareToken: created.shareToken },
+      {
+        id: created.id,
+        type: 'truefalse',
+        title: INPUT.title,
+        questionCount: INPUT.items.length,
+        gradingScale: 'five',
+        shareToken: created.shareToken,
+        introTheme: 'nataskium-night',
+        thumbnail: { type: 'truefalse', statement: 'Земля круглая' },
+      },
     ])
   })
 

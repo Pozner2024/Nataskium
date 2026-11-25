@@ -52,7 +52,7 @@ const TRUE_FALSE = {
 let wrapper: VueWrapper | undefined
 
 async function mountPage(route = `/play/${TOKEN}`) {
-  wrapper = await mountSuspended(PlayPage, { props: { token: TOKEN }, route })
+  wrapper = await mountSuspended(PlayPage, { props: { address: { kind: 'share', token: TOKEN } }, route })
   await flushPromises()
   return wrapper
 }

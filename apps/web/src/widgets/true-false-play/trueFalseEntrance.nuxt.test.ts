@@ -13,6 +13,7 @@ vi.mock('@/entities/quiz', async (importOriginal) => ({
 }))
 
 const TOKEN = 'abcdefghijklmnopqrstuv'
+const SOURCE = { kind: 'share', token: TOKEN } as const
 const START = new Date('2026-01-01T10:00:00Z').getTime()
 const SECOND = 1000
 const FLIGHT_MS = 5 * SECOND
@@ -56,7 +57,7 @@ const mounted: { unmount: () => void }[] = []
 
 async function mountPlay(context: PlayerEntrance | null, response = initial()) {
   const provide = context ? { [PLAYER_ENTRANCE_KEY as symbol]: context } : {}
-  const wrapper = await mountSuspended(TrueFalsePlay, { props: { token: TOKEN, initial: response }, attachTo: document.body, global: { provide } })
+  const wrapper = await mountSuspended(TrueFalsePlay, { props: { source: SOURCE, initial: response }, attachTo: document.body, global: { provide } })
   mounted.push(wrapper)
   await flushPromises()
   return wrapper
@@ -150,7 +151,7 @@ describe('useTrueFalsePlayStore.restartClock', () => {
     store.restartClock()
     expect(store.startedAt).toBeNull()
 
-    await store.start(TOKEN, initial())
+    await store.start(SOURCE, initial())
     vi.setSystemTime(START + FLIGHT_MS)
     store.restartClock()
     expect(store.startedAt).toBe(START + FLIGHT_MS)

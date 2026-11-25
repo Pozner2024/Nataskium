@@ -14,6 +14,7 @@ vi.mock('@/entities/quiz', async (importOriginal) => ({
 const finish = vi.mocked(matchingPlayApi.finish)
 
 const TOKEN = 'abcdefghijklmnopqrstuv'
+const SOURCE = { kind: 'share', token: TOKEN } as const
 const RESULT = { percent: 50, grade: '3', correctCount: 1, partialCount: 0, totalCount: 2 }
 const TEN = 10
 const LONG_TERM = 'с'.repeat(59)
@@ -37,7 +38,7 @@ function initial(overrides: Partial<{ showAnswers: boolean; definitions: string[
 const mounted: { unmount: () => void }[] = []
 
 async function mountPlay(response = initial()) {
-  const wrapper = await mountSuspended(MatchingPlay, { props: { token: TOKEN, initial: response }, attachTo: document.body })
+  const wrapper = await mountSuspended(MatchingPlay, { props: { source: SOURCE, initial: response }, attachTo: document.body })
   mounted.push(wrapper)
   await flushPromises()
   return wrapper

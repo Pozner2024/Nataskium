@@ -4,15 +4,14 @@ import {
   type LibraryGroupsResponse,
   type LibraryListQuery,
   type LibraryListResponse,
-  type LibraryQuizResponse,
   type LibraryTakeResponse,
   libraryListQuerySchema,
-  libraryNumberSchema,
 } from '@nataskium/shared/schemas'
 import { type Context, Hono, type MiddlewareHandler } from 'hono'
 import { ValidationError } from '../../../shared/errors'
 import type { RateLimiter } from '../../../shared/middleware'
 import { libraryNotFound } from '../application/libraryErrors'
+import { parseLibraryNumber } from './parseLibraryNumber'
 
 export const LIBRARY_ROUTES_BASE_PATH = '/api/library'
 
@@ -21,7 +20,6 @@ const CREATED_STATUS = 201
 export type LibraryRouterDeps = {
   listLibraryGroups: () => Promise<LibraryGroupsResponse>
   listLibraryQuizzes: (query: LibraryListQuery) => Promise<LibraryListResponse>
-  getLibraryQuiz: (number: number) => Promise<LibraryQuizResponse>
   takeLibraryQuiz: (teacherId: string, number: number) => Promise<LibraryTakeResponse>
   requireAuth: MiddlewareHandler
   clientIp: (c: Context) => string
@@ -29,7 +27,6 @@ export type LibraryRouterDeps = {
     groups: RateLimiter
     list: RateLimiter
     search: RateLimiter
-    quiz: RateLimiter
     takePerIp: RateLimiter
     takePerTeacher: RateLimiter
   }
@@ -39,13 +36,6 @@ function parseListQuery(c: Context): LibraryListQuery {
   const result = libraryListQuerySchema.safeParse(c.req.query())
   if (result.success) return result.data
   throw new ValidationError(result.error.issues.map((issue) => ({ path: issue.path.map(String), message: issue.message })))
-}
-
-// Невалидный номер — тот же 404, что и отсутствующее задание
-function parseNumber(raw: string): number {
-  const parsed = libraryNumberSchema.safeParse(raw)
-  if (!parsed.success) throw libraryNotFound()
-  return parsed.data
 }
 
 export function makeLibraryRouter(deps: LibraryRouterDeps) {
@@ -60,10 +50,6 @@ export function makeLibraryRouter(deps: LibraryRouterDeps) {
     c.json(await deps.listLibraryQuizzes(parseListQuery(c))),
   )
 
-  router.get('/:number', deps.limiters.quiz.middleware(byIp), async (c) =>
-    c.json(await deps.getLibraryQuiz(parseNumber(c.req.param('number')))),
-  )
-
   // Лимит по IP раньше проверки токена: неавторизованный поток не должен доходить до верификации
   router.post(
     '/:number/take',
@@ -71,7 +57,7 @@ export function makeLibraryRouter(deps: LibraryRouterDeps) {
     deps.requireAuth,
     deps.limiters.takePerTeacher.middleware((c) => c.get('teacherId')),
     async (c) => {
-      const response = await deps.takeLibraryQuiz(c.get('teacherId'), parseNumber(c.req.param('number')))
+      const response = await deps.takeLibraryQuiz(c.get('teacherId'), parseLibraryNumber(c.req.param('number'), libraryNotFound))
       return c.json(response, CREATED_STATUS)
     },
   )

@@ -9,6 +9,11 @@ export function libraryNotFound(): AppError {
   return new AppError(NOT_FOUND_STATUS, 'Not found')
 }
 
+// Тело совпадает с playQuizNotFound: адрес игры из библиотеки неотличим от /api/play
+export function libraryPlayNotFound(): AppError {
+  return new AppError(NOT_FOUND_STATUS, 'Quiz not found')
+}
+
 // Тот же 409, что и при создании задания: лимит общий
 export function quizLimitReached(): AppError {
   return new AppError(CONFLICT_STATUS, 'Quiz limit reached')

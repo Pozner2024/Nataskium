@@ -303,7 +303,7 @@ describe('LibraryBrowser: вид и миниатюры', () => {
     expect(cards).toHaveLength(3)
     expect(cards.every((card) => card.find('.intro-theme-preview').exists())).toBe(true)
     expect(cards[0]!.text()).toContain('Первая страница')
-    expect(cards[1]!.findAll('.library-quiz-thumbnail__definition').map((row) => row.text())).toEqual(['течёт', 'впадает'])
+    expect(cards[1]!.findAll('.activity-thumbnail__definition').map((row) => row.text())).toEqual(['течёт', 'впадает'])
     expect(cards[1]!.get('.intro-theme-preview').classes()).toContain('intro-theme-preview--light')
     expect(cards[2]!.find('.intro-theme-preview__question').exists()).toBe(true)
     expect(listClasses()).toContain('library-browser__list--list')

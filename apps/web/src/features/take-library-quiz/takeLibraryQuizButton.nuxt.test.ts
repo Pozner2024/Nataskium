@@ -243,3 +243,64 @@ describe('TakeLibraryQuizButton', () => {
     })
   })
 })
+
+describe('TakeLibraryQuizButton compact', () => {
+  async function mountCompact(take: () => Promise<TakenQuiz> = () => Promise.resolve({ quizId: QUIZ_ID })) {
+    wrapper = await mountSuspended(TakeLibraryQuizButton, { props: { isSignedIn: true, isReady: true, take, compact: true } })
+  }
+
+  function compactButton() {
+    return wrapper.find('button.take-library-quiz-button__compact')
+  }
+
+  it('своя кнопка вместо AppButton, ярлык «Взять себе»', async () => {
+    await mountCompact()
+
+    expect(wrapper.find('button.app-button').exists()).toBe(false)
+    expect(compactButton().text()).toBe('Взять себе')
+    expect(compactButton().attributes('type')).toBe('button')
+  })
+
+  it('после успеха на кнопке короткое «Готово», чтец слышит полный текст', async () => {
+    await mountCompact()
+
+    await compactButton().trigger('click')
+    await flushPromises()
+
+    expect(compactButton().text()).toBe('Готово')
+    expect(compactButton().attributes('disabled')).toBeDefined()
+    expect(wrapper.find('[role="status"]').text()).toBe('Готово! Открываем вашу копию…')
+    expect(wrapper.emitted('taken')).toEqual([[QUIZ_ID]])
+  })
+
+  it('во время копирования: «Копируем…»', async () => {
+    await mountCompact(() => new Promise(() => {}))
+
+    await compactButton().trigger('click')
+    await flushPromises()
+
+    expect(compactButton().text()).toBe('Копируем…')
+  })
+
+  it('ошибка показывается под кнопкой, со ссылкой у лимита', async () => {
+    await mountCompact(() => Promise.reject(new ApiError(409)))
+
+    await compactButton().trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[role="alert"] p').text()).toContain(String(MAX_QUIZZES_PER_TEACHER))
+    expect(wrapper.find('[role="alert"] a').attributes('href')).toBe('/teacher')
+    expect(compactButton().attributes('disabled')).toBeUndefined()
+  })
+
+  it('после ошибки фокус возвращается на компактную кнопку', async () => {
+    await mountCompact(() => Promise.reject(new ApiError(503)))
+    const focus = vi.spyOn(compactButton().element as HTMLElement, 'focus')
+
+    await compactButton().trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    expect(focus).toHaveBeenCalledTimes(1)
+  })
+})

@@ -32,7 +32,7 @@ const MATCHING = {
 let wrapper: VueWrapper | undefined
 
 async function mountPage(token = TOKEN, route = `/play/${token}`) {
-  wrapper = await mountSuspended(PlayPage, { props: { token }, route })
+  wrapper = await mountSuspended(PlayPage, { props: { address: { kind: 'share', token } }, route })
   await flushPromises()
   return wrapper
 }

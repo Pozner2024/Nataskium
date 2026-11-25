@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { DEFAULT_INTRO_THEME_KEY, LIBRARY_THUMBNAIL_DEFINITIONS, activityKindSchema, introThemeKeySchema } from '@nataskium/shared/schemas'
 import { Prisma, type PrismaClient } from '../../../generated/prisma/client'
-import type { LibraryQuizListRow, LibraryQuizRow, LibraryRepository } from '../types'
+import type { LibraryQuizListRow, LibraryRepository } from '../types'
 
 // Одно условие публичности на все запросы: удалённое учителем, скрытое модерацией и непубличное не видны нигде
 const PUBLIC_WHERE = { isPublic: true, deletedAt: null, moderationHiddenAt: null } satisfies Prisma.QuizWhereInput
@@ -22,17 +22,6 @@ const listRowSchema = z.object({
   head: z.array(z.unknown()),
 })
 
-// Явный select: id, teacherId, shareToken и updatedAt не должны уйти в публичный ответ ни при каких правках
-const PUBLIC_SELECT = {
-  publicNumber: true,
-  type: true,
-  title: true,
-  groupSlug: true,
-  gradingScale: true,
-  questions: true,
-  createdAt: true,
-} satisfies Prisma.QuizSelect
-
 // Для «Взять себе»: полное содержимое задания. Результат публичным не отдаётся — только копируется учителю
 const COPY_SELECT = {
   type: true,
@@ -52,8 +41,6 @@ function escapeLike(value: string): string {
   return value.replace(/[\\%_]/g, (char) => `\\${char}`)
 }
 
-type PublicRow = Prisma.QuizGetPayload<{ select: typeof PUBLIC_SELECT }>
-
 function toListRow(row: unknown): LibraryQuizListRow {
   const parsed = listRowSchema.safeParse(row)
   if (!parsed.success) throw new Error('Library quiz does not match the list row schema')
@@ -67,19 +54,7 @@ function parseType(type: string) {
   return parsed.data
 }
 
-function toLibraryQuizRow(row: PublicRow): LibraryQuizRow {
-  return {
-    number: row.publicNumber,
-    type: parseType(row.type),
-    title: row.title,
-    groupSlug: row.groupSlug,
-    graded: row.gradingScale !== null,
-    questions: row.questions,
-    createdAt: row.createdAt,
-  }
-}
-
-// Задания всех типов: карточка и «Взять себе» ветвятся по type в use-case
+// Задания всех типов: «Взять себе» ветвится по type в use-case
 export function makeLibraryRepository(prisma: PrismaClient): LibraryRepository {
   return {
     async listGroups() {
@@ -118,9 +93,10 @@ export function makeLibraryRepository(prisma: PrismaClient): LibraryRepository {
       return rows.map(toListRow)
     },
 
-    async findByNumber(number) {
-      const row = await prisma.quiz.findFirst({ where: { ...PUBLIC_WHERE, publicNumber: number }, select: PUBLIC_SELECT })
-      return row === null ? null : toLibraryQuizRow(row)
+    // shareToken — только для вызова игры на сервере, в ответы не попадает
+    async findPlayableShareToken(number) {
+      const row = await prisma.quiz.findFirst({ where: { ...PUBLIC_WHERE, publicNumber: number }, select: { shareToken: true } })
+      return row?.shareToken ?? null
     },
 
     async findForCopy(number) {

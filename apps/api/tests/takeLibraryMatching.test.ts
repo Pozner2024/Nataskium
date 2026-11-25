@@ -3,9 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   type LibraryCreateMatchingCopy,
   type LibraryQuizCopyRow,
-  type LibraryQuizRow,
   type LibraryRepository,
-  makeGetLibraryQuiz,
   makeTakeLibraryQuiz,
 } from '../src/features/library'
 import { AppError } from '../src/shared/errors'
@@ -96,48 +94,5 @@ describe('takeLibraryQuiz: сопоставление', () => {
 
     await expect(take(TEACHER, NUMBER)).rejects.toThrow('does not match the matching schema')
     expect(createMatching).not.toHaveBeenCalled()
-  })
-})
-
-describe('getLibraryQuiz: карточка сопоставления', () => {
-  const ROW: LibraryQuizRow = {
-    number: NUMBER,
-    type: 'matching',
-    title: 'Животные',
-    groupSlug: 'other',
-    graded: true,
-    createdAt: new Date('2026-11-16T10:00:00.000Z'),
-    questions: PAIRS,
-  }
-  const reverse = <T,>(items: readonly T[]): T[] => [...items].reverse()
-
-  function getCard(shuffle = reverse) {
-    const library = { findByNumber: async () => ROW } as unknown as LibraryRepository
-    return makeGetLibraryQuiz({ library, imageUrl: () => null, shuffle })(NUMBER)
-  }
-
-  it('все определения по порядку и все слова в порядке shuffle — без ограничения в 5', async () => {
-    expect(await getCard()).toEqual({
-      quiz: {
-        number: NUMBER,
-        type: 'matching',
-        title: 'Животные',
-        groupSlug: 'other',
-        questionCount: PAIRS.length,
-        graded: true,
-        createdAt: '2026-11-16T10:00:00.000Z',
-        definitions: PAIRS.map((pair) => pair.definition),
-        terms: PAIRS.map((pair) => pair.term).reverse(),
-      },
-    })
-  })
-
-  it('no-leak: нет пар, правильных ответов и шкалы; слова — мультимножество слов задания', async () => {
-    const card = await getCard((items) => [...items])
-    const body = JSON.stringify(card)
-
-    for (const leak of ['pairs', 'correct', 'gradingScale', 'term"', 'definition"', 'questions']) expect(body).not.toContain(leak)
-    if (card.quiz.type !== 'matching') throw new Error('expected matching')
-    expect([...card.quiz.terms].sort()).toEqual(PAIRS.map((pair) => pair.term).sort())
   })
 })

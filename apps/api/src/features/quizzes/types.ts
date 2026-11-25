@@ -1,11 +1,15 @@
 import type { QuizInput, QuizSummary } from '@nataskium/shared/schemas'
+import type { ThumbnailSource } from '../../shared/application'
 
 export type StoredQuiz = QuizInput & { id: string; shareToken: string; updatedAt: Date }
+
+// Строка списка: превью ещё не собрано, вместо него первые элементы содержимого (head)
+export type QuizListRow = Omit<QuizSummary, 'thumbnail'> & ThumbnailSource
 
 // Каждый метод с teacherId сам проверяет владельца и deletedAt: чужая и удалённая викторины неотличимы от отсутствующей
 export type QuizRepository = {
   // Без вопросов: список показывает только их количество, его считает база
-  listByTeacher(teacherId: string): Promise<QuizSummary[]>
+  listByTeacher(teacherId: string): Promise<QuizListRow[]>
   // Только неудалённые
   countByTeacher(teacherId: string): Promise<number>
   findOwned(id: string, teacherId: string): Promise<StoredQuiz | null>

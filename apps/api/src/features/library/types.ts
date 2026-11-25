@@ -12,9 +12,6 @@ export type LibraryQuizMeta = {
   createdAt: Date
 }
 
-// Строка карточки задания. Содержимое (вопросы или пары, по type) — сырой jsonb, проверяет use-case
-export type LibraryQuizRow = LibraryQuizMeta & { questions: unknown }
-
 // Строка списка: вопросы не загружаются, их количество считает база. head — первые элементы содержимого для превью,
 // introTheme уже приведён к ключу каталога
 export type LibraryQuizListRow = LibraryQuizMeta & { questionCount: number; introTheme: IntroThemeKey; head: unknown[] }
@@ -40,7 +37,8 @@ export type LibraryRepository = {
   groupExists(slug: string): Promise<boolean>
   // Только публичные: is_public, не удалённые, не скрытые модерацией
   list(filter: LibraryListFilter): Promise<LibraryQuizListRow[]>
-  findByNumber(number: number): Promise<LibraryQuizRow | null>
+  // shareToken опубликованного задания — только для вызова игры на сервере, в ответы не попадает
+  findPlayableShareToken(number: number): Promise<string | null>
   // То же условие публичности, но со всем содержимым для копирования
   findForCopy(number: number): Promise<LibraryQuizCopyRow | null>
 }
@@ -66,6 +64,3 @@ export type LibraryCreateMatchingCopy = (teacherId: string, input: MatchingInput
 
 // То же для «да/нет»; в app.ts — createTrueFalse из features/trueFalse
 export type LibraryCreateTrueFalseCopy = (teacherId: string, input: TrueFalseInput, options: { isPublic: boolean }) => Promise<{ id: string }>
-
-// Порядок слов сопоставления на карточке; в app.ts — secureShuffle
-export type LibraryShuffle = <T>(items: readonly T[]) => T[]

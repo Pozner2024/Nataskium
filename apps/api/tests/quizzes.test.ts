@@ -43,7 +43,7 @@ function setup(takenTokens: string[] = [], options: { withFiles?: boolean } = {}
     images,
     create: makeCreateQuiz(deps),
     get: makeGetQuiz({ quizzes }),
-    list: makeListQuizzes({ quizzes }),
+    list: makeListQuizzes({ quizzes, imageUrl: (imageId) => `https://images.test/${imageId}` }),
     update: makeUpdateQuiz(deps),
     remove: makeDeleteQuiz(deps),
   }

@@ -13,6 +13,7 @@ const get = vi.mocked(playApi.get)
 const finish = vi.mocked(matchingPlayApi.finish)
 
 const TOKEN = 'abcdefghijklmnopqrstuv'
+const SOURCE = { kind: 'share', token: TOKEN } as const
 const RESULT = { percent: 100, grade: '5', correctCount: 3, partialCount: 0, totalCount: 3 }
 
 function matching(timer: QuizTimer = { mode: 'none' }) {
@@ -33,7 +34,7 @@ function matching(timer: QuizTimer = { mode: 'none' }) {
 let store: ReturnType<typeof useMatchingPlayStore>
 
 async function startWith(response = matching()): Promise<void> {
-  await store.start(TOKEN, response)
+  await store.start(SOURCE, response)
 }
 
 beforeEach(() => {
@@ -56,14 +57,14 @@ describe('useMatchingPlayStore: загрузка', () => {
 
   it('без initial — загружает сам', async () => {
     get.mockResolvedValue(matching())
-    await store.start(TOKEN)
+    await store.start(SOURCE)
 
-    expect(get).toHaveBeenCalledWith(TOKEN)
+    expect(get).toHaveBeenCalledWith(SOURCE)
     expect(store.terms).toEqual(['собака', 'корова', 'кошка'])
   })
 
   it('невалидный токен — «не найдено» без запроса', async () => {
-    await store.start('../auth/me')
+    await store.start({ kind: 'share', token: '../auth/me' })
 
     expect(store.status).toBe('notFound')
     expect(get).not.toHaveBeenCalled()
@@ -71,18 +72,18 @@ describe('useMatchingPlayStore: загрузка', () => {
 
   it('по ссылке оказалась викторина — «не найдено»', async () => {
     get.mockResolvedValue({ type: 'quiz', quiz: { title: 'Q', showAnswers: false, timer: { mode: 'none' }, version: 'v1', introTheme: 'nataskium-night' as const, questions: [] } })
-    await store.start(TOKEN)
+    await store.start(SOURCE)
 
     expect(store.status).toBe('notFound')
   })
 
   it('404 — «не найдено», сетевая ошибка — «повторить», повтор грузит заново', async () => {
     get.mockRejectedValueOnce(new ApiError(404))
-    await store.start(TOKEN)
+    await store.start(SOURCE)
     expect(store.status).toBe('notFound')
 
     get.mockRejectedValueOnce(new Error('network'))
-    await store.start(TOKEN)
+    await store.start(SOURCE)
     expect(store.status).toBe('failed')
 
     get.mockResolvedValueOnce(matching())
@@ -213,7 +214,7 @@ describe('useMatchingPlayStore: проверка', () => {
 
     await store.check()
 
-    expect(finish).toHaveBeenCalledWith(TOKEN, { version: 'v1', answers: ['кошка', 'собака', 'корова'] })
+    expect(finish).toHaveBeenCalledWith(SOURCE, { version: 'v1', answers: ['кошка', 'собака', 'корова'] })
     expect(store.phase).toBe('result')
     expect(store.result).toEqual(RESULT)
     expect(store.review).toEqual(review)
@@ -252,7 +253,7 @@ describe('useMatchingPlayStore: проверка', () => {
 
     get.mockResolvedValue(matching())
     await store.start()
-    expect(get).toHaveBeenCalledWith(TOKEN)
+    expect(get).toHaveBeenCalledWith(SOURCE)
     expect(store.status).toBe('ready')
     expect(store.placements).toEqual([null, null, null])
   })
@@ -300,7 +301,7 @@ describe('useMatchingPlayStore: истечение времени', () => {
 
     await store.expire()
 
-    expect(finish).toHaveBeenCalledWith(TOKEN, { version: 'v1', answers: ['кошка', null, null] })
+    expect(finish).toHaveBeenCalledWith(SOURCE, { version: 'v1', answers: ['кошка', null, null] })
     expect(store.timedOut).toBe(true)
     expect(store.picked).toBeNull()
     expect(store.phase).toBe('result')

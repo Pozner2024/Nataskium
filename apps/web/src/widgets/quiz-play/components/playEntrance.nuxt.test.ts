@@ -12,6 +12,7 @@ vi.mock('@/entities/quiz', () => ({
 }))
 
 const TOKEN = 'abcdefghijklmnopqrstuv'
+const SOURCE = { kind: 'share', token: TOKEN } as const
 const mounted: { unmount: () => void }[] = []
 
 // Вылет подменён: проверяется договор вопроса с проигрывателем, а не движение
@@ -57,7 +58,7 @@ async function startQuiz() {
   })
   vi.mocked(playApi.check).mockResolvedValue({ correct: [0] })
   const store = usePlayStore()
-  await store.start(TOKEN, () => 0.99)
+  await store.start(SOURCE, () => 0.99)
   return store
 }
 

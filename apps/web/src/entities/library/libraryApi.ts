@@ -1,11 +1,10 @@
 import {
   libraryGroupsResponseSchema,
   libraryListResponseSchema,
-  libraryQuizResponseSchema,
   libraryTakeResponseSchema,
 } from '@nataskium/shared/schemas'
 import { apiRequest } from '@/shared'
-import type { LibraryGroupsResponse, LibraryListResponse, LibraryQuizResponse, LibraryTakeResponse } from './types'
+import type { LibraryGroupsResponse, LibraryListResponse, LibraryTakeResponse } from './types'
 
 // Сервер копирует картинки задания по одной, и это дольше обычного запроса: при обычных 15 с клиент показал бы
 // «нет связи», а копия на сервере всё равно появилась бы
@@ -20,16 +19,13 @@ function listQuery({ group, q, page }: LibraryListParams): string {
   return params.toString()
 }
 
-// Маршруты библиотеки /api/library/*: чтение публичное, «Взять себе» — только с токеном учителя
+// Маршруты библиотеки /api/library/*: чтение публичное, «Взять себе» — только с токеном учителя.
+// Игра задания библиотеки идёт через playApi (/api/library/play/<номер>)
 export const libraryApi = {
   list: (params: LibraryListParams): Promise<LibraryListResponse> =>
     apiRequest(`/library?${listQuery(params)}`, libraryListResponseSchema, { method: 'GET' }),
 
   groups: (): Promise<LibraryGroupsResponse> => apiRequest('/library/groups', libraryGroupsResponseSchema, { method: 'GET' }),
-
-  // Карточка без правильных ответов; адрес строится из номера, а не из текста
-  get: (number: number): Promise<LibraryQuizResponse> =>
-    apiRequest(`/library/${number}`, libraryQuizResponseSchema, { method: 'GET' }),
 
   // Копия задания учителю: 201 с id копии; тела у запроса нет
   take: (number: number, accessToken: string): Promise<LibraryTakeResponse> =>

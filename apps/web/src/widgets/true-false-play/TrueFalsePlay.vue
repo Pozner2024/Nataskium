@@ -60,6 +60,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, useTempla
 import { useI18n, useSeoMeta } from '#imports'
 import type { PlayTrueFalseResponse } from '@/entities/true-false'
 import { EntranceCard, PlayTimer, PlayTimerPortal, PLAY_TIMER_KEY, usePlayerPause, usePlayerScrollRelease, usePlayerSound } from '@/features/play-session'
+import type { PlaySource } from '@/shared'
 import AnswerButtons from './components/AnswerButtons.vue'
 import StatementCard from './components/StatementCard.vue'
 import TrueFalseResult from './components/TrueFalseResult.vue'
@@ -67,7 +68,7 @@ import { useTrueFalsePlayStore } from './store'
 import { useTrueFalsePlayTimer } from './useTrueFalsePlayTimer'
 
 // initial — ответ GET, уже полученный PlayPage; без него виджет загружает задание сам
-const props = defineProps<{ token: string; initial?: PlayTrueFalseResponse }>()
+const props = defineProps<{ source: PlaySource; initial?: PlayTrueFalseResponse }>()
 
 const { t } = useI18n()
 const store = useTrueFalsePlayStore()
@@ -153,7 +154,7 @@ function onKeydown(event: KeyboardEvent): void {
 
 onMounted(() => {
   document.addEventListener('keydown', onKeydown)
-  store.start(props.token, props.initial)
+  store.start(props.source, props.initial)
 })
 onBeforeUnmount(() => {
   document.removeEventListener('keydown', onKeydown)

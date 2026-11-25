@@ -1,35 +1,55 @@
-import { mountSuspended } from '@nuxt/test-utils/runtime'
-import type { VueWrapper } from '@vue/test-utils'
-import { afterEach, describe, expect, it } from 'vitest'
-import { clearError, showError, useError } from '#imports'
-import ErrorView from '../../app/error.vue'
+import { mockNuxtImport, mountSuspended } from '@nuxt/test-utils/runtime'
+import { flushPromises, type VueWrapper } from '@vue/test-utils'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { playApi } from '@/entities/quiz'
+import { ApiError } from '@/shared'
+import PlayPage from './PlayPage.vue'
 
-// Тот же вызов, что делает LibraryQuizPage; здесь showError настоящий, а не подмена
-const NOT_FOUND = { statusCode: 404, status: 404, statusMessage: 'Not Found' }
-const NOT_FOUND_TITLE = 'Такой страницы нет'
-const SERVER_ERROR_TITLE = 'Что-то пошло не так'
+const { showErrorMock } = vi.hoisted(() => ({ showErrorMock: vi.fn() }))
+mockNuxtImport('showError', () => showErrorMock)
 
-let wrapper: VueWrapper
+vi.mock('@/entities/quiz', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/entities/quiz')>()),
+  playApi: { get: vi.fn(), check: vi.fn(), finish: vi.fn() },
+}))
 
-afterEach(async () => {
-  wrapper.unmount()
-  await clearError()
+const NOT_FOUND_TEXT = 'Задание не найдено или удалено'
+
+let wrapper: VueWrapper | undefined
+
+async function mountLibrary(slug: string) {
+  wrapper = await mountSuspended(PlayPage, { props: { address: { kind: 'library', slug } }, route: `/library/quiz/${slug}` })
+  await flushPromises()
+  return wrapper
+}
+
+beforeEach(() => {
+  vi.resetAllMocks()
+  vi.spyOn(window.navigator, 'languages', 'get').mockReturnValue(['ru-RU'])
 })
 
-describe('app/error.vue после showError из страницы задания библиотеки', () => {
-  it('показывает «не найдено», а не текст про серверную ошибку', async () => {
-    showError(NOT_FOUND)
-    const error = useError().value!
+afterEach(() => {
+  wrapper?.unmount()
+  wrapper = undefined
+  vi.restoreAllMocks()
+})
 
-    // Что именно кладёт Nuxt в ошибку: от этого зависит, какой текст выберет ErrorPage
-    expect(error.status).toBe(404)
-    expect(error.statusCode).toBe(404)
+// Как у /play: не найденное задание библиотеки — сообщение внутри проигрывателя, а не страница 404 сайта
+describe('PlayPage: задание библиотеки не найдено', () => {
+  it('мусорный адрес: сообщение в проигрывателе, без запроса и без showError', async () => {
+    const page = await mountLibrary('abc')
 
-    wrapper = await mountSuspended(ErrorView, { props: { error } })
+    expect(playApi.get).not.toHaveBeenCalled()
+    expect(page.get('.quiz-play [role="alert"]').text()).toBe(NOT_FOUND_TEXT)
+    expect(showErrorMock).not.toHaveBeenCalled()
+  })
 
-    expect(wrapper.find('.error-page__code').text()).toBe('404')
-    expect(wrapper.find('h1').text()).toBe(NOT_FOUND_TITLE)
-    expect(wrapper.find('h1').text()).not.toBe(SERVER_ERROR_TITLE)
-    expect(wrapper.text()).toContain('ссылка устарела')
+  it('снято, скрыто или удалено (404 API): сообщение в проигрывателе, без showError', async () => {
+    vi.mocked(playApi.get).mockRejectedValue(new ApiError(404))
+    const page = await mountLibrary('12-capitals')
+
+    expect(page.get('.quiz-play [role="alert"]').text()).toBe(NOT_FOUND_TEXT)
+    expect(page.find('.intro-player__start-button').exists()).toBe(false)
+    expect(showErrorMock).not.toHaveBeenCalled()
   })
 })

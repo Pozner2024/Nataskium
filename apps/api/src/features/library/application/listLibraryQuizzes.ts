@@ -1,8 +1,8 @@
 import { LIBRARY_PAGE_SIZE, type LibraryListQuery, type LibraryListResponse } from '@nataskium/shared/schemas'
+import { toActivityThumbnail } from '../../../shared/application'
 import type { LibraryImageUrl, LibraryRepository } from '../types'
 import { libraryNotFound } from './libraryErrors'
 import { toLibrarySummary } from './toLibrarySummary'
-import { toLibraryThumbnail } from './toLibraryThumbnail'
 
 export function makeListLibraryQuizzes(deps: { library: LibraryRepository; imageUrl: LibraryImageUrl }) {
   return async function listLibraryQuizzes(query: LibraryListQuery): Promise<LibraryListResponse> {
@@ -18,7 +18,7 @@ export function makeListLibraryQuizzes(deps: { library: LibraryRepository; image
       quizzes: rows.slice(0, LIBRARY_PAGE_SIZE).map((row) => ({
         ...toLibrarySummary(row, row.questionCount),
         introTheme: row.introTheme,
-        thumbnail: toLibraryThumbnail(row, deps.imageUrl),
+        thumbnail: toActivityThumbnail(row, deps.imageUrl),
       })),
       page: query.page,
       hasNext: rows.length > LIBRARY_PAGE_SIZE,

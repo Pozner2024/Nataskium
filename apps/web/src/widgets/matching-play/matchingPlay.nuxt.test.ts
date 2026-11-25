@@ -17,6 +17,7 @@ const finish = vi.mocked(matchingPlayApi.finish)
 const get = vi.mocked(playApi.get)
 
 const TOKEN = 'abcdefghijklmnopqrstuv'
+const SOURCE = { kind: 'share', token: TOKEN } as const
 const RESULT = { percent: 50, grade: '3', correctCount: 1, partialCount: 0, totalCount: 2 }
 
 function initial(showAnswers = true) {
@@ -37,7 +38,7 @@ function initial(showAnswers = true) {
 const mounted: { unmount: () => void }[] = []
 
 async function mountPlay(response = initial()) {
-  const wrapper = await mountSuspended(MatchingPlay, { props: { token: TOKEN, initial: response }, attachTo: document.body })
+  const wrapper = await mountSuspended(MatchingPlay, { props: { source: SOURCE, initial: response }, attachTo: document.body })
   mounted.push(wrapper)
   await flushPromises()
   return wrapper
@@ -364,7 +365,7 @@ describe('MatchingPlay: итог', () => {
     await useMatchingPlayStore().expire()
     await flushPromises()
 
-    expect(finish).toHaveBeenCalledWith(TOKEN, { version: 'v1', answers: [null, null] })
+    expect(finish).toHaveBeenCalledWith(SOURCE, { version: 'v1', answers: [null, null] })
     expect(wrapper.get('.matching-result__note').text()).toBe('Время вышло: пустые пары засчитаны как неверные')
     const rows = wrapper.findAll('.review-row')
     expect(rows[0]!.classes()).toContain('review-row--empty')
@@ -379,7 +380,7 @@ describe('MatchingPlay: итог', () => {
     await wrapper.get('.matching-result__again').trigger('click')
     await flushPromises()
 
-    expect(get).toHaveBeenCalledWith(TOKEN)
+    expect(get).toHaveBeenCalledWith(SOURCE)
     expect(wrapper.find('.matching-board').exists()).toBe(true)
   })
 })

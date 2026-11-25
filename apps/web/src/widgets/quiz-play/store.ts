@@ -1,8 +1,8 @@
-import { shareTokenSchema, type QuizTimer } from '@nataskium/shared/schemas'
+import type { QuizTimer } from '@nataskium/shared/schemas'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { playApi, type PlayQuizResponse, type QuizResult } from '@/entities/quiz'
-import { ApiError } from '@/shared'
+import { ApiError, isPlaySourceValid, type PlaySource } from '@/shared'
 import { shuffle } from './shuffle'
 
 type PlayPhase = 'question' | 'feedback' | 'result'
@@ -21,7 +21,8 @@ export const ANSWER_ADVANCE_MS = 500
 // Состояние прохождения живёт только во вкладке; ответы на сервере не хранятся.
 // Правильные ответы появляются в `correct` лишь после check и только у викторины с showAnswers
 export const usePlayStore = defineStore('play', () => {
-  const token = ref('')
+  // null — адрес не разобран (мусорный slug библиотеки): «не найдено» без запроса
+  const source = ref<PlaySource | null>(null)
   const title = ref('')
   const showAnswers = ref(false)
   const version = ref('')
@@ -133,6 +134,12 @@ export const usePlayStore = defineStore('play', () => {
     }, delayMs)
   }
 
+  // Проверка и итог идут только после успешной загрузки, когда источник уже проверен в start
+  function activeSource(): PlaySource {
+    if (source.value === null) throw new ApiError(NOT_FOUND_STATUS)
+    return source.value
+  }
+
   // Сбой загрузки повторяется полным стартом (retryAction = null), остальные — тем же запросом
   function fail(error: unknown, retryWith: (() => Promise<void>) | null): void {
     if (error instanceof ApiError && error.status === NOT_FOUND_STATUS) {
@@ -192,16 +199,17 @@ export const usePlayStore = defineStore('play', () => {
 
   // initial — ответ GET, уже полученный PlayPage: первый показ без второго запроса.
   // «Пройти ещё раз», повтор и смена версии загружают задание заново (initial не передаётся)
-  async function start(newToken?: string, random: () => number = Math.random, initial?: PlayQuizResponse): Promise<void> {
-    if (newToken !== undefined) token.value = newToken
+  async function start(newSource?: PlaySource | null, random: () => number = Math.random, initial?: PlayQuizResponse): Promise<void> {
+    if (newSource !== undefined) source.value = newSource
     reset()
-    if (!shareTokenSchema.safeParse(token.value).success) {
+    const loadFrom = source.value
+    if (!isPlaySourceValid(loadFrom)) {
       status.value = 'notFound'
       return
     }
     const runEpoch = epoch
     await run(async () => {
-      const response = initial ?? (await playApi.get(token.value))
+      const response = initial ?? (await playApi.get(loadFrom))
       if (runEpoch !== epoch) return
       // Тип выбирает PlayPage. Сюда другой тип попадает только при собственном запросе стора: для викторины
       // такой ссылки нет — как отсутствующее задание
@@ -301,7 +309,7 @@ export const usePlayStore = defineStore('play', () => {
     const runEpoch = epoch
     finishing = true
     try {
-      const response = await playApi.finish(token.value, { version: version.value, answers: answers.value })
+      const response = await playApi.finish(activeSource(), { version: version.value, answers: answers.value })
       if (runEpoch !== epoch) return
       elapsedSeconds.value = elapsedAtFinish()
       result.value = response.result
@@ -332,7 +340,7 @@ export const usePlayStore = defineStore('play', () => {
     }
     const runEpoch = epoch
     await run(async () => {
-      const response = await playApi.check(token.value, { version: version.value, questionIndex: index, selected: chosen })
+      const response = await playApi.check(activeSource(), { version: version.value, questionIndex: index, selected: chosen })
       if (runEpoch !== epoch) return
       if (timedOut.value) return
       correct.value = response.correct

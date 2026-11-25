@@ -15,11 +15,23 @@ vi.mock('@/features/auth', async (importOriginal) => ({
 }))
 
 const TOKEN = 'abcdefghijklmnopqrstuv'
+const SOURCE = { kind: 'share', token: TOKEN } as const
 const TEACHER = { id: 't1', email: 'qa-anna@example.test', displayName: 'Анна', hasPassword: true, hasGoogle: false }
 const mounted: { unmount: () => void }[] = []
 
 async function mountPanel(introTheme: IntroThemeKey = 'nataskium-night') {
-  const wrapper = await mountSuspended(PlayPanel, { props: { title: 'Столицы', token: TOKEN, introTheme }, attachTo: document.body })
+  const wrapper = await mountSuspended(PlayPanel, { props: { title: 'Столицы', source: SOURCE, introTheme }, attachTo: document.body })
+  mounted.push(wrapper)
+  await flushPromises()
+  return wrapper
+}
+
+async function mountLibraryPanel(route: string) {
+  const wrapper = await mountSuspended(PlayPanel, {
+    props: { title: 'Столицы', source: { kind: 'library', number: 12 }, introTheme: 'nataskium-night' },
+    attachTo: document.body,
+    route,
+  })
   mounted.push(wrapper)
   await flushPromises()
   return wrapper
@@ -120,6 +132,30 @@ describe('PlayPanel: ссылка и создание', () => {
 
     expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/play/${TOKEN}`)
     expect(wrapper.get('.play-panel__status').text()).toBe('Ссылка скопирована')
+  })
+
+  it('библиотека: копируется адрес задания библиотеки на текущем языке, без shareToken', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    vi.spyOn(navigator, 'clipboard', 'get').mockReturnValue({ writeText } as unknown as Clipboard)
+    const wrapper = await mountLibraryPanel('/en/library/quiz/12-old')
+
+    await wrapper.findAll('.play-panel__actions button')[1]!.trigger('click')
+    await flushPromises()
+
+    expect(writeText).toHaveBeenCalledTimes(1)
+    expect(decodeURIComponent(String(writeText.mock.calls[0]?.[0]))).toBe(`${window.location.origin}/en/library/quiz/12-столицы`)
+    expect(wrapper.get('.play-panel__status').text()).toBe('Link copied')
+  })
+
+  it('библиотека на языке по умолчанию: адрес без языкового префикса', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    vi.spyOn(navigator, 'clipboard', 'get').mockReturnValue({ writeText } as unknown as Clipboard)
+    const wrapper = await mountLibraryPanel('/library/quiz/12-old')
+
+    await wrapper.findAll('.play-panel__actions button')[1]!.trigger('click')
+    await flushPromises()
+
+    expect(decodeURIComponent(String(writeText.mock.calls[0]?.[0]))).toBe(`${window.location.origin}/library/quiz/12-столицы`)
   })
 
   it('копирование не удалось — сообщение об ошибке', async () => {

@@ -41,8 +41,10 @@ import {
 } from './features/auth'
 import {
   LIBRARY_LIMITS,
+  LIBRARY_PLAY_ROUTES_BASE_PATH,
   LIBRARY_ROUTES_BASE_PATH,
-  makeGetLibraryQuiz,
+  makeFindLibraryShareToken,
+  makeLibraryPlayRouter,
   makeLibraryRepository,
   makeLibraryRouter,
   makeListLibraryGroups,
@@ -347,7 +349,7 @@ export function createApp({ env, prisma, limits, passwordHasher, emailSender, go
   app.route(
     QUIZ_ROUTES_BASE_PATH,
     makeQuizRouter({
-      listQuizzes: makeListQuizzes({ quizzes }),
+      listQuizzes: makeListQuizzes({ quizzes, imageUrl }),
       getQuiz: makeGetQuiz({ quizzes }),
       createQuiz: makeCreateQuiz(quizWriteDeps),
       updateQuiz: makeUpdateQuiz(quizWriteDeps),
@@ -409,29 +411,42 @@ export function createApp({ env, prisma, limits, passwordHasher, emailSender, go
     }),
   )
 
-  // Игра ученика: публичные маршруты по shareToken, только лимиты по IP
+  // Игра ученика: публичные маршруты по shareToken, только лимиты по IP.
+  // Те же use-cases и экземпляры лимитеров у игры из библиотеки (ADR-0019): бюджет на IP общий
   const playLimiter = (limit: { max: number; windowMs: number }) =>
     createRateLimiter({ ...limit, maxTrackedKeys: PLAY_LIMITS.maxTrackedKeys })
+  const playLimiters = {
+    get: playLimiter(PLAY_LIMITS.get),
+    check: playLimiter(PLAY_LIMITS.check),
+    finish: playLimiter(PLAY_LIMITS.finish),
+  }
+  const play = {
+    getPlayActivity: makeGetPlayActivity({ quizzes, matchings, trueFalses: trueFalse, imageUrl, shuffle: secureShuffle }),
+    checkAnswer: makeCheckAnswer({ quizzes }),
+    finishQuiz: makeFinishQuiz({ quizzes }),
+    finishMatching: makeFinishMatching({ matchings }),
+    checkTrueFalse: makeCheckTrueFalse({ trueFalses: trueFalse }),
+    finishTrueFalse: makeFinishTrueFalse({ trueFalses: trueFalse }),
+  }
   app.route(
     PLAY_ROUTES_BASE_PATH,
-    makePlayRouter({
-      getPlayActivity: makeGetPlayActivity({ quizzes, matchings, trueFalses: trueFalse, imageUrl, shuffle: secureShuffle }),
-      checkAnswer: makeCheckAnswer({ quizzes }),
-      finishQuiz: makeFinishQuiz({ quizzes }),
-      finishMatching: makeFinishMatching({ matchings }),
-      checkTrueFalse: makeCheckTrueFalse({ trueFalses: trueFalse }),
-      finishTrueFalse: makeFinishTrueFalse({ trueFalses: trueFalse }),
+    makePlayRouter({ ...play, clientIp: makeClientIpResolver(env.TRUSTED_PROXY_IPS), limiters: playLimiters }),
+  )
+
+  // Игра из библиотеки по публичному номеру: shareToken находится на сервере и клиенту не отдаётся.
+  // До роутера библиотеки, чтобы /api/library/play/* не уходил в его маршруты
+  const library = makeLibraryRepository(prisma)
+  app.route(
+    LIBRARY_PLAY_ROUTES_BASE_PATH,
+    makeLibraryPlayRouter({
+      ...play,
+      findShareToken: makeFindLibraryShareToken({ library }),
       clientIp: makeClientIpResolver(env.TRUSTED_PROXY_IPS),
-      limiters: {
-        get: playLimiter(PLAY_LIMITS.get),
-        check: playLimiter(PLAY_LIMITS.check),
-        finish: playLimiter(PLAY_LIMITS.finish),
-      },
+      limiters: playLimiters,
     }),
   )
 
   // Библиотека: чтение публичное, только лимиты по IP; «Взять себе» — под Bearer
-  const library = makeLibraryRepository(prisma)
   const libraryImageCopier: LibraryImageCopier | null =
     imageStorage === null
       ? null
@@ -448,7 +463,6 @@ export function createApp({ env, prisma, limits, passwordHasher, emailSender, go
     makeLibraryRouter({
       listLibraryGroups: makeListLibraryGroups({ library }),
       listLibraryQuizzes: makeListLibraryQuizzes({ library, imageUrl }),
-      getLibraryQuiz: makeGetLibraryQuiz({ library, imageUrl, shuffle: secureShuffle }),
       takeLibraryQuiz: makeTakeLibraryQuiz({
         library,
         countQuizzes: (teacherId) => quizzes.countByTeacher(teacherId),
@@ -463,7 +477,6 @@ export function createApp({ env, prisma, limits, passwordHasher, emailSender, go
         groups: libraryLimiter(LIBRARY_LIMITS.groups),
         list: libraryLimiter(LIBRARY_LIMITS.list),
         search: libraryLimiter(LIBRARY_LIMITS.search),
-        quiz: libraryLimiter(LIBRARY_LIMITS.quiz),
         takePerIp: libraryLimiter(LIBRARY_LIMITS.take.perIp),
         takePerTeacher: libraryLimiter(LIBRARY_LIMITS.take.perTeacher),
       },

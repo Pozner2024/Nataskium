@@ -12,6 +12,7 @@ vi.mock('@/entities/quiz', () => ({
 }))
 
 const TOKEN = 'abcdefghijklmnopqrstuv'
+const SOURCE = { kind: 'share', token: TOKEN } as const
 const START = new Date('2026-01-01T10:00:00Z').getTime()
 const SECOND = 1000
 const RESULT = { percent: 0, grade: null, correctCount: 0, partialCount: 0, totalCount: 1 }
@@ -44,7 +45,7 @@ async function startWith(timer: unknown): Promise<void> {
       questions: [{ text: 'Q', imageUrl: null, options: [{ text: 'a', imageUrl: null }, { text: 'b', imageUrl: null }], selectCount: 1 }],
     },
   } as never)
-  await store.start(TOKEN, () => 0.99)
+  await store.start(SOURCE, () => 0.99)
   await flushPromises()
 }
 
@@ -237,7 +238,7 @@ describe('useQuizTimer: интервал', () => {
       },
     } as never)
     vi.mocked(playApi.check).mockResolvedValue({ correct: [0] })
-    await store.start(TOKEN, () => 0.99)
+    await store.start(SOURCE, () => 0.99)
     await flushPromises()
   }
 

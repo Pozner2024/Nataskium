@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { matchingPlayApi } from './matchingPlayApi'
 
 const TOKEN = 'abcdefghijklmnopqrstuv'
+const SOURCE = { kind: 'share', token: TOKEN } as const
 const RESULT = { percent: 50, grade: null, correctCount: 1, partialCount: 0, totalCount: 2 }
 
 type FetchCall = { url: string; init: RequestInit }
@@ -27,7 +28,7 @@ describe('matchingPlayApi.finish', () => {
     respondWith({ result: RESULT })
     const input = { version: 'v1', answers: ['cat', null] }
 
-    const response = await matchingPlayApi.finish(TOKEN, input)
+    const response = await matchingPlayApi.finish(SOURCE, input)
 
     expect(calls[0]?.url).toBe(`/api/play/${TOKEN}/matching/finish`)
     expect(calls[0]?.init.method).toBe('POST')
@@ -40,7 +41,7 @@ describe('matchingPlayApi.finish', () => {
     const review = [{ correct: true, term: 'cat' }, { correct: false, term: 'dog' }]
     respondWith({ result: RESULT, review })
 
-    const response = await matchingPlayApi.finish(TOKEN, { version: 'v1', answers: ['cat', 'cow'] })
+    const response = await matchingPlayApi.finish(SOURCE, { version: 'v1', answers: ['cat', 'cow'] })
 
     expect(response.review).toEqual(review)
   })
@@ -48,8 +49,17 @@ describe('matchingPlayApi.finish', () => {
   it('экранирует токен в пути', async () => {
     respondWith({ result: RESULT })
 
-    await matchingPlayApi.finish('../auth', { version: 'v1', answers: [] })
+    await matchingPlayApi.finish({ kind: 'share', token: '../auth' }, { version: 'v1', answers: [] })
 
     expect(calls[0]?.url).toBe('/api/play/..%2Fauth/matching/finish')
+  })
+
+  it('библиотека: POST /api/library/play/<номер>/matching/finish', async () => {
+    respondWith({ result: RESULT })
+
+    await matchingPlayApi.finish({ kind: 'library', number: 12 }, { version: 'v1', answers: [] })
+
+    expect(calls[0]?.url).toBe('/api/library/play/12/matching/finish')
+    expect(calls[0]?.init.method).toBe('POST')
   })
 })

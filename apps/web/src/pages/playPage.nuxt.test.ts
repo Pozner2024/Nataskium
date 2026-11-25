@@ -14,6 +14,7 @@ vi.mock('@/entities/quiz', async (importOriginal) => ({
 }))
 
 const TOKEN = 'abcdefghijklmnopqrstuv'
+const SOURCE = { kind: 'share', token: TOKEN } as const
 
 const QUIZ = {
   type: 'quiz' as const,
@@ -40,7 +41,7 @@ const TRUE_FALSE = {
 let wrapper: VueWrapper
 
 async function mountPage(token = TOKEN, route = `/play/${token}`) {
-  wrapper = await mountSuspended(PlayPage, { props: { token }, route })
+  wrapper = await mountSuspended(PlayPage, { props: { address: { kind: 'share', token } }, route })
   await flushPromises()
 }
 
@@ -77,7 +78,7 @@ describe('PlayPage: диспетчер по типу задания', () => {
     await pressStart()
 
     expect(playApi.get).toHaveBeenCalledTimes(1)
-    expect(playApi.get).toHaveBeenCalledWith(TOKEN)
+    expect(playApi.get).toHaveBeenCalledWith(SOURCE)
     expect(wrapper.find('h1').text()).toBe('Столица Франции?')
     expect(wrapper.find('.play-page').exists()).toBe(false)
   })
@@ -148,7 +149,7 @@ describe('PlayPage: диспетчер по типу задания', () => {
       await mountPage()
 
       expect(navigateToMock).not.toHaveBeenCalled()
-      expect(playApi.get).toHaveBeenCalledWith(TOKEN)
+      expect(playApi.get).toHaveBeenCalledWith(SOURCE)
     } finally {
       window.history.replaceState({ ...state, back: null }, '')
     }

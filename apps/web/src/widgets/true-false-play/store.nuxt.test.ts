@@ -14,6 +14,7 @@ const check = vi.mocked(trueFalsePlayApi.check)
 const finish = vi.mocked(trueFalsePlayApi.finish)
 
 const TOKEN = 'abcdefghijklmnopqrstuv'
+const SOURCE = { kind: 'share', token: TOKEN } as const
 const RESULT = { percent: 100, grade: '5', correctCount: 3, partialCount: 0, totalCount: 3 }
 
 function trueFalse(showAnswers = true, timer: QuizTimer = { mode: 'none' }) {
@@ -26,7 +27,7 @@ function trueFalse(showAnswers = true, timer: QuizTimer = { mode: 'none' }) {
 let store: ReturnType<typeof useTrueFalsePlayStore>
 
 async function startWith(response = trueFalse()): Promise<void> {
-  await store.start(TOKEN, response)
+  await store.start(SOURCE, response)
 }
 
 // Ответ и ожидание автоперехода (хватает и для задержки без показа ответов)
@@ -60,14 +61,14 @@ describe('useTrueFalsePlayStore: загрузка', () => {
 
   it('без initial — загружает сам', async () => {
     get.mockResolvedValue(trueFalse())
-    await store.start(TOKEN)
+    await store.start(SOURCE)
 
-    expect(get).toHaveBeenCalledWith(TOKEN)
+    expect(get).toHaveBeenCalledWith(SOURCE)
     expect(store.statements).toHaveLength(3)
   })
 
   it('невалидный токен — «не найдено» без запроса', async () => {
-    await store.start('../auth/me')
+    await store.start({ kind: 'share', token: '../auth/me' })
 
     expect(store.status).toBe('notFound')
     expect(get).not.toHaveBeenCalled()
@@ -75,18 +76,18 @@ describe('useTrueFalsePlayStore: загрузка', () => {
 
   it('по ссылке оказалась викторина — «не найдено»', async () => {
     get.mockResolvedValue({ type: 'quiz', quiz: { title: 'Q', showAnswers: false, timer: { mode: 'none' }, version: 'v1', introTheme: 'nataskium-night' as const, questions: [] } })
-    await store.start(TOKEN)
+    await store.start(SOURCE)
 
     expect(store.status).toBe('notFound')
   })
 
   it('404 — «не найдено», сетевая ошибка — «повторить», повтор грузит заново', async () => {
     get.mockRejectedValueOnce(new ApiError(404))
-    await store.start(TOKEN)
+    await store.start(SOURCE)
     expect(store.status).toBe('notFound')
 
     get.mockRejectedValueOnce(new Error('network'))
-    await store.start(TOKEN)
+    await store.start(SOURCE)
     expect(store.status).toBe('failed')
 
     get.mockResolvedValue(trueFalse())
@@ -122,7 +123,7 @@ describe('useTrueFalsePlayStore: без показа ответов', () => {
     await pass(false)
 
     expect(finish).toHaveBeenCalledOnce()
-    expect(finish).toHaveBeenCalledWith(TOKEN, { version: 'v1', answers: [true, false, false] })
+    expect(finish).toHaveBeenCalledWith(SOURCE, { version: 'v1', answers: [true, false, false] })
     expect(store.phase).toBe('result')
     expect(store.result).toEqual(RESULT)
     expect(store.review).toBeNull()
@@ -147,7 +148,7 @@ describe('useTrueFalsePlayStore: с показом ответов', () => {
 
     await store.answer(true)
 
-    expect(check).toHaveBeenCalledWith(TOKEN, { version: 'v1', index: 0, answer: true })
+    expect(check).toHaveBeenCalledWith(SOURCE, { version: 'v1', index: 0, answer: true })
     expect(store.verdict).toBe(false)
     expect(store.verdicts).toEqual([false, null, null])
     expect(store.current).toBe(0)
@@ -224,7 +225,7 @@ describe('useTrueFalsePlayStore: с показом ответов', () => {
     await Promise.all([first, second])
 
     expect(check).toHaveBeenCalledTimes(1)
-    expect(check).toHaveBeenCalledWith(TOKEN, { version: 'v1', index: 0, answer: true })
+    expect(check).toHaveBeenCalledWith(SOURCE, { version: 'v1', index: 0, answer: true })
     expect(store.answers[0]).toBe(true)
   })
 
@@ -238,7 +239,7 @@ describe('useTrueFalsePlayStore: с показом ответов', () => {
     await pass(false)
 
     expect(finish).toHaveBeenCalledOnce()
-    expect(finish).toHaveBeenCalledWith(TOKEN, { version: 'v1', answers: [true, false, false] })
+    expect(finish).toHaveBeenCalledWith(SOURCE, { version: 'v1', answers: [true, false, false] })
     expect(store.phase).toBe('result')
     expect(store.review).toEqual(review)
   })
@@ -343,7 +344,7 @@ describe('useTrueFalsePlayStore: таймеры автоперехода', () =>
     await vi.advanceTimersByTimeAsync(ANSWER_FEEDBACK_MS * 2)
 
     expect(finish).toHaveBeenCalledOnce()
-    expect(finish).toHaveBeenCalledWith(TOKEN, { version: 'v1', answers: [true, null, null] })
+    expect(finish).toHaveBeenCalledWith(SOURCE, { version: 'v1', answers: [true, null, null] })
     expect(store.current).toBe(0)
   })
 
@@ -358,7 +359,7 @@ describe('useTrueFalsePlayStore: таймеры автоперехода', () =>
     await vi.advanceTimersByTimeAsync(ANSWER_FEEDBACK_MS * 2)
 
     expect(finish).toHaveBeenCalledOnce()
-    expect(finish).toHaveBeenCalledWith(TOKEN, { version: 'v1', answers: [true, true, true] })
+    expect(finish).toHaveBeenCalledWith(SOURCE, { version: 'v1', answers: [true, true, true] })
   })
 
   it('dispose() во время задержки: finish не вызывается', async () => {
@@ -422,7 +423,7 @@ describe('useTrueFalsePlayStore: ошибки', () => {
     await store.retry()
 
     expect(check).toHaveBeenCalledTimes(2)
-    expect(check).toHaveBeenLastCalledWith(TOKEN, { version: 'v1', index: 0, answer: false })
+    expect(check).toHaveBeenLastCalledWith(SOURCE, { version: 'v1', index: 0, answer: false })
     expect(store.status).toBe('ready')
     expect(store.verdict).toBe(true)
   })
@@ -438,7 +439,7 @@ describe('useTrueFalsePlayStore: ошибки', () => {
 
     await store.retry()
 
-    expect(finish).toHaveBeenLastCalledWith(TOKEN, { version: 'v1', answers: [true, false, true] })
+    expect(finish).toHaveBeenLastCalledWith(SOURCE, { version: 'v1', answers: [true, false, true] })
     expect(store.phase).toBe('result')
   })
 })
@@ -451,7 +452,7 @@ describe('useTrueFalsePlayStore: время вышло', () => {
 
     await store.expire()
 
-    expect(finish).toHaveBeenCalledWith(TOKEN, { version: 'v1', answers: [true, null, null] })
+    expect(finish).toHaveBeenCalledWith(SOURCE, { version: 'v1', answers: [true, null, null] })
     expect(store.timedOut).toBe(true)
     expect(store.phase).toBe('result')
   })
@@ -474,7 +475,7 @@ describe('useTrueFalsePlayStore: время вышло', () => {
 
     await store.expire()
 
-    expect(finish).toHaveBeenCalledWith(TOKEN, { version: 'v1', answers: [true, null, null] })
+    expect(finish).toHaveBeenCalledWith(SOURCE, { version: 'v1', answers: [true, null, null] })
   })
 
   it('expire во время check ждёт его, а finish не обгоняет check', async () => {
@@ -489,7 +490,7 @@ describe('useTrueFalsePlayStore: время вышло', () => {
     release({ correct: true })
     await Promise.all([answering, expiring])
 
-    expect(finish).toHaveBeenCalledWith(TOKEN, { version: 'v1', answers: [true, null, null] })
+    expect(finish).toHaveBeenCalledWith(SOURCE, { version: 'v1', answers: [true, null, null] })
     expect(store.phase).toBe('result')
   })
 

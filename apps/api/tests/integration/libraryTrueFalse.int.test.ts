@@ -2,8 +2,8 @@ import { randomBytes } from 'node:crypto'
 import {
   MAX_ACTIVITIES_PER_TEACHER,
   libraryListResponseSchema,
-  libraryQuizResponseSchema,
   libraryTakeResponseSchema,
+  playActivityResponseSchema,
   trueFalseResponseSchema,
 } from '@nataskium/shared/schemas'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
@@ -80,16 +80,16 @@ describe('библиотека: да/нет', () => {
     expect(quizzes.map(({ type, questionCount }) => ({ type, questionCount }))).toEqual([{ type: 'truefalse', questionCount: ITEMS.length }])
   })
 
-  it('карточка: утверждения по порядку, без ответов и служебных полей', async () => {
+  it('игра из библиотеки: утверждения по порядку, без ответов и служебных полей', async () => {
     const author = await createTeacher(prisma)
     const row = await seedTrueFalse(author.id)
 
-    const text = await (await request('GET', `/api/library/${row.publicNumber}`)).text()
-    const { quiz } = libraryQuizResponseSchema.parse(JSON.parse(text))
+    const text = await (await request('GET', `/api/library/play/${row.publicNumber}`)).text()
+    const activity = playActivityResponseSchema.parse(JSON.parse(text))
 
-    if (quiz.type !== 'truefalse') throw new Error('expected truefalse')
-    expect(quiz.statements).toEqual(ITEMS.map((item) => item.statement))
-    expect(Object.keys(quiz).sort()).toEqual(['createdAt', 'graded', 'groupSlug', 'number', 'questionCount', 'statements', 'title', 'type'])
+    if (activity.type !== 'truefalse') throw new Error('expected truefalse')
+    expect(activity.trueFalse.statements).toEqual(ITEMS.map((item) => item.statement))
+    expect(Object.keys(activity.trueFalse).sort()).toEqual(['introTheme', 'showAnswers', 'statements', 'timer', 'title', 'version'])
     for (const leak of ['answer', 'correct', 'shareToken', row.id, row.shareToken, author.id]) expect(text).not.toContain(leak)
   })
 
@@ -123,7 +123,7 @@ describe('библиотека: да/нет', () => {
     expect(await prisma.quiz.count({ where: { teacherId: taker.id, type: 'truefalse' } })).toBe(0)
   })
 
-  it('непубличное, скрытое модерацией и удалённое — карточка и «Взять себе» 404, в списке не видно', async () => {
+  it('непубличное, скрытое модерацией и удалённое — игра и «Взять себе» 404, в списке не видно', async () => {
     const author = await createTeacher(prisma)
     const taker = await createTeacher(prisma)
     const rows = [
@@ -133,7 +133,7 @@ describe('библиотека: да/нет', () => {
     ]
 
     for (const row of rows) {
-      expect((await request('GET', `/api/library/${row.publicNumber}`)).status).toBe(404)
+      expect((await request('GET', `/api/library/play/${row.publicNumber}`)).status).toBe(404)
       expect((await request('POST', `/api/library/${row.publicNumber}/take`, taker.id)).status).toBe(404)
     }
     expect(await prisma.quiz.count({ where: { teacherId: taker.id } })).toBe(0)
