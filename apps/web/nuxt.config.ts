@@ -84,6 +84,13 @@ export default defineNuxtConfig({
     head: {
       // Шаблон «Страница — Nataskium» — в useSiteTitle (src/shared/lib); здесь title для HTML-оболочки страниц /auth/**
       title: SITE_NAME,
+      // Буква «а» из логотипа с Натом; PNG — для браузеров без SVG-иконок и для экрана «Домой» на iPhone.
+      // ?v= — сменить при новой иконке: браузеры (особенно Firefox) держат иконку в своём кэше
+      link: [
+        { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg?v=3' },
+        { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/favicon-32.png?v=3' },
+        { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png?v=3' },
+      ],
     },
   },
 })
