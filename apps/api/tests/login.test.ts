@@ -220,6 +220,20 @@ describe('login: учителя удалили во время сверки па
   })
 })
 
+describe('login: пароль сменили во время сверки', () => {
+  it('в createFamily уходит сверенный хэш; createFamily → false — 401, сессии нет, неудача не засчитана', async () => {
+    const { login, refresh, limiter, hasher } = setup()
+    const createFamily = vi.spyOn(refresh.repository, 'createFamily').mockResolvedValue(false)
+
+    const error = await rejectionOf(login(input()))
+
+    expect(createFamily).toHaveBeenCalledWith(expect.anything(), expect.any(Number), hasher.hashOf(PASSWORD))
+    expect(error).toMatchObject({ status: 401 })
+    expect(refresh.rows).toEqual([])
+    expect(limiter.state.failures).toBe(0)
+  })
+})
+
 describe('login: знакомое устройство', () => {
   const deviceToken = () => deviceTrust.issue(EMAIL, PASSWORD_HASH)
 

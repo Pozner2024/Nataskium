@@ -111,3 +111,24 @@ describe('issueSession: учителя удалили до записи сесс
     expect(refresh.families).toEqual([])
   })
 })
+
+describe('issueSession: пароль сменили после сверки', () => {
+  it('со сверенным хэшем — 401, семья не создаётся', async () => {
+    const refresh = makeFakeRefreshTokens([])
+    refresh.state.passwordChanged = true
+
+    await expect(issueSession({ refreshTokens: refresh.repository, tokens, now: () => NOW }, BASE, 'stale-hash')).rejects.toMatchObject({
+      status: 401,
+    })
+    expect(refresh.families).toEqual([])
+  })
+
+  it('без хэша (вход через Google, подтверждение email) — пароль не сверяется', async () => {
+    const refresh = makeFakeRefreshTokens([])
+    refresh.state.passwordChanged = true
+
+    await issueSession({ refreshTokens: refresh.repository, tokens, now: () => NOW }, BASE)
+
+    expect(refresh.families).toHaveLength(1)
+  })
+})

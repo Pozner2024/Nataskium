@@ -49,7 +49,7 @@ export function makeLogin(deps: LoginDeps) {
     }
 
     reservation.release()
-    const session = await issueSession(deps, teacher)
+    const session = await issueSession(deps, teacher, teacher.passwordHash)
     return { ...session, deviceToken: deps.deviceTrust.issue(input.email, teacher.passwordHash) }
   }
 }

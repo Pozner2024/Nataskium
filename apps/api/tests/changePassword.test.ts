@@ -175,6 +175,14 @@ describe('changePassword: успех', () => {
     expect(refresh.families).toHaveLength(0)
   })
 
+  it('новая сессия выдаётся со сверкой нового хэша', async () => {
+    const { changePassword, hasher, refresh } = setup()
+
+    await changePassword(TEACHER_ID, input())
+
+    expect(refresh.families[0]?.verifiedPasswordHash).toBe(hasher.hashOf(NEW_PASSWORD))
+  })
+
   it('пароль сбросили, пока шла сверка, — 401, хэш из сброса не перезаписан, сессия не выдаётся', async () => {
     const { changePassword, accounts, hasher, refresh } = setup()
     const resetHash = hasher.hashOf('qa-reset-password-2040')

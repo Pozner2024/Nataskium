@@ -30,8 +30,9 @@ export function toTeacherView(teacher: TeacherAccount): TeacherView {
   }
 }
 
-// Вход, подтверждение email и позже вход через Google: новая семья refresh-токенов и access-токен
-export async function issueSession(deps: IssueSessionDeps, teacher: TeacherAccount): Promise<AuthSession> {
+// Вход, подтверждение email и вход через Google: новая семья refresh-токенов и access-токен.
+// verifiedPasswordHash — хэш, с которым сверили пароль: если его успели сменить, сессия не выдаётся
+export async function issueSession(deps: IssueSessionDeps, teacher: TeacherAccount, verifiedPasswordHash?: string): Promise<AuthSession> {
   const now = deps.now()
   const familyExpiresAt = new Date(now.getTime() + SESSION_ABSOLUTE_TTL_MS)
   const refreshTokenExpiresAt = refreshTokenExpiry(now, familyExpiresAt)
@@ -46,8 +47,9 @@ export async function issueSession(deps: IssueSessionDeps, teacher: TeacherAccou
       expiresAt: refreshTokenExpiresAt,
     },
     MAX_ACTIVE_SESSIONS,
+    verifiedPasswordHash,
   )
-  // Учителя удалили, пока шла проверка пароля или ссылки: сессии для него нет
+  // Учителя удалили или сменили пароль, пока шла проверка пароля или ссылки: сессии нет
   if (!created) throw sessionInvalid()
 
   return {

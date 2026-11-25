@@ -197,14 +197,16 @@ export function makeFakePendingRegistrations(calls: CallLog) {
 }
 
 export function makeFakeRefreshTokens(calls: CallLog) {
-  const families: { token: NewRefreshToken; maxFamilies: number }[] = []
-  // teacherGone — учителя удалили до записи: настоящий репозиторий ловит P2003 и возвращает false
-  const state = { teacherGone: false }
+  const families: { token: NewRefreshToken; maxFamilies: number; verifiedPasswordHash?: string }[] = []
+  // teacherGone — учителя удалили до записи: настоящий репозиторий ловит P2003 и возвращает false.
+  // passwordChanged — пароль сменили после сверки: при переданном verifiedPasswordHash семья не создаётся
+  const state = { teacherGone: false, passwordChanged: false }
   const repository: RefreshTokenRepository = {
-    async createFamily(token, maxFamilies) {
+    async createFamily(token, maxFamilies, verifiedPasswordHash) {
       calls.push('refreshTokens.createFamily')
       if (state.teacherGone) return false
-      families.push({ token, maxFamilies })
+      if (state.passwordChanged && verifiedPasswordHash !== undefined) return false
+      families.push({ token, maxFamilies, verifiedPasswordHash })
       return true
     },
     async findByHash() {

@@ -78,6 +78,6 @@ export function makeGoogleLink(deps: GoogleLinkDeps) {
     // Пароль введён, но если это был не владелец (пароль утёк), владелец узнает и сбросит пароль
     const { email, displayName } = result.teacher
     sendInBackground('google.linked', () => deps.emailSender.sendGoogleLinkedEmail(email, displayName, input.locale ?? DEFAULT_LOCALE))
-    return issueSession(deps, result.teacher)
+    return issueSession(deps, result.teacher, link.teacherPasswordHash ?? undefined)
   }
 }

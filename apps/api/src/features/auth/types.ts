@@ -66,8 +66,9 @@ export type RotateResult = 'rotated' | 'alreadyUsed' | 'teacherGone' | 'conflict
 
 export type RefreshTokenRepository = {
   // Новая семья при входе; самые старые семьи сверх maxFamilies удаляются в той же транзакции.
-  // false — учителя удалили между проверкой и записью; взаимоблокировка — один повтор, затем ServiceBusyError (503)
-  createFamily(token: NewRefreshToken, maxFamilies: number): Promise<boolean>
+  // false — учителя удалили между проверкой и записью или (при verifiedPasswordHash) пароль сменили после сверки;
+  // взаимоблокировка — один повтор, затем ServiceBusyError (503)
+  createFamily(token: NewRefreshToken, maxFamilies: number, verifiedPasswordHash?: string): Promise<boolean>
   findByHash(tokenHash: string): Promise<RefreshSession | null>
   // CAS: отзывает старый токен, только если он ещё не отозван, и создаёт преемника. alreadyUsed — токен уже
   // использован, teacherGone — учителя удалили между проверкой и записью, conflict — транзакцию прервал PostgreSQL

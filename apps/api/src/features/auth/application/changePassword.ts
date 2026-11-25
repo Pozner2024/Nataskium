@@ -54,7 +54,7 @@ export function makeChangePassword(deps: ChangePasswordDeps) {
     // уже завершили все сессии
     if (!changed) throw sessionInvalid()
 
-    const session = await issueSession(deps, { ...teacher, passwordHash })
+    const session = await issueSession(deps, { ...teacher, passwordHash }, passwordHash)
     const { email, displayName } = teacher
     sendInBackground('changePassword.changed', () => deps.emailSender.sendPasswordChangedEmail(email, displayName, input.locale ?? DEFAULT_LOCALE))
     return session

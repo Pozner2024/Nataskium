@@ -3,6 +3,7 @@ import { ServiceBusyError } from '../../../shared/errors'
 import { isTransactionConflict, isUniqueViolation } from '../../../shared/infrastructure'
 import type { GoogleSignInResult, TeacherRepository } from '../types'
 import { lockEmail } from './emailLock'
+import { lockTeacherSessions } from './teacherSessionLock'
 
 // Явный select: в TeacherAccount попадают только нужные auth поля, а не вся строка
 export const TEACHER_ACCOUNT_SELECT = {
@@ -78,6 +79,7 @@ export function makeTeacherRepository(prisma: PrismaClient): TeacherRepository {
     async changePassword(teacherId, verifiedPasswordHash, passwordHash) {
       try {
         return await prisma.$transaction(async (tx) => {
+          await lockTeacherSessions(tx, teacherId)
           // Токены — до строки учителя, в том же порядке, что у rotate и deleteAccount: иначе взаимоблокировка
           await tx.refreshToken.deleteMany({ where: { teacherId } })
           const { count } = await tx.teacher.updateMany({
