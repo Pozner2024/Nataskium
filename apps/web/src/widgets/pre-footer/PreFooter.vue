@@ -9,7 +9,7 @@
 
       <p class="pre-footer__description">{{ t('preFooter.description') }}</p>
 
-      <AppButton class="pre-footer__button" color="blue">{{ t('preFooter.cta') }}</AppButton>
+      <AppButton class="pre-footer__button" color="blue" :to="localePath(TEACHER_PATHS.create)">{{ t('preFooter.cta') }}</AppButton>
     </div>
 
     <div class="pre-footer__nat">
@@ -22,11 +22,12 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from '#imports'
-import { AppButton, NatBulb, TwinklingStars } from '@/shared'
+import { useI18n, useLocalePath } from '#imports'
+import { AppButton, NatBulb, TEACHER_PATHS, TwinklingStars } from '@/shared'
 import type { StarPoint } from '@/shared'
 
 const { t } = useI18n()
+const localePath = useLocalePath()
 
 const STARS_SEED = 23
 

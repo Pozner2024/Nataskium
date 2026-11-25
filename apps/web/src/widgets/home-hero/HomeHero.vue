@@ -49,16 +49,17 @@
       </li>
     </ul>
 
-    <AppButton class="home-hero__button">{{ t('home.hero.cta') }}</AppButton>
+    <AppButton class="home-hero__button" :to="localePath(TEACHER_PATHS.create)">{{ t('home.hero.cta') }}</AppButton>
     
   </section>
 </template>
 
 <script setup lang="ts">
-import { useI18n } from '#imports'
-import { AppButton, NatCards, PcbGlow } from '@/shared'
+import { useI18n, useLocalePath } from '#imports'
+import { AppButton, NatCards, PcbGlow, TEACHER_PATHS } from '@/shared'
 
 const { t } = useI18n()
+const localePath = useLocalePath()
 </script>
 
 <style scoped lang="scss">
