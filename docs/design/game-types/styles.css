@@ -1,0 +1,347 @@
+/* Макеты «Типы игр». Токены — из apps/web/src/assets/styles/global.scss.
+   .mk-* — только обвязка макета; game-type-preview — будущий компонент превью типа;
+   game-types — блок главной; game-type-page — страница типа; activity-type-picker и library-card — как в коде */
+
+:root {
+  --color-blue: #4573f4;
+  --color-blue-light: #93b0f9;
+  --color-blue-dark: #2549c5;
+  --color-green: #5ba339;
+  --color-green-dark: #46872b;
+  --color-orange: #e98d34;
+  --color-orange-dark: #c67127;
+  --color-text: #1a2140;
+  --color-text-muted: #5c6584;
+  --color-white: #ffffff;
+  --color-night: #171b3a;
+  --color-graphite: #3b404c;
+  --rgb-white: 255 255 255;
+  --rgb-blue: 69 115 244;
+  --rgb-green: 91 163 57;
+  --rgb-orange: 233 141 52;
+  --rgb-night: 23 27 58;
+  --gutter: 20px;
+  --font-display: 'Unbounded', 'Arial Black', system-ui, sans-serif;
+  --font-body: 'Onest', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+* { box-sizing: border-box; }
+button { font: inherit; }
+
+/* ---------- обвязка макета ---------- */
+
+.mk-page { margin: 0; padding: 32px; background: #eef1f8; color: var(--color-text); font-family: var(--font-body); }
+.mk-title { margin: 0 0 6px; font: 700 26px/1.2 var(--font-display); }
+.mk-lead { max-width: 900px; margin: 0 0 20px; color: var(--color-text-muted); font-size: 17px; line-height: 1.45; }
+.mk-section { margin-top: 48px; }
+.mk-section > h2 { margin: 0 0 6px; font: 700 20px/1.25 var(--font-display); }
+.mk-section > p { max-width: 900px; margin: 0 0 18px; color: var(--color-text-muted); line-height: 1.45; }
+.mk-row { display: flex; flex-wrap: wrap; gap: 36px; align-items: flex-start; }
+.mk-cell { flex: none; width: 390px; max-width: 100%; }
+.mk-cap { margin: 0 0 10px; font: 700 16px/1.3 var(--font-display); }
+.mk-note { margin: 12px 0 0; color: var(--color-text-muted); font-size: 14px; line-height: 1.45; }
+.mk-note b { color: var(--color-text); }
+.mk-text { max-width: 900px; font-size: 16px; line-height: 1.5; }
+.mk-text li + li { margin-top: 6px; }
+
+.mk-switch { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 -32px; padding: 10px 32px; background: rgb(238 241 248 / 0.94); backdrop-filter: blur(6px); }
+.mk-switch__label { margin-right: 4px; font-weight: 700; }
+.mk-switch button { min-height: 44px; padding: 0 14px; border: 2px solid rgb(var(--rgb-blue) / 0.3); border-radius: 999px; background: var(--color-white); color: var(--color-text); font-weight: 600; cursor: pointer; }
+.mk-switch button[aria-pressed='true'] { border-color: var(--color-blue-dark); background: var(--color-blue-dark); color: var(--color-white); }
+.mk-switch button:focus-visible { outline: 3px solid var(--color-text); outline-offset: 2px; }
+
+/* Сравнение вариантов стиля */
+.mk-variants { display: grid; gap: 28px; }
+.mk-variant { padding: 20px; border-radius: 22px; background: var(--color-white); }
+.mk-variant__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin: 0 0 14px; }
+.mk-variant__name { margin: 0; font: 700 17px/1.3 var(--font-display); }
+.mk-variant__rule { margin: 0; color: var(--color-text-muted); font-size: 14px; }
+.mk-variant__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 260px)); gap: 20px; }
+.mk-variant__type { display: flex; flex-direction: column; gap: 10px; margin: 0; }
+.mk-variant__type figcaption { font-size: 14px; font-weight: 600; }
+.mk-variant__small { display: flex; align-items: flex-end; gap: 12px; }
+.mk-variant__small .game-type-preview:nth-child(1) { width: 72px; }
+.mk-variant__small .game-type-preview:nth-child(2) { width: 96px; }
+.mk-variant__small .game-type-preview:nth-child(3) { width: 120px; }
+
+/* Телефон: на широком окне — рамка 390, на узком — во всю ширину окна (так проверяется 375) */
+.mk-phone {
+  width: 390px;
+  max-width: 100%;
+  overflow: hidden;
+  border-radius: 28px;
+  background: var(--color-white);
+  box-shadow: 0 12px 40px rgb(var(--rgb-night) / 0.14);
+}
+.mk-stub-header { display: flex; align-items: center; justify-content: space-between; height: 64px; padding: 0 var(--gutter); }
+.mk-stub-logo { font: 700 20px/1 var(--font-display); color: var(--color-text); }
+.mk-stub-logo span { color: var(--color-blue); }
+.mk-stub-burger { display: grid; gap: 5px; width: 28px; }
+.mk-stub-burger i { height: 3px; border-radius: 2px; background: var(--color-blue); }
+.mk-stub-burger i:nth-child(2) { background: var(--color-green); }
+.mk-stub-burger i:nth-child(3) { background: var(--color-orange); }
+.mk-stub-nat { display: grid; place-items: center; width: 150px; height: 120px; margin: -10px auto 0; border: 2px dashed rgb(var(--rgb-blue) / 0.3); border-radius: 50%; color: var(--color-text-muted); font-size: 13px; }
+
+@media (width < 500px) {
+  .mk-page { padding: 16px 0; }
+  .mk-title, .mk-lead, .mk-section > h2, .mk-section > p, .mk-cap, .mk-note, .mk-text, .mk-variant { margin-inline: 16px; }
+  .mk-switch { margin: 0; padding: 10px 16px; }
+  .mk-phone { border-radius: 0; }
+  .mk-variant__grid { grid-template-columns: 1fr; }
+}
+
+/* =========================================================
+   game-type-preview — схема типа игры
+   viewBox 160×120 (4:3), поля 12, шаг 8, скругление фигур 6.
+   Классы фигур одинаковы для всех типов; вариант стиля меняет только переменные
+   ========================================================= */
+
+.game-type-preview {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 14px;
+  background: var(--p-plate);
+}
+
+.game-type-preview svg { display: block; width: 100%; height: 100%; }
+
+.game-type-preview .p-box { fill: var(--p-box); stroke: var(--p-box-line); stroke-width: var(--p-stroke); }
+.game-type-preview .p-bar { fill: var(--p-bar); }
+.game-type-preview .p-accent { fill: var(--p-accent); stroke: var(--p-accent-line); stroke-width: var(--p-stroke); }
+.game-type-preview .p-bar--on { fill: var(--p-bar-on); }
+.game-type-preview .p-link { fill: none; stroke: var(--p-link); stroke-width: var(--p-link-width); stroke-linecap: round; }
+.game-type-preview .p-dot { fill: var(--p-link); }
+.game-type-preview .p-glyph { fill: none; stroke: var(--p-glyph); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+.game-type-preview .p-yes { fill: var(--p-yes); stroke: var(--p-yes-line); stroke-width: var(--p-stroke); }
+.game-type-preview .p-no { fill: var(--p-no); stroke: var(--p-no-line); stroke-width: var(--p-stroke); }
+.game-type-preview .p-yes-glyph { stroke: var(--p-yes-glyph); }
+.game-type-preview .p-no-glyph { stroke: var(--p-no-glyph); }
+
+/* A. Контур: белые фигуры с синей обводкой, заливки нет */
+.game-type-preview--outline {
+  --p-plate: #f2f5fe;
+  --p-box: var(--color-white);
+  --p-box-line: var(--color-blue-dark);
+  --p-stroke: 2.5;
+  --p-bar: rgb(var(--rgb-night) / 0.28);
+  --p-accent: rgb(var(--rgb-blue) / 0.16);
+  --p-accent-line: var(--color-blue-dark);
+  --p-bar-on: var(--color-blue-dark);
+  --p-link: var(--color-blue-dark);
+  --p-link-width: 2.5;
+  --p-glyph: var(--color-blue-dark);
+  --p-yes: var(--color-white);
+  --p-yes-line: var(--color-green-dark);
+  --p-yes-glyph: var(--color-green-dark);
+  --p-no: var(--color-white);
+  --p-no-line: var(--color-orange-dark);
+  --p-no-glyph: var(--color-orange-dark);
+}
+
+/* B. Блоки: белые плашки с тенью на голубой подложке, один акцент — синий */
+.game-type-preview--blocks {
+  --p-plate: linear-gradient(160deg, #e9effd 0%, #dfe8fc 100%);
+  --p-box: var(--color-white);
+  --p-box-line: transparent;
+  --p-stroke: 0;
+  --p-bar: rgb(var(--rgb-night) / 0.2);
+  --p-accent: var(--color-blue);
+  --p-accent-line: transparent;
+  --p-bar-on: rgb(var(--rgb-white) / 0.75);
+  --p-link: var(--color-blue);
+  --p-link-width: 3;
+  --p-glyph: var(--color-white);
+  --p-yes: var(--color-green-dark);
+  --p-yes-line: transparent;
+  --p-yes-glyph: var(--color-white);
+  --p-no: var(--color-orange-dark);
+  --p-no-line: transparent;
+  --p-no-glyph: var(--color-white);
+}
+
+.game-type-preview--blocks .p-box,
+.game-type-preview--blocks .p-accent,
+.game-type-preview--blocks .p-yes,
+.game-type-preview--blocks .p-no {
+  filter: drop-shadow(0 1.5px 1.5px rgb(37 73 197 / 0.18));
+}
+
+/* C. Цвет типа: подложка и акцент — свой цвет бренда у каждого типа (по кругу синий / зелёный / оранжевый) */
+.game-type-preview--duotone {
+  --p-plate: rgb(var(--p-rgb) / 0.12);
+  --p-box: var(--color-white);
+  --p-box-line: var(--p-color);
+  --p-stroke: 2;
+  --p-bar: rgb(var(--rgb-night) / 0.22);
+  --p-accent: var(--p-color);
+  --p-accent-line: var(--p-color);
+  --p-bar-on: rgb(var(--rgb-white) / 0.8);
+  --p-link: var(--p-color);
+  --p-link-width: 3;
+  --p-glyph: var(--color-white);
+  --p-yes: var(--color-green-dark);
+  --p-yes-line: var(--color-green-dark);
+  --p-yes-glyph: var(--color-white);
+  --p-no: var(--color-orange-dark);
+  --p-no-line: var(--color-orange-dark);
+  --p-no-glyph: var(--color-white);
+}
+
+.game-type-preview--duotone.game-type-preview--blue { --p-color: var(--color-blue-dark); --p-rgb: var(--rgb-blue); }
+.game-type-preview--duotone.game-type-preview--green { --p-color: var(--color-green-dark); --p-rgb: var(--rgb-green); }
+.game-type-preview--duotone.game-type-preview--orange { --p-color: var(--color-orange-dark); --p-rgb: var(--rgb-orange); }
+
+/* =========================================================
+   Секция главной «Как начать» (как в коде, новый текст шага 1)
+   ========================================================= */
+
+.pcb-zones { position: relative; isolation: isolate; }
+.pcb-zones::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: url('nataskium-pcb-pattern.svg') 0 0 / 320px auto repeat;
+  opacity: 0.18;
+  -webkit-mask-image: var(--zones);
+          mask-image: var(--zones);
+}
+
+.how-to-start {
+  --zones: radial-gradient(ellipse 68% 52% at 0% 20%, #000 0%, transparent 100%), radial-gradient(ellipse 68% 52% at 100% 85%, #000 0%, transparent 100%);
+
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 8px var(--gutter) 48px;
+}
+
+.section-title { margin: 0; font: 700 26px/1.2 var(--font-display); overflow-wrap: break-word; }
+
+.how-to-start__steps { display: flex; flex-direction: column; gap: 16px; margin: 0; padding: 0; list-style: none; counter-reset: step; }
+.how-to-start__step { display: flex; align-items: flex-start; gap: 14px; margin: 0; font-size: 16px; line-height: 1.5; counter-increment: step; }
+.how-to-start__step::before { content: counter(step); flex: none; width: 26px; color: var(--step-color); font: 700 24px/1 var(--font-display); }
+.how-to-start__step--blue { --step-color: var(--color-blue); }
+.how-to-start__step--green { --step-color: var(--color-green-dark); }
+.how-to-start__step--orange { --step-color: var(--color-orange-dark); }
+
+/* =========================================================
+   game-types — новый блок главной «Познакомьтесь с нашими играми»
+   ========================================================= */
+
+.game-types {
+  --zones: radial-gradient(ellipse 70% 40% at 100% 10%, #000 0%, transparent 100%), radial-gradient(ellipse 70% 40% at 0% 95%, #000 0%, transparent 100%);
+
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 8px var(--gutter) 48px;
+}
+
+.game-types__lead { margin: 0 0 8px; font-size: 16px; line-height: 1.5; }
+
+.game-types__list { display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; list-style: none; }
+
+/* Общая кликабельная карточка типа: главная и выбор типа у учителя */
+.type-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid rgb(var(--rgb-blue) / 0.16);
+  border-radius: 22px;
+  background: var(--color-white);
+  box-shadow: 0 8px 24px rgb(var(--rgb-night) / 0.08);
+  color: var(--color-text);
+  text-align: start;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.type-card__text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.type-card__name { margin: 0; font-size: 18px; font-weight: 700; line-height: 1.3; overflow-wrap: break-word; hyphens: auto; }
+.type-card__description { margin: 0; color: var(--color-text-muted); font-size: 14px; line-height: 1.4; }
+
+.type-card__link { color: inherit; text-decoration: none; }
+.type-card__link::after { content: ''; position: absolute; inset: 0; border-radius: inherit; }
+.type-card__link:focus-visible { outline: none; }
+.type-card:has(.type-card__link:focus-visible) { outline: 3px solid var(--color-blue-dark); outline-offset: 2px; }
+
+.type-card__arrow {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgb(var(--rgb-blue) / 0.1);
+  transition: background-color 0.2s ease;
+}
+.type-card__arrow svg { width: 20px; height: 20px; fill: none; stroke: var(--color-blue-dark); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+
+@media (hover: hover) {
+  .type-card:hover { border-color: var(--color-blue); box-shadow: 0 10px 28px rgb(var(--rgb-blue) / 0.18); }
+  .type-card:hover .type-card__arrow { background: rgb(var(--rgb-blue) / 0.2); }
+  .type-card:hover .type-card__name { text-decoration: underline; text-underline-offset: 3px; }
+}
+.type-card:active { transform: scale(0.98); }
+
+/* Выбор типа у учителя: превью меньше, карточка — кнопка */
+button.type-card { width: 100%; font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+button.type-card:focus-visible { outline: 3px solid var(--color-blue-dark); outline-offset: 2px; }
+.type-card--picker { min-height: 88px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .type-card, .type-card__arrow { transition: none; }
+  .type-card:active { transform: none; }
+}
+
+/* =========================================================
+   game-type-page — страница типа игры
+   ========================================================= */
+
+.game-type-page { display: flex; flex-direction: column; gap: 32px; padding: 8px var(--gutter) 48px; }
+.game-type-page__back { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; min-height: 44px; color: var(--color-blue-dark); font-weight: 700; text-decoration: none; }
+.game-type-page__back:hover { text-decoration: underline; }
+.game-type-page__back:focus-visible { border-radius: 6px; outline: 3px solid var(--color-blue-dark); outline-offset: 2px; }
+.game-type-page__hero { display: flex; flex-direction: column; gap: 16px; margin-top: -24px; }
+.game-type-page__hero .game-type-preview { border-radius: 22px; }
+.game-type-page__title { margin: 4px 0 0; font: 700 28px/1.2 var(--font-display); overflow-wrap: break-word; }
+.game-type-page__text { margin: 0; font-size: 16px; line-height: 1.5; }
+.game-type-page__examples { display: flex; flex-direction: column; gap: 16px; }
+.game-type-page__subtitle { margin: 0; font: 700 22px/1.25 var(--font-display); }
+.game-type-page__empty { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin: 0; padding: 20px; border: 2px dashed rgb(var(--rgb-blue) / 0.25); border-radius: 22px; }
+.game-type-page__empty b { font-size: 16px; }
+.game-type-page__empty span { color: var(--color-text-muted); font-size: 15px; line-height: 1.45; }
+
+/* =========================================================
+   library-card — карточка библиотеки (как .library-browser__card, вид «плиткой»)
+   ========================================================= */
+
+.library-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; }
+.library-card { position: relative; display: flex; flex-direction: column; gap: 12px; padding: 12px; border: 1px solid rgb(var(--rgb-blue) / 0.16); border-radius: 22px; background: var(--color-white); box-shadow: 0 8px 24px rgb(var(--rgb-night) / 0.08); }
+.library-card__info { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 0 4px 4px; }
+.library-card__title { margin: 0; font-size: 17px; font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
+.library-card__link { color: inherit; text-decoration: none; }
+.library-card__link::after { content: ''; position: absolute; inset: 0; border-radius: inherit; }
+.library-card__link:focus-visible { outline: none; }
+.library-card__link:focus-visible::after { outline: 3px solid var(--color-blue-dark); outline-offset: 2px; }
+.library-card__link:hover { text-decoration: underline; }
+.library-card__meta { margin: 0; color: var(--color-text-muted); font-size: 14px; }
+.library-card__grade { align-self: flex-start; margin: 4px 0 0; padding: 2px 10px; border-radius: 999px; background: rgb(var(--rgb-green) / 0.16); font-size: 13px; font-weight: 500; }
+.library-card__grade--none { background: rgb(var(--rgb-blue) / 0.1); color: var(--color-text-muted); }
+.library-card__take { position: relative; width: 100%; min-height: 44px; margin-top: auto; border: 0; border-radius: 14px; background: rgb(var(--rgb-orange) / 0.16); color: var(--color-text); font-weight: 700; cursor: pointer; }
+.library-card__take:hover { background: rgb(var(--rgb-orange) / 0.26); }
+.library-card__take:focus-visible { outline: 3px solid var(--color-blue-dark); outline-offset: 2px; }
+
+/* Превью задания в визуальном стиле (упрощённая копия ActivityThumbnail + IntroThemePreview) */
+.thumb { position: relative; display: grid; place-items: center; width: 100%; aspect-ratio: 4 / 3; overflow: hidden; border-radius: 10px; background: var(--t-bg); container-type: inline-size; }
+.thumb--dark { --t-bg: linear-gradient(180deg, #1a1f45 0%, var(--color-night) 55%, #12162f 100%); --t-text: rgb(255 255 255 / 0.85); --t-surface: rgb(255 255 255 / 0.12); --t-line: rgb(255 255 255 / 0.5); }
+.thumb--light { --t-bg: linear-gradient(180deg, #fff 0%, #f7f9fe 60%, #eef2fc 100%); --t-text: rgb(26 33 64 / 0.75); --t-surface: rgb(255 255 255 / 0.62); --t-line: rgb(26 33 64 / 0.55); box-shadow: inset 0 0 0 1px rgb(var(--rgb-blue) / 0.2); }
+.thumb::before { content: ''; position: absolute; inset: 0; background: url('nataskium-pcb-pattern.svg') 0 0 / 120px auto repeat; opacity: 0.4; -webkit-mask-image: radial-gradient(ellipse 70% 60% at 100% 0%, #000 0%, transparent 100%), radial-gradient(ellipse 70% 60% at 0% 100%, #000 0%, transparent 100%); mask-image: radial-gradient(ellipse 70% 60% at 100% 0%, #000 0%, transparent 100%), radial-gradient(ellipse 70% 60% at 0% 100%, #000 0%, transparent 100%); }
+.thumb__card { position: relative; display: flex; flex-direction: column; gap: 4cqw; width: 72%; height: 76%; padding: 5% 6%; border: 2px solid var(--color-blue); border-radius: 9px; color: var(--t-text); font-weight: 600; line-height: 1.25; }
+.thumb__text { display: -webkit-box; overflow: hidden; font-size: 7cqw; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.thumb__options { display: grid; flex: 1; grid-template-columns: 1fr 1fr; gap: 4cqw; }
+.thumb__options span { display: flex; align-items: center; justify-content: center; overflow: hidden; border: 1px solid var(--t-line); border-radius: 2cqw; background: var(--t-surface); font-size: 5.5cqw; white-space: nowrap; }
