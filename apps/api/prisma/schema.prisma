@@ -169,6 +169,7 @@ model Quiz {
 
   @@index([teacherId, deletedAt])
   @@index([groupSlug, createdAt(sort: Desc)])
+  @@index([type, createdAt(sort: Desc)])
   @@map("quizzes")
 }
 
