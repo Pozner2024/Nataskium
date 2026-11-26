@@ -6,13 +6,10 @@ import { trueFalseApi } from '@/entities/true-false'
 import { authorizedRequest } from '@/features/auth'
 import type { ActivitiesStatus } from './types'
 
-// Пропуски и картинки пока лежат в таблице викторин, их удаляет quizApi
 const REMOVE_APIS: Record<ActivityType, { remove: (id: string, accessToken: string) => Promise<void> }> = {
   quiz: quizApi,
   matching: matchingApi,
   truefalse: trueFalseApi,
-  gaps: quizApi,
-  pictures: quizApi,
 }
 
 // Список общий для всех типов (GET /api/quizzes), удаление — через API своего типа

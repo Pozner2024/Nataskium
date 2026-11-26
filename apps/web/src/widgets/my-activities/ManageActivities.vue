@@ -30,13 +30,10 @@ const { t } = useI18n()
 const localePath = useLocalePath()
 const { activities, status, isRemoveFailed, load, remove } = useMyActivities()
 
-// Пропуски и картинки пока открываются в редакторе викторины
 const EDIT_PATHS: Record<Activity['type'], string> = {
   quiz: TEACHER_PATHS.quizEdit,
   matching: TEACHER_PATHS.matchingEdit,
   truefalse: TEACHER_PATHS.trueFalseEdit,
-  gaps: TEACHER_PATHS.quizEdit,
-  pictures: TEACHER_PATHS.quizEdit,
 }
 
 const isDeleteOpen = ref(false)

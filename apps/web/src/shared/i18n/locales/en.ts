@@ -186,6 +186,14 @@ const messages: Messages = {
     },
     home: 'Back to home',
   },
+  gameTypes: {
+    quiz: { name: 'Quiz', description: 'A question with several answer options', about: 'The student sees a question and several answer options and picks the right one. You can add a picture to the question. Good for checking facts, terms and rules.' },
+    matching: { name: 'Matching', description: 'Match words with their definitions', about: 'Words are on the left, their definitions on the right. The student drags each word to its definition. Good for terms, foreign words, dates and events.' },
+    truefalse: { name: 'True or false', description: 'Decide whether a statement is true', about: 'The student reads a statement and decides whether it is true or false. A quick warm-up at the start of a lesson or a check of reading homework.' },
+    create: 'Create an activity',
+    examples: 'Example activities',
+    noExamples: 'There are no ready-made activities in this game yet.',
+  },
   home: {
     meta: {
       title: 'Educational games and activities with grades for teachers',
@@ -219,9 +227,13 @@ const messages: Messages = {
     },
     howToStart: {
       title: 'How to start',
-      stepFormat: 'Choose an activity format (quiz, test, matching, game and more) and a design template.',
+      stepFormat: 'Choose a game type and a visual style.',
       stepQuestions: 'Add your own questions or ask Nat to help you write them.',
       stepShare: 'Send the link to your students and let them learn with pleasure.',
+    },
+    gameTypes: {
+      title: 'Get to know our games',
+      subtitle: 'Select a game to see how it works and browse ready-made examples.',
     },
   },
   preFooter: {
@@ -462,17 +474,10 @@ const messages: Messages = {
       settings: 'Settings',
     },
     gradingScales: { ten: '10-point', five: '5-point', letter: 'A–F' },
-    activityTypes: {
-      quiz: { name: 'Quiz', description: 'A question with several answer options' },
-      matching: { name: 'Matching', description: 'Match words with their definitions' },
-      truefalse: { name: 'True or false', description: 'Decide whether a statement is true' },
-      gaps: { name: 'Fill in the gaps', description: 'Put the missing word into a sentence' },
-      pictures: { name: 'Pictures', description: 'Pick the right picture' },
-    },
     activities: {
       title: 'My activities',
       create: 'Create an activity',
-      createHint: 'Quiz, matching, true or false, gaps or pictures',
+      createHint: 'Quiz, matching or true or false',
       questions: 'Questions: {count}',
       pairs: 'Pair: {count} | Pairs: {count}',
       statements: 'Statement: {count} | Statements: {count}',

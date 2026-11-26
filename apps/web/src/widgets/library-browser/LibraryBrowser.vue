@@ -1,6 +1,6 @@
 <template>
   <div class="library-browser">
-    <form class="library-browser__search" role="search" @submit.prevent="applySearch">
+    <form v-if="!type" class="library-browser__search" role="search" @submit.prevent="applySearch">
       <label class="library-browser__search-label" for="library-search">{{ t('library.searchLabel') }}</label>
       <div class="library-browser__search-row">
         <input
@@ -28,7 +28,7 @@
     </div>
 
     <p v-else-if="quizzes.length === 0" class="library-browser__empty" role="status">
-      {{ appliedSearch === null ? t('library.empty') : t('library.nothingFound') }}
+      {{ emptyText }}
     </p>
 
     <template v-else>
@@ -40,10 +40,10 @@
             <ActivityThumbnail v-if="quiz.thumbnail" :thumbnail="quiz.thumbnail" />
           </IntroThemePreview>
           <div class="library-browser__info">
-            <h2 class="library-browser__title">
+            <component :is="type ? 'h3' : 'h2'" class="library-browser__title">
               <NuxtLink class="library-browser__link" :to="localePath(libraryQuizPath(quiz.number, quiz.title))">{{ quiz.title }}</NuxtLink>
-            </h2>
-            <p class="library-browser__type">{{ t(`teacher.activityTypes.${quiz.type}.name`) }}</p>
+            </component>
+            <p v-if="!type" class="library-browser__type">{{ t(`gameTypes.${quiz.type}.name`) }}</p>
             <p class="library-browser__meta">
               {{ groupName(quiz.groupSlug) }} · {{ countText(quiz.type, quiz.questionCount) }}
             </p>
@@ -77,7 +77,7 @@
 <script setup lang="ts">
 import { libraryQuizPath } from '@nataskium/shared/routes'
 import { type ActivityKind, LIBRARY_SEARCH_MAX_LENGTH, LIBRARY_SEARCH_MIN_LENGTH } from '@nataskium/shared/schemas'
-import { computed, onMounted, ref, toRef } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { NuxtLink } from '#components'
 import { navigateTo, useI18n, useLocalePath, useRoute } from '#imports'
 import { ActivityThumbnail } from '@/entities/activity'
@@ -90,8 +90,10 @@ import LibraryLoginDialog from './components/LibraryLoginDialog.vue'
 import { useLibraryBrowser } from './useLibraryBrowser'
 import { useLibraryView } from './useLibraryView'
 
+// Список раздела (group) или всех заданий одного типа (type): задаётся одно из двух
 const props = defineProps<{
-  group: string
+  group?: string
+  type?: ActivityKind
 }>()
 
 const { t } = useI18n()
@@ -121,8 +123,13 @@ const {
   reload,
   loadMore,
   applySearch,
-} = useLibraryBrowser(toRef(props, 'group'))
+} = useLibraryBrowser(() => props.group ?? null, props.type)
 const { view, setView } = useLibraryView()
+
+const emptyText = computed(() => {
+  if (props.type !== undefined) return t('gameTypes.noExamples')
+  return appliedSearch.value === null ? t('library.empty') : t('library.nothingFound')
+})
 
 function groupName(slug: string): string {
   return groups.value.find((item) => item.slug === slug)?.name ?? ''

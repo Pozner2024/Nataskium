@@ -14,7 +14,7 @@
         <template v-else>{{ activity.title }}</template>
       </h2>
       <p class="activity-card__meta">
-        {{ t(`teacher.activityTypes.${activity.type}.name`) }} · {{ t(countKey, { count: activity.questionCount }, activity.questionCount) }}
+        {{ t(`gameTypes.${activity.type}.name`) }} · {{ t(countKey, { count: activity.questionCount }, activity.questionCount) }}
       </p>
       <p class="activity-card__grade" :class="{ 'activity-card__grade--none': !activity.gradingScale }">
         {{ activity.gradingScale ? t('teacher.activities.grade', { scale: t(`teacher.gradingScales.${activity.gradingScale}`) }) : t('teacher.activities.noGrade') }}
@@ -48,8 +48,6 @@ const COUNT_KEYS: Record<ActivityType, string> = {
   quiz: 'teacher.activities.questions',
   matching: 'teacher.activities.pairs',
   truefalse: 'teacher.activities.statements',
-  gaps: 'teacher.activities.questions',
-  pictures: 'teacher.activities.questions',
 }
 const countKey = computed(() => COUNT_KEYS[props.activity.type])
 </script>

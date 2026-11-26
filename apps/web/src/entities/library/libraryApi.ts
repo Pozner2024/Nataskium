@@ -1,4 +1,5 @@
 import {
+  type ActivityKind,
   libraryGroupsResponseSchema,
   libraryListResponseSchema,
   libraryTakeResponseSchema,
@@ -10,12 +11,13 @@ import type { LibraryGroupsResponse, LibraryListResponse, LibraryTakeResponse } 
 // «нет связи», а копия на сервере всё равно появилась бы
 const TAKE_TIMEOUT_MS = 60_000
 
-export type LibraryListParams = { group: string | null; q: string | null; page: number }
+export type LibraryListParams = { group: string | null; q: string | null; page: number; type?: ActivityKind }
 
-function listQuery({ group, q, page }: LibraryListParams): string {
+function listQuery({ group, q, page, type }: LibraryListParams): string {
   const params = new URLSearchParams({ page: String(page) })
   if (group !== null) params.set('group', group)
   if (q !== null) params.set('q', q)
+  if (type !== undefined) params.set('type', type)
   return params.toString()
 }
 

@@ -1,11 +1,11 @@
-import { LIBRARY_SEARCH_MIN_LENGTH } from '@nataskium/shared/schemas'
-import { type Ref, ref } from 'vue'
+import { type ActivityKind, LIBRARY_SEARCH_MIN_LENGTH } from '@nataskium/shared/schemas'
+import { ref } from 'vue'
 import { type LibraryListItem, libraryApi } from '@/entities/library'
 
 export type BrowserStatus = 'loading' | 'ready' | 'error'
 
-// Список раздела библиотеки: поиск сбрасывает список, «Показать ещё» дописывает следующую страницу
-export function useLibraryBrowser(group: Ref<string>) {
+// Список раздела библиотеки или всех заданий одного типа: поиск сбрасывает список, «Показать ещё» дописывает следующую страницу
+export function useLibraryBrowser(group: () => string | null, type?: ActivityKind) {
   const search = ref('')
   const appliedSearch = ref<string | null>(null)
   const quizzes = ref<LibraryListItem[]>([])
@@ -18,12 +18,16 @@ export function useLibraryBrowser(group: Ref<string>) {
   // Ответ на устаревший запрос (поиск успели сменить) не должен затереть свежий
   let requestId = 0
 
+  function listParams(pageNumber: number): Parameters<typeof libraryApi.list>[0] {
+    return { group: group(), q: appliedSearch.value, page: pageNumber, ...(type === undefined ? {} : { type }) }
+  }
+
   async function reload(): Promise<void> {
     const id = ++requestId
     status.value = 'loading'
     isMoreFailed.value = false
     try {
-      const response = await libraryApi.list({ group: group.value, q: appliedSearch.value, page: 1 })
+      const response = await libraryApi.list(listParams(1))
       if (id !== requestId) return
       quizzes.value = response.quizzes
       page.value = response.page
@@ -40,7 +44,7 @@ export function useLibraryBrowser(group: Ref<string>) {
     isLoadingMore.value = true
     isMoreFailed.value = false
     try {
-      const response = await libraryApi.list({ group: group.value, q: appliedSearch.value, page: page.value + 1 })
+      const response = await libraryApi.list(listParams(page.value + 1))
       if (id !== requestId) return
       quizzes.value.push(...response.quizzes)
       page.value = response.page

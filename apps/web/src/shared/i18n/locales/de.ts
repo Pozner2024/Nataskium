@@ -186,6 +186,14 @@ const messages: Messages = {
     },
     home: 'Zur Startseite',
   },
+  gameTypes: {
+    quiz: { name: 'Quiz', description: 'Eine Frage mit mehreren Antwortmöglichkeiten', about: 'Der Schüler sieht eine Frage und mehrere Antwortmöglichkeiten und wählt die richtige aus. Zur Frage kann ein Bild hinzugefügt werden. Geeignet, um Fakten, Begriffe und Regeln zu prüfen.' },
+    matching: { name: 'Zuordnung', description: 'Wörter ihren Definitionen zuordnen', about: 'Links stehen die Wörter, rechts ihre Definitionen. Der Schüler zieht jedes Wort zu seiner Definition. Geeignet für Fachbegriffe, Fremdwörter, Daten und Ereignisse.' },
+    truefalse: { name: 'Richtig oder falsch', description: 'Entscheiden, ob eine Aussage stimmt', about: 'Der Schüler liest eine Aussage und entscheidet, ob sie stimmt oder nicht. Ein schneller Einstieg zu Beginn der Stunde oder eine Kontrolle der Lesehausaufgabe.' },
+    create: 'Aufgabe erstellen',
+    examples: 'Beispielaufgaben',
+    noExamples: 'Für dieses Spiel gibt es noch keine fertigen Aufgaben.',
+  },
   home: {
     meta: {
       title: 'Lernspiele und Aufgaben mit Noten für Lehrkräfte',
@@ -219,9 +227,13 @@ const messages: Messages = {
     },
     howToStart: {
       title: 'So fangen Sie an',
-      stepFormat: 'Wählen Sie ein Aufgabenformat (Quiz, Test, Zuordnung, Spiel usw.) und eine Designvorlage.',
+      stepFormat: 'Wählen Sie einen Spieltyp und einen visuellen Stil.',
       stepQuestions: 'Fügen Sie eigene Fragen hinzu oder lassen Sie sich von Nat beim Formulieren helfen.',
       stepShare: 'Schicken Sie den Link an Ihre Klasse – und viel Spaß beim Lernen!',
+    },
+    gameTypes: {
+      title: 'Lernen Sie unsere Spiele kennen',
+      subtitle: 'Wählen Sie ein Spiel: Wir zeigen, wie es funktioniert, und welche fertigen Aufgaben es dazu gibt.',
     },
   },
   preFooter: {
@@ -462,17 +474,10 @@ const messages: Messages = {
       settings: 'Einstellungen',
     },
     gradingScales: { ten: '10 Punkte', five: '5 Punkte', letter: 'A–F' },
-    activityTypes: {
-      quiz: { name: 'Quiz', description: 'Eine Frage mit mehreren Antwortmöglichkeiten' },
-      matching: { name: 'Zuordnung', description: 'Wörter ihren Definitionen zuordnen' },
-      truefalse: { name: 'Richtig oder falsch', description: 'Entscheiden, ob eine Aussage stimmt' },
-      gaps: { name: 'Lückentext', description: 'Das fehlende Wort in einen Satz einsetzen' },
-      pictures: { name: 'Bilder', description: 'Das richtige Bild auswählen' },
-    },
     activities: {
       title: 'Meine Aufgaben',
       create: 'Aufgabe erstellen',
-      createHint: 'Quiz, Zuordnung, Richtig oder falsch, Lückentext oder Bilder',
+      createHint: 'Quiz, Zuordnung oder Richtig oder falsch',
       questions: 'Fragen: {count}',
       pairs: 'Paar: {count} | Paare: {count}',
       statements: 'Aussage: {count} | Aussagen: {count}',

@@ -6,7 +6,7 @@
 <script setup lang="ts">
 import { navigateTo, useI18n, useLocalePath, useSeoMeta } from '#imports'
 import type { ActivityType } from '@/entities/activity'
-import { TEACHER_PATHS } from '@/shared'
+import { newActivityPath } from '@nataskium/shared/routes'
 import { ActivityTypePicker } from '@/widgets/activity-type-picker'
 
 const { t } = useI18n()
@@ -14,17 +14,8 @@ const localePath = useLocalePath()
 
 useSeoMeta({ title: () => t('teacher.create.title'), robots: 'noindex, nofollow' })
 
-const NEW_ACTIVITY_PATHS: Partial<Record<ActivityType, string>> = {
-  quiz: TEACHER_PATHS.quizNew,
-  matching: TEACHER_PATHS.matchingNew,
-  truefalse: TEACHER_PATHS.trueFalseNew,
-}
-
-// Пропуски и картинки появятся вместе со своими редакторами
 async function select(type: ActivityType) {
-  const path = NEW_ACTIVITY_PATHS[type]
-  if (!path) return
-  await navigateTo(localePath(path))
+  await navigateTo(localePath(newActivityPath(type)))
 }
 </script>
 

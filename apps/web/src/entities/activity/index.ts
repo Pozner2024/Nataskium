@@ -1,5 +1,7 @@
 export { default as ActivityCard } from './ActivityCard.vue'
 export { default as ActivityThumbnail } from './ActivityThumbnail.vue'
 export { default as ActivityTypeIcon } from './ActivityTypeIcon.vue'
+export { default as GameTypeCard } from './GameTypeCard.vue'
+export { default as GameTypePreview } from './GameTypePreview.vue'
 export { ACTIVITY_TYPE_ORDER } from './activityTypes'
 export type { Activity, ActivityType } from './types'

@@ -4,6 +4,7 @@
     <HowItWorks />
     <WhyUs />
     <HowToStart />
+    <GameTypes />
   </main>
 </template>
 
@@ -11,6 +12,7 @@
 import { useI18n, useSeoMeta } from '#imports'
 import { HomeHero } from '@/widgets/home-hero'
 import { HowItWorks } from '@/widgets/how-it-works'
+import { GameTypes } from '@/widgets/game-types'
 import { HowToStart } from '@/widgets/how-to-start'
 import { WhyUs } from '@/widgets/why-us'
 

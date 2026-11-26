@@ -54,6 +54,33 @@ afterEach(async () => {
   await useRouter().push('/')
 })
 
+describe('LibraryBrowser по типу', () => {
+  it('без поиска и строки типа; «Показать ещё» просит страницу 2 с тем же типом', async () => {
+    vi.spyOn(libraryApi, 'list')
+      .mockResolvedValueOnce(listBody([summary(1, 'Пары', { type: 'matching' })], true, 1))
+      .mockResolvedValueOnce(listBody([summary(2, 'Ещё пары', { type: 'matching' })], false, 2))
+    wrapper = await mountSuspended(LibraryBrowser, { props: { type: 'matching' } })
+    await flushPromises()
+
+    expect(libraryApi.list).toHaveBeenNthCalledWith(1, { group: null, q: null, page: 1, type: 'matching' })
+    expect(wrapper.find('form[role="search"]').exists()).toBe(false)
+    expect(wrapper.find('.library-browser__type').exists()).toBe(false)
+
+    await wrapper.get('.library-browser__button').trigger('click')
+    await flushPromises()
+
+    expect(libraryApi.list).toHaveBeenNthCalledWith(2, { group: null, q: null, page: 2, type: 'matching' })
+  })
+
+  it('пусто — текст про готовые задания этой игры', async () => {
+    vi.spyOn(libraryApi, 'list').mockResolvedValue(listBody([]))
+    wrapper = await mountSuspended(LibraryBrowser, { props: { type: 'quiz' } })
+    await flushPromises()
+
+    expect(wrapper.get('.library-browser__empty').text()).toBe('Готовых заданий в этой игре пока нет.')
+  })
+})
+
 describe('LibraryBrowser', () => {
   it('заголовок плитки — ссылка /library/quiz/<номер>-<slug>', async () => {
     vi.spyOn(libraryApi, 'list').mockResolvedValue(listBody([summary(12, 'World Capitals!'), summary(7, 'Fractions 2')]))

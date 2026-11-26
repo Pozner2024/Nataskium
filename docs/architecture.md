@@ -221,6 +221,27 @@ ESLint правило `no-restricted-imports` проверяет и запрещ
 - `entities/matching` — API сопоставления в кабинете и в игре
 - `entities/true-false` — API «да/нет» в кабинете (`trueFalseApi`)
 
+### Типы игр (каталог, страница типа, чек-лист)
+
+- **Каталог** (`packages/shared/schemas` и `packages/shared/routes`): `ACTIVITY_KINDS` — ключи типов (`quiz`, `matching`, `truefalse`) и порядок показа. `GAME_TYPE_SLUGS` — адрес типа: `truefalse` → `true-false`. `gameTypePath(kind)` строит `/games/<slug>`, `parseGameTypeSlug(slug)` возвращает ключ или `null`. `newActivityPath(kind)` — адрес редактора нового задания (раздел `teacherPages.ts`, его использует `TeacherCreatePage`)
+- **`entities/activity`:** `GameTypePreview` — схема игры в стиле B (макеты `docs/design/game-types/`), `GameTypeCard` — карточка типа; в режиме кнопки её использует `ActivityTypePicker` при выборе типа у учителя. `ActivityType` = `ActivityKind` из shared
+- **Страница `/games/<slug>`:** тонкий файл `app/pages/games/[slug].vue` → `src/pages/GameTypePage.vue`. Неизвестный slug отдаёт настоящий HTTP 404 (`parseGameTypeSlug` возвращает `null`)
+- **Библиотека по типу:** `LibraryBrowser` получает пропс `type`, список идёт с параметром `?type=` (`GET /api/library`, значения — из `ACTIVITY_KINDS`)
+- **Блок на главной:** `widgets/game-types` (`GameTypes.vue`) — карточки-ссылки на `/games/<slug>` для всех типов каталога, после `HowToStart`
+- **Переводы:** названия и пояснения типов — в разделе `gameTypes.<kind>` (`name`, `description`, `about`) во всех четырёх локалях; старый `teacher.activityTypes` не используется
+
+**Чек-лист: как добавить новый тип игры**
+
+1. Ключ в `ACTIVITY_KINDS` и CHECK-ограничение типа в миграции Prisma
+2. Slug в `GAME_TYPE_SLUGS`
+3. Адрес редактора в `newActivityPath` (`teacherPages.ts`)
+4. Переводы `gameTypes.<kind>` × 4 локали: `name`, `description`, `about`
+5. Рисунок в `GameTypePreview`
+6. Редактор (виджет редактора и страница кабинета)
+7. Игра (виджет игры) и её ветка в `PlayPage`
+8. Ветка в `takenEditPath` (редактор копии из библиотеки)
+9. Ветка в превью `toActivityThumbnail`
+
 ### CSS и стили
 
 Стили пишутся в `<style scoped lang="scss">` компонента, используется **BEM нотация**.
@@ -456,7 +477,7 @@ packages/shared/
   - «Да/нет» (`type: 'truefalse'`, ADR 0016): `GET /` — `statements` в порядке учителя, `showAnswers`, `timer`, `version`, правильных ответов нет нигде
   - `POST /true-false/check` — тело `{ version, index, answer }`, ответ `{ correct }`; только при `showAnswers`, иначе 404; индекс вне диапазона — 400; лимитер `check`
   - `POST /true-false/finish` — тело `{ version, answers: (boolean | null)[] }`, `null` — «не отвечено» (0 баллов); длина строго равна числу утверждений, устаревшая `version` — 409; лимитер `finish`. Ответ — `{ result }` и `review` (`{ correct, answer }[]`) только при `showAnswers`, иначе поля нет
-- **Библиотека:** список показывает задания всех типов с `type`. Отдельной карточки задания нет (`GET /api/library/:number` удалён, ADR 0019): страница `/library/quiz/<номер>-<slug>` — сама игра, «Взять себе» — кнопка на карточке списка. «Взять себе» (`POST /api/library/:number/take`) ветвится по типу и отвечает `{ quizId, type }`; у сопоставления и «да/нет» картинок нет, копируется только содержимое (у «да/нет» — вместе с ответами, в непубличную копию)
+- **Библиотека:** список показывает задания всех типов с `type`; фильтр `?type=quiz|matching|truefalse`, неизвестное значение — 400. Отдельной карточки задания нет (`GET /api/library/:number` удалён, ADR 0019): страница `/library/quiz/<номер>-<slug>` — сама игра, «Взять себе» — кнопка на карточке списка. «Взять себе» (`POST /api/library/:number/take`) ветвится по типу и отвечает `{ quizId, type }`; у сопоставления и «да/нет» картинок нет, копируется только содержимое (у «да/нет» — вместе с ответами, в непубличную копию)
 - **`/api/library/play/:number`** (публично, лимит по IP; ADR 0019): те же шесть маршрутов, тела, ответы и коды, что у `/api/play/:shareToken` (`GET /`, `POST /check`, `/finish`, `/matching/finish`, `/true-false/check`, `/true-false/finish`). На каждом запросе `findLibraryShareToken` находит `shareToken` по номеру среди опубликованных заданий (`is_public`, не удалено, не скрыто модерацией) и вызывает те же use-cases игры; `shareToken` в ответ не попадает. Невалидный номер и неопубликованное задание — тот же 404 `Quiz not found`, что у `/api/play`. Для POST порядок: лимит → тело (400) → номер (404). Публичность проверяет только резолвер: новый маршрут игры из библиотеки без него обойдёт `is_public` и модерацию. Правильные ответы через `check` и review доступны анониму по публичному номеру — принято (ADR 0019)
 
 ### Сценарий игры

@@ -1,7 +1,7 @@
 import type { GradingScaleType } from '@nataskium/shared/grading'
-import type { IntroThemeKey, LibraryThumbnail } from '@nataskium/shared/schemas'
+import type { ActivityKind, IntroThemeKey, LibraryThumbnail } from '@nataskium/shared/schemas'
 
-export type ActivityType = 'quiz' | 'matching' | 'truefalse' | 'gaps' | 'pictures'
+export type ActivityType = ActivityKind
 
 export interface Activity {
   id: string

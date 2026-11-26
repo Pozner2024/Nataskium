@@ -187,6 +187,14 @@ const messages: Messages = {
     },
     home: "Retour à l'accueil",
   },
+  gameTypes: {
+    quiz: { name: 'Quiz', description: 'Une question avec plusieurs réponses possibles', about: 'L’élève voit une question et plusieurs réponses et choisit la bonne. Une image peut être ajoutée à la question. Convient pour vérifier des faits, des termes et des règles.' },
+    matching: { name: 'Association', description: 'Associer des mots à leurs définitions', about: 'Les mots sont à gauche, leurs définitions à droite. L’élève fait glisser chaque mot vers sa définition. Convient pour les termes, les mots étrangers, les dates et les événements.' },
+    truefalse: { name: 'Vrai ou faux', description: 'Décider si une affirmation est vraie', about: 'L’élève lit une affirmation et décide si elle est vraie ou fausse. Un échauffement rapide en début de cours ou un contrôle de la lecture faite à la maison.' },
+    create: 'Créer une activité',
+    examples: 'Exemples d’activités',
+    noExamples: 'Il n’y a pas encore d’activités prêtes à l’emploi dans ce jeu.',
+  },
   home: {
     meta: {
       title: 'Jeux éducatifs et activités notées pour les enseignants',
@@ -220,9 +228,13 @@ const messages: Messages = {
     },
     howToStart: {
       title: 'Comment commencer',
-      stepFormat: "Choisissez un format d'activité (quiz, test, association, jeu, etc.) et un modèle de présentation.",
+      stepFormat: 'Choisissez un type de jeu et un style visuel.',
       stepQuestions: 'Ajoutez vos propres questions ou demandez à Nat de vous aider à les rédiger.',
       stepShare: 'Envoyez le lien à vos élèves et laissez-les apprendre avec plaisir.',
+    },
+    gameTypes: {
+      title: 'Découvrez nos jeux',
+      subtitle: 'Choisissez un jeu pour voir comment il fonctionne et découvrir des exemples d’activités prêtes à l’emploi.',
     },
   },
   preFooter: {
@@ -463,17 +475,10 @@ const messages: Messages = {
       settings: 'Paramètres',
     },
     gradingScales: { ten: '10 points', five: '5 points', letter: 'A–F' },
-    activityTypes: {
-      quiz: { name: 'Quiz', description: 'Une question avec plusieurs réponses possibles' },
-      matching: { name: 'Association', description: 'Associer des mots à leurs définitions' },
-      truefalse: { name: 'Vrai ou faux', description: 'Décider si une affirmation est vraie' },
-      gaps: { name: 'Texte à trous', description: 'Compléter une phrase avec le mot manquant' },
-      pictures: { name: 'Images', description: 'Choisir la bonne image' },
-    },
     activities: {
       title: 'Mes activités',
       create: 'Créer une activité',
-      createHint: 'Quiz, association, vrai ou faux, texte à trous ou images',
+      createHint: 'Quiz, association ou vrai ou faux',
       questions: 'Questions\u00a0: {count}',
       pairs: 'Paire\u00a0: {count} | Paires\u00a0: {count}',
       statements: 'Affirmation\u00a0: {count} | Affirmations\u00a0: {count}',
