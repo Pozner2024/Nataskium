@@ -1,14 +1,21 @@
 <template>
-  <component :is="to ? 'div' : 'button'" class="game-type-card" :type="to ? undefined : 'button'" @click="onClick">
+  <div v-if="to" class="game-type-card">
     <GameTypePreview class="game-type-card__preview" :type="type" />
     <span class="game-type-card__text">
-      <component :is="to ? 'h3' : 'span'" class="game-type-card__name">
-        <NuxtLink v-if="to" class="game-type-card__link" :to="to">{{ t(`gameTypes.${type}.name`) }}</NuxtLink>
-        <template v-else>{{ t(`gameTypes.${type}.name`) }}</template>
-      </component>
+      <h3 class="game-type-card__name">
+        <NuxtLink class="game-type-card__link" :to="to">{{ t(`gameTypes.${type}.name`) }}</NuxtLink>
+      </h3>
       <span class="game-type-card__description">{{ t(`gameTypes.${type}.description`) }}</span>
     </span>
-  </component>
+  </div>
+
+  <button v-else class="game-type-card" type="button" @click="emit('select')">
+    <GameTypePreview class="game-type-card__preview" :type="type" />
+    <span class="game-type-card__text">
+      <span class="game-type-card__name">{{ t(`gameTypes.${type}.name`) }}</span>
+      <span class="game-type-card__description">{{ t(`gameTypes.${type}.description`) }}</span>
+    </span>
+  </button>
 </template>
 
 <script setup lang="ts">
@@ -18,7 +25,7 @@ import GameTypePreview from './GameTypePreview.vue'
 import type { ActivityType } from './types'
 
 // С to — карточка-ссылка (главная): нажимается вся карточка, ссылка растянута с названия. Без to — кнопка (выбор типа у учителя)
-const props = defineProps<{
+defineProps<{
   type: ActivityType
   to?: string
 }>()
@@ -28,11 +35,6 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-
-function onClick() {
-  if (props.to) return
-  emit('select')
-}
 </script>
 
 <style scoped lang="scss">

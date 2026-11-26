@@ -5,7 +5,7 @@ import { type LibraryListItem, libraryApi } from '@/entities/library'
 export type BrowserStatus = 'loading' | 'ready' | 'error'
 
 // Список раздела библиотеки или всех заданий одного типа: поиск сбрасывает список, «Показать ещё» дописывает следующую страницу
-export function useLibraryBrowser(group: () => string | null, type?: ActivityKind) {
+export function useLibraryBrowser(group: () => string | null, type: () => ActivityKind | undefined) {
   const search = ref('')
   const appliedSearch = ref<string | null>(null)
   const quizzes = ref<LibraryListItem[]>([])
@@ -19,7 +19,8 @@ export function useLibraryBrowser(group: () => string | null, type?: ActivityKin
   let requestId = 0
 
   function listParams(pageNumber: number): Parameters<typeof libraryApi.list>[0] {
-    return { group: group(), q: appliedSearch.value, page: pageNumber, ...(type === undefined ? {} : { type }) }
+    const kind = type()
+    return { group: group(), q: appliedSearch.value, page: pageNumber, ...(kind === undefined ? {} : { type: kind }) }
   }
 
   async function reload(): Promise<void> {

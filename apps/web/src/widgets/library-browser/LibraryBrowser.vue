@@ -123,7 +123,7 @@ const {
   reload,
   loadMore,
   applySearch,
-} = useLibraryBrowser(() => props.group ?? null, props.type)
+} = useLibraryBrowser(() => props.group ?? null, () => props.type)
 const { view, setView } = useLibraryView()
 
 const emptyText = computed(() => {
