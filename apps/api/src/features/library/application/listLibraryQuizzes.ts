@@ -11,6 +11,7 @@ export function makeListLibraryQuizzes(deps: { library: LibraryRepository; image
     const rows = await deps.library.list({
       group: query.group,
       q: query.q,
+      type: query.type,
       offset: (query.page - 1) * LIBRARY_PAGE_SIZE,
       limit: LIBRARY_PAGE_SIZE + 1,
     })

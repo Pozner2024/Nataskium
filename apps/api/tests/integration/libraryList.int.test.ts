@@ -121,6 +121,21 @@ describe('GET /api/library: список', () => {
     expect(await titles('?group=exact')).toEqual(['Алгебра'])
   })
 
+  it('фильтр по типу: только этот тип из всех разделов', async () => {
+    await seed('Викторина А', { groupSlug: 'exact' })
+    await seed('Викторина Б')
+    await seed('Пары', { type: 'matching', questions: [{ term: 'пёс', definition: 'лает' }, { term: 'кот', definition: 'мяукает' }] })
+    await seed('Да или нет', { type: 'truefalse', questions: [{ statement: 'Земля круглая', answer: true }, { statement: 'Солнце холодное', answer: false }] })
+    await seed('Скрытая', { isPublic: false })
+
+    expect((await titles('?type=quiz')).sort()).toEqual(['Викторина А', 'Викторина Б'])
+    expect(await titles('?type=matching')).toEqual(['Пары'])
+  })
+
+  it('невалидный type — 400', async () => {
+    for (const query of ['?type=gaps', '?type=', '?type=QUIZ']) expect((await list(query)).status).toBe(400)
+  })
+
   it('поиск по названию без учёта регистра, в том числе кириллицы', async () => {
     await seed('Столицы Европы')
     await seed('Реки')

@@ -70,15 +70,16 @@ export function makeLibraryRepository(prisma: PrismaClient): LibraryRepository {
     // фрагменты Prisma.sql. Набор полей явный: id, teacher_id и share_token в публичный ответ не попадают.
     // Сначала страница (только id), затем количество вопросов для её строк: иначе база распаковывала бы jsonb
     // всех публичных заданий до сортировки
-    async list({ group, q, offset, limit }) {
+    async list({ group, q, type, offset, limit }) {
       // Превью: только первые элементы содержимого — для сопоставления нужно до трёх определений, остальным хватает одного
       const headPath = `$[0 to ${LIBRARY_THUMBNAIL_DEFINITIONS - 1}]`
       const byGroup = group === undefined ? Prisma.empty : Prisma.sql`AND group_slug = ${group}`
       const byTitle = q === undefined ? Prisma.empty : Prisma.sql`AND title ILIKE ${`%${escapeLike(q)}%`}`
+      const byType = type === undefined ? Prisma.empty : Prisma.sql`AND type = ${type}`
       const rows = await prisma.$queryRaw<unknown[]>`
         WITH page AS (
           SELECT id FROM quizzes
-          WHERE ${PUBLIC_SQL} ${byGroup} ${byTitle}
+          WHERE ${PUBLIC_SQL} ${byGroup} ${byTitle} ${byType}
           ORDER BY created_at DESC, id DESC
           OFFSET ${offset} LIMIT ${limit}
         )

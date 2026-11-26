@@ -29,7 +29,7 @@ export type LibraryQuizCopyRow = {
   questions: unknown
 }
 
-export type LibraryListFilter = { group?: string; q?: string; offset: number; limit: number }
+export type LibraryListFilter = { group?: string; q?: string; type?: ActivityKind; offset: number; limit: number }
 
 export type LibraryRepository = {
   // По порядку sort_order

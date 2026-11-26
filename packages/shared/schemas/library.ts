@@ -51,6 +51,7 @@ export const libraryGroupsResponseSchema = z.object({
 
 export const libraryListQuerySchema = z.object({
   group: groupSlugSchema.optional(),
+  type: activityKindSchema.optional(),
   // Без управляющих символов: NUL Postgres не примет в параметре, и вместо 400 был бы 500
   q: z
     .string()

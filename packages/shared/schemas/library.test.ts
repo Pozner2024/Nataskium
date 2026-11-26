@@ -33,6 +33,14 @@ describe('поиск библиотеки', () => {
   })
 })
 
+describe('фильтр библиотеки по типу', () => {
+  it('type принимает тип из ACTIVITY_KINDS, остальное отклоняется', () => {
+    expect(libraryListQuerySchema.parse({ type: 'truefalse' }).type).toBe('truefalse')
+    expect(libraryListQuerySchema.parse({}).type).toBeUndefined()
+    for (const type of ['gaps', '', 'QUIZ']) expect(libraryListQuerySchema.safeParse({ type }).success).toBe(false)
+  })
+})
+
 describe('превью задания в списке', () => {
   it('clipThumbnailText: короткий текст не меняется', () => {
     expect(clipThumbnailText('абв', 5)).toBe('абв')
