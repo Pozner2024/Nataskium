@@ -148,13 +148,12 @@ describe('стрелки викторины: store', () => {
     expect(store.canPrev).toBe(true)
   })
 
-  it('при просмотре прошлого выбор, отправка и «Дальше» ничего не делают', async () => {
+  it('при просмотре прошлого выбор и отправка ничего не делают', async () => {
     const store = await startQuiz(true)
     await answerFirst(store)
     store.prev()
     store.toggle(0)
     await store.submit()
-    await store.next()
     await vi.advanceTimersByTimeAsync(ANSWER_FEEDBACK_MS)
     expect(store.current).toBe(1)
     expect(store.viewing).toBe(0)

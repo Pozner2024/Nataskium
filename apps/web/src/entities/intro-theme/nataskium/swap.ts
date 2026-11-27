@@ -8,10 +8,32 @@ const ITEMS = { at: 0.1, duration: 0.3, stagger: 0.05, fromY: 16 }
 const LAND_EASE = 'back.out(1.4)'
 
 export function createNataskiumSwap(tone: IntroThemeTone, sound: IntroSound | null): QuestionSwap {
+  let runId = 0
+  let activeCleanup: (() => void) | null = null
+
+  function cancel(): void {
+    runId += 1
+    const cleanup = activeCleanup
+    activeCleanup = null
+    cleanup?.()
+  }
+
   async function enter({ card, items }: { card: HTMLElement; items: HTMLElement[] }): Promise<void> {
+    cancel()
+    const currentRun = runId
     const cleanups: Array<() => void> = []
+    let settled = false
+    const finish = () => {
+      if (settled) return
+      settled = true
+      if (activeCleanup === finish) activeCleanup = null
+      for (const cleanup of cleanups.reverse()) cleanup()
+    }
+    activeCleanup = finish
+
     try {
       const gsap = await loadGsap()
+      if (currentRun !== runId) return
       const frame = drawFrame(card, tone)
       cleanups.push(() => frame.svg.remove())
       frame.rect.style.stroke = ROUTE_COLORS[tone].core
@@ -22,6 +44,7 @@ export function createNataskiumSwap(tone: IntroThemeTone, sound: IntroSound | nu
       const pulse = { at: frame.share }
       sound?.play('swap')
       await new Promise<void>((resolve) => {
+        cleanups.push(resolve)
         context.add(() => {
           const tl = gsap.timeline({ onComplete: resolve })
           tl.to(
@@ -40,9 +63,9 @@ export function createNataskiumSwap(tone: IntroThemeTone, sound: IntroSound | nu
     } catch {
       // Без GSAP новое содержимое показывается сразу
     } finally {
-      for (const cleanup of cleanups.reverse()) cleanup()
+      finish()
     }
   }
 
-  return { enter }
+  return { enter, cancel }
 }

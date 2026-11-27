@@ -163,7 +163,7 @@ async function play(): Promise<void> {
       tl.play()
     }, root.value ?? undefined)
   } catch {
-    finish()
+    if (phase.value === 'playing') finish()
   }
   return done
 }
@@ -194,9 +194,13 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  phase.value = 'clean'
   resizeObserver?.disconnect()
   context?.revert()
+  context = null
+  timeline = null
   finishPlay?.()
+  finishPlay = null
 })
 
 defineExpose({ play, skip })

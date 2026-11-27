@@ -295,4 +295,23 @@ describe('useQuizEditorStore: исходные файлы картинок', () 
     store.setQuestionImage(0, IMAGE)
     expect(store.questionImageSource(0)).toBeNull()
   })
+
+  it('двойной клик save не создаёт дубликат, а reset во время save игнорирует поздний ответ', async () => {
+    let resolveCreate!: (value: { quiz: ReturnType<typeof Object.assign> }) => void
+    const create = vi.spyOn(quizApi, 'create').mockReturnValue(new Promise((resolve) => { resolveCreate = resolve }) as never)
+    fillTexts()
+
+    const first = store.save()
+    const second = store.save()
+    expect(await second).toBe(false)
+    expect(create).toHaveBeenCalledTimes(1)
+
+    store.reset()
+    resolveCreate({
+      quiz: { ...store.quiz, id: QUIZ_ID, shareToken: SHARE_TOKEN, questions: [] },
+    })
+    expect(await first).toBe(false)
+    expect(store.id).toBeNull()
+    expect(store.saveStatus).toBe('idle')
+  })
 })

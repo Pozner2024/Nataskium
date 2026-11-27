@@ -1,4 +1,12 @@
-import { MATCHING_ACTIVITY, type MatchingInput, matchingInputSchema, timerFromColumns, timerToColumns } from '@nataskium/shared/schemas'
+import {
+  DEFAULT_INTRO_THEME_KEY,
+  MATCHING_ACTIVITY,
+  type MatchingInput,
+  introThemeKeySchema,
+  matchingInputSchema,
+  timerFromColumns,
+  timerToColumns,
+} from '@nataskium/shared/schemas'
 import type { Prisma } from '../../../generated/prisma/client'
 import { isForeignKeyViolation, isUniqueViolation } from '../../../shared/infrastructure'
 import type { MatchingRepository, StoredMatching } from '../types'
@@ -19,6 +27,8 @@ const MATCHING_SELECT = {
 
 type MatchingRow = Prisma.QuizGetPayload<{ select: typeof MATCHING_SELECT }>
 
+const storedIntroThemeSchema = introThemeKeySchema.catch(DEFAULT_INTRO_THEME_KEY)
+
 // Пары лежат в колонке questions (ADR-0013). Строка, не прошедшая схему, — рассинхрон данных и кода: 500
 function toStoredMatching(row: MatchingRow): StoredMatching {
   const parsed = matchingInputSchema.safeParse({
@@ -27,7 +37,7 @@ function toStoredMatching(row: MatchingRow): StoredMatching {
     gradingScale: row.gradingScale,
     group: row.groupSlug,
     timer: timerFromColumns(row.timerMode, row.timeLimitSeconds),
-    introTheme: row.introTheme,
+    introTheme: storedIntroThemeSchema.parse(row.introTheme),
     pairs: row.questions,
   })
   if (!parsed.success) throw new Error(`Stored matching ${row.id} does not match the matching schema`)

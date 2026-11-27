@@ -15,7 +15,6 @@
     skip-label="Пропустить заставку"
     enter-fullscreen-label="На весь экран"
     exit-fullscreen-label="Выйти из полноэкранного режима"
-    collapse-label="Свернуть"
     scroll-down-label="Прокрутить вниз"
     unmute-label="Включить звук"
     mute-label="Выключить звук"
@@ -46,7 +45,6 @@ import { IntroTheme } from '@/entities/intro-theme'
 
 useSeoMeta({ robots: 'noindex, nofollow' })
 
-const DEFAULT_SRC = '/intro/test.mp4'
 const CARDS = ['VII', '19', 'XIII', '2', 'XX', '9']
 const BADGES = ['blue', 'green', 'orange', 'graphite']
 const LETTERS = ['А', 'Б', 'В', 'Г', 'Д', 'Е']
@@ -81,7 +79,7 @@ onMounted(() => {
 
 const videoSrc = computed(() => {
   const raw = route.query.src
-  return typeof raw === 'string' && isAllowedSrc(raw) ? raw : DEFAULT_SRC
+  return typeof raw === 'string' && isAllowedSrc(raw) ? raw : null
 })
 </script>
 

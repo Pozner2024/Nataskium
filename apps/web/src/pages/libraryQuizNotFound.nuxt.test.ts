@@ -40,7 +40,7 @@ describe('PlayPage: задание библиотеки не найдено', ()
     const page = await mountLibrary('abc')
 
     expect(playApi.get).not.toHaveBeenCalled()
-    expect(page.get('.quiz-play [role="alert"]').text()).toBe(NOT_FOUND_TEXT)
+    expect(page.get('.play-page [role="alert"]').text()).toBe(NOT_FOUND_TEXT)
     expect(showErrorMock).not.toHaveBeenCalled()
   })
 
@@ -48,7 +48,7 @@ describe('PlayPage: задание библиотеки не найдено', ()
     vi.mocked(playApi.get).mockRejectedValue(new ApiError(404))
     const page = await mountLibrary('12-capitals')
 
-    expect(page.get('.quiz-play [role="alert"]').text()).toBe(NOT_FOUND_TEXT)
+    expect(page.get('.play-page [role="alert"]').text()).toBe(NOT_FOUND_TEXT)
     expect(page.find('.intro-player__start-button').exists()).toBe(false)
     expect(showErrorMock).not.toHaveBeenCalled()
   })

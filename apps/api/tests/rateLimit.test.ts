@@ -233,9 +233,11 @@ describe('createRateLimiter: потолок ключей', () => {
     vi.setSystemTime(NOW.getTime() + WINDOW_MS - 500)
     target.hit('first-new')
 
-    // Окно уже кончилось, но пауза ещё идёт: новый ключ не отслеживается, истёкшие не удалены
+    // Окно уже кончилось, но пауза ещё идёт: fail-closed (новые ключи отклоняются, истёкшие ещё не удалены)
     vi.setSystemTime(NOW.getTime() + WINDOW_MS + 100)
-    for (let index = 0; index < MAX + 2; index++) expect(target.hit('during-pause').allowed).toBe(true)
+    for (let index = 0; index < MAX + 2; index++) {
+      expect(target.hit('during-pause')).toEqual({ allowed: false, retryAfterSeconds: 1 })
+    }
     expect(target.size()).toBe(MAX_TRACKED_KEYS)
 
     // Пауза кончилась: проход удаляет истёкшие, новый ключ снова считается
@@ -256,7 +258,7 @@ describe('createRateLimiter: потолок ключей', () => {
     expect(target.hit(`blocked-${MAX_TRACKED_KEYS - 1}`).allowed).toBe(false)
   })
 
-  it('все ключи у порога — новый ключ не отслеживается, предупреждение не чаще раза в минуту и без ключей', () => {
+  it('все ключи у порога — fail-closed (новые ключи отклоняются), предупреждение не чаще раза в минуту и без ключей', () => {
     const warnings: unknown[] = []
     vi.spyOn(console, 'warn').mockImplementation((...args: unknown[]) => {
       warnings.push(args)
@@ -264,15 +266,17 @@ describe('createRateLimiter: потолок ключей', () => {
     const target = limiter()
     for (let index = 0; index < MAX_TRACKED_KEYS; index++) hitTimes(target, `blocked-qa-${index}@example.test`, MAX)
 
-    for (let index = 0; index < MAX + 2; index++) expect(target.hit('untracked').allowed).toBe(true)
-    target.hit('another-untracked')
+    for (let index = 0; index < MAX + 2; index++) {
+      expect(target.hit('untracked')).toEqual({ allowed: false, retryAfterSeconds: 1 })
+    }
+    expect(target.reserve('another-untracked')).toEqual({ allowed: false, retryAfterSeconds: 1 })
 
     expect(target.size()).toBe(MAX_TRACKED_KEYS)
     expect(warnings).toHaveLength(1)
     expect(inspect(warnings, { depth: null })).not.toContain('@example.test')
 
     vi.setSystemTime(NOW.getTime() + MS_PER_MINUTE)
-    target.hit('later')
+    expect(target.hit('later')).toEqual({ allowed: false, retryAfterSeconds: 1 })
     expect(warnings).toHaveLength(2)
   })
 })

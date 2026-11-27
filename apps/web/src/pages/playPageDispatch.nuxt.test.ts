@@ -88,21 +88,6 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-describe('PlayPage: превью', () => {
-  it('?preview=1 на языке по умолчанию: без редиректа, задание загружается, панели превью нет', async () => {
-    vi.mocked(playApi.get).mockResolvedValue(QUIZ)
-
-    const page = await mountPage(`/play/${TOKEN}?preview=1`)
-
-    expect(navigateToMock).not.toHaveBeenCalled()
-    expect(playApi.get).toHaveBeenCalledTimes(1)
-    expect(page.find('.play-page__preview').exists()).toBe(false)
-    await pressStart(page)
-    expect(page.find('.play-page__preview').exists()).toBe(false)
-    expect(page.find('h1').text()).toBe('Столица Франции?')
-  })
-})
-
 describe('PlayPage: да/нет', () => {
   it('стартовый экран интро: подписи типа, название и подсказка «да/нет»', async () => {
     vi.mocked(playApi.get).mockResolvedValue(TRUE_FALSE)

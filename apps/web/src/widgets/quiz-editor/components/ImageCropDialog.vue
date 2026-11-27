@@ -126,9 +126,12 @@ function onPointerDown(event: PointerEvent): void {
   dragStart.value = { x: event.clientX, y: event.clientY }
 }
 
+let unmounted = false
+
 function onPointerMove(event: PointerEvent): void {
   if (!dragStart.value || !frame.value) return
   const rect = frame.value.getBoundingClientRect()
+  if (rect.width === 0 || rect.height === 0) return
   moveBy((event.clientX - dragStart.value.x) / rect.width, (event.clientY - dragStart.value.y) / rect.height)
   dragStart.value = { x: event.clientX, y: event.clientY }
 }
@@ -152,18 +155,21 @@ function onKeydown(event: KeyboardEvent): void {
 }
 
 function onOpenChange(open: boolean): void {
-  if (!open) emit('cancel')
+  if (!open && !busy.value) emit('cancel')
 }
 
 async function done(): Promise<void> {
-  if (!image.value || !crop.value) return
+  if (!image.value || !crop.value || busy.value) return
   busy.value = true
   try {
     const type = cropOutputType(props.file.type)
     const blob = await renderCrop(image.value, crop.value, type)
+    if (unmounted) return
     emit('done', new File([blob], props.file.name, { type }))
   } catch {
-    emit('failed')
+    if (!unmounted) emit('failed')
+  } finally {
+    busy.value = false
   }
 }
 
@@ -172,13 +178,17 @@ onMounted(async () => {
   element.src = sourceUrl
   try {
     await element.decode()
+    if (unmounted) return
     image.value = element
   } catch {
-    emit('failed')
+    if (!unmounted) emit('failed')
   }
 })
 
-onBeforeUnmount(() => URL.revokeObjectURL(sourceUrl))
+onBeforeUnmount(() => {
+  unmounted = true
+  URL.revokeObjectURL(sourceUrl)
+})
 </script>
 
 <style scoped lang="scss">

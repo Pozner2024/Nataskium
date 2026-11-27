@@ -5,7 +5,7 @@ const LANDSCAPE_REFERENCE_WIDTH = 1920
 const PORTRAIT_REFERENCE_WIDTH = 1080
 
 // viewBox логотипа из AppLogo.vue
-export const LOGO_VIEW = { x: 145, y: 170, width: 1880, height: 357 }
+const LOGO_VIEW = { x: 145, y: 170, width: 1880, height: 357 }
 const HEAD_CENTER_VIEW = { x: 592, y: 400 }
 const HEAD_WIDTH_VIEW = 243
 

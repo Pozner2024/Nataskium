@@ -30,7 +30,7 @@ import { PLAY_TIMER_KEY } from './usePlayTimer'
 
 const props = defineProps<{ mode: QuizTimer['mode'] }>()
 
-// Геометрия кольца — как в исходнике секундомера (docs/design/player-embed/stopwatch-source)
+// Геометрия кольца секундомера (SVG viewBox 100×100)
 const RADIUS = 45
 const LENGTH = 2 * Math.PI * RADIUS
 const MS_PER_SECOND = 1000

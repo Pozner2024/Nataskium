@@ -33,8 +33,8 @@
 <script setup lang="ts">
 import { MAX_ACTIVITIES_PER_TEACHER } from '@nataskium/shared/schemas'
 import { computed, onBeforeUnmount, ref } from 'vue'
-import { navigateTo, useI18n } from '#imports'
-import { PREVIEW_QUERY, playUrl } from '@/entities/quiz'
+import { navigateTo, useI18n, useLocalePath } from '#imports'
+import { playUrl } from '@/entities/quiz'
 import { ActivitySettings, type ActivitySettingsValue } from '@/features/activity-settings'
 import { useMatchingEditorStore } from '../store'
 
@@ -42,6 +42,7 @@ import { useMatchingEditorStore } from '../store'
 const COPY_STATUS_MS = 2500
 
 const { t } = useI18n()
+const localePath = useLocalePath()
 const store = useMatchingEditorStore()
 
 const isSaving = computed(() => store.saveStatus === 'saving')
@@ -58,9 +59,10 @@ const copyMessage = ref('')
 let resetTimer: ReturnType<typeof setTimeout> | undefined
 
 const shareUrl = computed(() => (store.shareToken ? playUrl(store.shareToken) : null))
-const previewPath = computed(() => `/play/${encodeURIComponent(store.shareToken ?? '')}?${PREVIEW_QUERY}`)
+const previewPath = computed(() => (store.shareToken === null ? '' : localePath(`/play/${encodeURIComponent(store.shareToken)}`)))
 
 async function openPreview(): Promise<void> {
+  if (previewPath.value === '') return
   await navigateTo(previewPath.value)
 }
 

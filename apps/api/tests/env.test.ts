@@ -65,6 +65,7 @@ const VALID_LOCAL = {
 }
 const DEFAULT_ENV = {
   NODE_ENV: 'production',
+  API_HOST: '127.0.0.1',
   API_PORT: 3001,
   DATABASE_URL: TEST_DATABASE_URL,
   JWT_SECRET: TEST_JWT_SECRET,
@@ -174,6 +175,7 @@ describe('parseEnv: допустимые значения', () => {
   it('посторонние переменные не попадают в результат', () => {
     expect(parseEnv({ ...VALID_LOCAL, NODE_ENV: 'test', API_PORT: '3002', SESSION_SECRET: SECRET, PATH: '/bin' })).toEqual({
       NODE_ENV: 'test',
+      API_HOST: '127.0.0.1',
       API_PORT: 3002,
       DATABASE_URL: TEST_DATABASE_URL,
       JWT_SECRET: TEST_JWT_SECRET,
@@ -195,9 +197,18 @@ describe('parseEnv: допустимые значения', () => {
   it('работает с замороженным объектом', () => {
     expect(parseEnv(Object.freeze({ ...VALID, API_PORT: '3002' })).API_PORT).toBe(3002)
   })
+
+  it.each(['127.0.0.1', '0.0.0.0', '::1', '::', 'localhost'])('API_HOST %s принимается', (host) => {
+    expect(parseEnv({ ...VALID, API_HOST: host }).API_HOST).toBe(host)
+  })
 })
 
 describe('parseEnv: отклоняемые значения', () => {
+  it.each(['', ' 127.0.0.1 ', 'example.com', 'http://127.0.0.1', SECRET])('API_HOST %j', (value) => {
+    const error = parseError({ ...VALID, API_HOST: value })
+    expect(error.message).toBe('Invalid environment variables:\n  API_HOST: must be an IP address or localhost')
+    expect(error.message).not.toContain(SECRET)
+  })
   it.each(['0', '65536', '', ' 3002 ', '3002\n', '1e3', '0x10', '-1', '+1', '3002.5', '٣٠٠٢', SECRET])(
     'API_PORT %j',
     (value) => {

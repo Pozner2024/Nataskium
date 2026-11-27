@@ -161,6 +161,7 @@ export const useTrueFalseEditorStore = defineStore('true-false-editor', () => {
 
   // true — сохранено. Ошибки показываются у полей
   async function save(): Promise<boolean> {
+    if (saveStatus.value === 'saving') return false
     const parsed = trueFalseInputSchema.safeParse(trueFalse.value)
     const missingAnswers = missingAnswerErrors(trueFalse.value.items)
     if (!parsed.success || Object.keys(missingAnswers).length > 0) {
@@ -170,12 +171,14 @@ export const useTrueFalseEditorStore = defineStore('true-false-editor', () => {
     }
     fieldErrors.value = {}
     saveStatus.value = 'saving'
+    const startedEpoch = epoch
     const input = cloneTrueFalse(parsed.data)
     try {
       const currentId = id.value
       const response = await authorizedRequest((accessToken) =>
         currentId === null ? trueFalseApi.create(input, accessToken) : trueFalseApi.update(currentId, input, accessToken),
       )
+      if (startedEpoch !== epoch) return false
       id.value = response.trueFalse.id
       shareToken.value = response.trueFalse.shareToken
       savedSnapshot.value = JSON.stringify(input)
@@ -183,6 +186,7 @@ export const useTrueFalseEditorStore = defineStore('true-false-editor', () => {
       saveStatus.value = 'saved'
       return true
     } catch (error) {
+      if (startedEpoch !== epoch) return false
       handleSaveError(error)
       return false
     }

@@ -130,6 +130,7 @@ const ACCEPTED_STATUS = 202
 const NO_CONTENT_STATUS = 204
 const FORBIDDEN_STATUS = 403
 const UNAUTHORIZED_STATUS = 401
+const CONFLICT_STATUS = 409
 const MS_PER_SECOND = 1000
 const IP_EMAIL_KEY_SEPARATOR = '|'
 
@@ -450,8 +451,18 @@ export function makeAuthRouter(deps: AuthRouterDeps) {
     // Лимит неудач по email — внутри use-case (email учителя берётся из записи привязки)
     router.post('/google/link', deps.limiters.googleLinkPerIp.middleware(byIp), async (c) => {
       const input = await readJsonBody(c, googleLinkSchema)
-      const session = await google.link(input, getCookie(c, GOOGLE_LINK_COOKIE_NAME, REFRESH_COOKIE_PREFIX))
-      // Привязка завершена: секрет больше не нужен. При ошибке cookie остаётся — пароль можно ввести снова
+      let session: AuthSession
+      try {
+        session = await google.link(input, getCookie(c, GOOGLE_LINK_COOKIE_NAME, REFRESH_COOKIE_PREFIX))
+      } catch (error) {
+        // 401 (привязка прошла, но сессию не выдать — например, сменили пароль) или 409 (конфликт):
+        // одноразовая ссылка уже погашена — cookie больше не нужна. При 400 (неверный пароль) cookie остаётся
+        if (error instanceof AppError && (error.status === UNAUTHORIZED_STATUS || error.status === CONFLICT_STATUS)) {
+          deleteCookie(c, GOOGLE_LINK_COOKIE_NAME, GOOGLE_LINK_COOKIE_OPTIONS)
+        }
+        throw error
+      }
+      // Привязка завершена: секрет больше не нужен
       deleteCookie(c, GOOGLE_LINK_COOKIE_NAME, GOOGLE_LINK_COOKIE_OPTIONS)
       setRefreshCookie(c, session)
       return c.json(sessionBody(session))

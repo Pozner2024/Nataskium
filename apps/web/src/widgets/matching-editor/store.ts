@@ -141,6 +141,7 @@ export const useMatchingEditorStore = defineStore('matching-editor', () => {
 
   // true — сохранено. Ошибки показываются у полей
   async function save(): Promise<boolean> {
+    if (saveStatus.value === 'saving') return false
     const parsed = matchingInputSchema.safeParse(matching.value)
     if (!parsed.success) {
       showFieldErrors(issuesToFieldErrors(parsed.error.issues))
@@ -148,12 +149,14 @@ export const useMatchingEditorStore = defineStore('matching-editor', () => {
     }
     fieldErrors.value = {}
     saveStatus.value = 'saving'
+    const startedEpoch = epoch
     const input = cloneMatching(parsed.data)
     try {
       const currentId = id.value
       const response = await authorizedRequest((accessToken) =>
         currentId === null ? matchingApi.create(input, accessToken) : matchingApi.update(currentId, input, accessToken),
       )
+      if (startedEpoch !== epoch) return false
       id.value = response.matching.id
       shareToken.value = response.matching.shareToken
       savedSnapshot.value = JSON.stringify(input)
@@ -161,6 +164,7 @@ export const useMatchingEditorStore = defineStore('matching-editor', () => {
       saveStatus.value = 'saved'
       return true
     } catch (error) {
+      if (startedEpoch !== epoch) return false
       handleSaveError(error)
       return false
     }

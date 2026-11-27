@@ -56,14 +56,22 @@ export function makePendingGoogleLinkRepository(prisma: PrismaClient): PendingGo
           })
           if (count !== 1) return { status: 'invalid' }
 
-          // Только если Google у учителя ещё не привязан: иначе между проверкой и подтверждением привязали другой
+          // Только если Google у учителя ещё не привязан и пароль не сменили с момента проверки:
+          // иначе между проверкой и подтверждением привязали другой Google или сменили пароль
           const updated = await tx.teacher.updateMany({
-            where: { id: link.teacherId, googleId: null },
+            where: {
+              id: link.teacherId,
+              googleId: null,
+              ...(link.teacherPasswordHash !== null ? { passwordHash: link.teacherPasswordHash } : {}),
+            },
             data: { googleId: link.googleId },
           })
           const teacher = await tx.teacher.findUnique({ where: { id: link.teacherId }, select: TEACHER_ACCOUNT_SELECT })
           if (teacher === null) return { status: 'invalid' }
-          if (updated.count !== 1 && teacher.googleId !== link.googleId) return { status: 'conflict' }
+          if (updated.count !== 1) {
+            if (link.teacherPasswordHash !== null && teacher.passwordHash !== link.teacherPasswordHash) return { status: 'invalid' }
+            if (teacher.googleId !== link.googleId) return { status: 'conflict' }
+          }
           return { status: 'linked', teacher }
         })
       } catch (error) {

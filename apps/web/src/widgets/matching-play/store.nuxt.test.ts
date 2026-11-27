@@ -289,6 +289,19 @@ describe('useMatchingPlayStore: проверка', () => {
     expect(store.review).toBeNull()
     expect(store.pool).toEqual([0, 1, 2])
   })
+
+  it('dispose во время запроса сбрасывает busy в false', () => {
+    finish.mockReturnValue(new Promise(() => {}))
+    store.place(2, 0)
+    store.place(0, 1)
+    store.place(1, 2)
+    void store.check()
+    expect(store.busy).toBe(true)
+
+    store.dispose()
+    expect(store.busy).toBe(false)
+    expect(store.status).toBe('loading')
+  })
 })
 
 describe('useMatchingPlayStore: истечение времени', () => {

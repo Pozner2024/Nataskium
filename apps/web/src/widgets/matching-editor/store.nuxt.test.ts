@@ -185,4 +185,22 @@ describe('useMatchingEditorStore: загрузка и сброс', () => {
     expect(store.id).toBeNull()
     expect(store.matching.title).toBe('')
   })
+
+  it('двойной клик save не создаёт дубликат, а reset во время save игнорирует поздний ответ', async () => {
+    fillValid()
+    const input = JSON.parse(JSON.stringify(store.matching)) as MatchingInput
+    let resolveCreate!: (value: ReturnType<typeof respond>) => void
+    const create = vi.spyOn(matchingApi, 'create').mockReturnValue(new Promise((resolve) => { resolveCreate = resolve }))
+
+    const first = store.save()
+    const second = store.save()
+    expect(await second).toBe(false)
+    expect(create).toHaveBeenCalledTimes(1)
+
+    store.reset()
+    resolveCreate(respond(input))
+    expect(await first).toBe(false)
+    expect(store.id).toBeNull()
+    expect(store.saveStatus).toBe('idle')
+  })
 })

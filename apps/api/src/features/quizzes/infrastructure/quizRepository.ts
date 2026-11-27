@@ -29,7 +29,10 @@ const QUIZ_SELECT = {
 
 type QuizRow = Prisma.QuizGetPayload<{ select: typeof QUIZ_SELECT }>
 
-// Строка, не прошедшая схему, — рассинхрон данных и кода: внутренняя ошибка (500), а не ошибка клиента
+const storedIntroThemeSchema = introThemeKeySchema.catch(DEFAULT_INTRO_THEME_KEY)
+
+// Строка, не прошедшая схему, — рассинхрон данных и кода: внутренняя ошибка (500), а не ошибка клиента.
+// Стиль убрали из каталога — стиль по умолчанию, как в списках: старое задание не падает 500
 function toStoredQuiz(row: QuizRow): StoredQuiz {
   const parsed = quizInputSchema.safeParse({
     title: row.title,
@@ -37,7 +40,7 @@ function toStoredQuiz(row: QuizRow): StoredQuiz {
     gradingScale: row.gradingScale,
     group: row.groupSlug,
     timer: timerFromColumns(row.timerMode, row.timeLimitSeconds),
-    introTheme: row.introTheme,
+    introTheme: storedIntroThemeSchema.parse(row.introTheme),
     questions: row.questions,
   })
   if (!parsed.success) throw new Error(`Stored quiz ${row.id} does not match the quiz schema`)

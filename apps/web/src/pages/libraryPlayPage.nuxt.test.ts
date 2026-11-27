@@ -111,13 +111,15 @@ describe('PlayPage: задание библиотеки', () => {
   })
 
   it('500: «повторить», повтор загружает задание по тому же номеру', async () => {
-    vi.mocked(playApi.get).mockRejectedValue(new ApiError(500))
+    vi.mocked(playApi.get).mockRejectedValueOnce(new ApiError(500))
     const page = await mountLibrary()
-    expect(page.find('.quiz-play__button').exists()).toBe(true)
+    expect(playApi.get).toHaveBeenCalledTimes(1)
+    expect(page.find('.play-page__button').exists()).toBe(true)
 
-    vi.mocked(playApi.get).mockResolvedValue(QUIZ)
-    await page.get('.quiz-play__button').trigger('click')
+    vi.mocked(playApi.get).mockResolvedValueOnce(QUIZ)
+    await page.get('.play-page__button').trigger('click')
     await flushPromises()
+    await pressStart(page)
 
     expect(playApi.get).toHaveBeenLastCalledWith(LIBRARY_SOURCE)
     expect(page.find('h1').text()).toBe('Столица Франции?')

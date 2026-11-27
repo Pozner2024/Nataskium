@@ -26,6 +26,7 @@ export function useLibraryBrowser(group: () => string | null, type: () => Activi
   async function reload(): Promise<void> {
     const id = ++requestId
     status.value = 'loading'
+    isLoadingMore.value = false
     isMoreFailed.value = false
     try {
       const response = await libraryApi.list(listParams(1))
@@ -53,7 +54,7 @@ export function useLibraryBrowser(group: () => string | null, type: () => Activi
     } catch {
       if (id === requestId) isMoreFailed.value = true
     } finally {
-      isLoadingMore.value = false
+      if (id === requestId) isLoadingMore.value = false
     }
   }
 

@@ -24,7 +24,7 @@ Review everything that would go into the commit:
 
 1. `git status --short`, then `git diff HEAD` — tracked changes, staged and unstaged
 2. Read untracked files in full, `git diff` does not show them
-3. Run `npm run lint`, `npm run typecheck`, `npm test` and `npm audit`, and quote the actual results. A check that ran nothing or could not run is reported as such, not as passed
+3. Run `npm audit`, plus `npm run lint`, `npm run typecheck`, and `npm test` — quote the actual results. If `tester` already ran tests in this session and no code changed afterward, you may skip re-running `npm test` and cite `tester`'s report explicitly (still run `npm audit` if not reported). A check that ran nothing or could not run is reported as such, not as passed
 
 The working tree may hold unrelated changes. If you were given a list of files, review those and name the rest as out of scope.
 
@@ -80,9 +80,10 @@ The working tree may hold unrelated changes. If you were given a list of files, 
 - Motion respects `prefers-reduced-motion`; interactive elements keep a visible focus
 
 ### 7. Tests
-- New logic has corresponding tests that actually ran
+- New business logic and security boundaries (auth, ownership, grading thresholds, no answer leaks, input validation) have corresponding tests that actually ran
 - Grading changes covered by boundary tests (exact threshold percents)
 - No existing passing tests modified without explicit reason
+- Do not demand tests for pure styling, copy/translations, trivial wrappers, or library internals; flag overly brittle pixel/layout tests as `low`
 
 ## Severity Levels
 

@@ -202,6 +202,7 @@ ESLint правило `no-restricted-imports` проверяет и запрещ
 - `matching-editor/` — состояние редактора сопоставления (пары, настройки)
 - `matching-play/` — прогресс ученика в сопоставлении (какое слово поставлено на какое определение)
 - `true-false-editor/` — состояние редактора «да/нет» (утверждения, настройки)
+- `true-false-play/` — прогресс ученика в «да/нет» (текущее утверждение, ответы)
 
 **Store опционален в:**
 
@@ -210,21 +211,21 @@ ESLint правило `no-restricted-imports` проверяет и запрещ
 
 ### Слайсы заданий (викторина, сопоставление и «да/нет»)
 
-- `pages/PlayPage` — диспетчер игры: выбирает язык по браузеру (`usePlayLocaleRedirect`), затем делает **один** `playApi.get(token)` и по `type` показывает `QuizPlay` (данные передаются в `store.start(…, initial)`, второго запроса нет) или игру сопоставления (игра «да/нет» запланирована, ждёт `player-embed`, ADR 0014). При ошибке загрузки `QuizPlay` получает токен без данных и сам показывает «не найдено» или «повторить»
+- `pages/PlayPage` — диспетчер игры: выбирает язык по браузеру (`usePlayLocaleRedirect`), затем делает **один** `playApi.get(token)` и по `type` показывает `QuizPlay` (данные передаются в `store.start(…, initial)`, второго запроса нет), игру сопоставления или игру «да/нет». Ошибки первой загрузки (`notFound`, `failed` с кнопкой «Повторить») обрабатывает сама `PlayPage`, чтобы повтор шёл через диспетчер всех типов
 - `widgets/quiz-editor`, `widgets/quiz-play` — редактор и игра викторины
 - `widgets/matching-editor`, `widgets/matching-play` — редактор и игра сопоставления
-- `widgets/true-false-editor` — редактор «да/нет» (ADR 0016); `widgets/true-false-play` — игра, запланирована (ждёт `player-embed`), в коде её ещё нет
+- `widgets/true-false-editor`, `widgets/true-false-play` — редактор и игра «да/нет» (ADR 0016)
 - `features/play-session` — общий таймер игры (`PlayTimer`, `usePlayTimer`, `formatClock`)
 - `features/activity-settings` — общая форма настроек задания (раздел, «показывать ответы», шкала, таймер; `GroupSelect`)
 - `features/take-library-quiz` — «Взять себе» из библиотеки; `takenEditPath` выбирает редактор копии по `type` из ответа: `matching` → `/teacher/matching/<id>`, `truefalse` → `/teacher/true-false/<id>`, `quiz` → `/teacher/quiz/<id>`
-- `entities/quiz` — API викторины и игры (`playApi` общий для викторины и сопоставления; методы «да/нет» появятся вместе с игрой), `PREVIEW_QUERY`, `usePlayLocaleRedirect` и `pickPlayLocale` (редирект на язык браузера ученика)
+- `entities/quiz` — API викторины и игры (`playApi` общий для викторины, сопоставления и «да/нет»), `usePlayLocaleRedirect` и `pickPlayLocale` (редирект на язык браузера ученика)
 - `entities/matching` — API сопоставления в кабинете и в игре
-- `entities/true-false` — API «да/нет» в кабинете (`trueFalseApi`)
+- `entities/true-false` — API «да/нет» в кабинете и в игре (`trueFalseApi`, `trueFalsePlayApi`)
 
 ### Типы игр (каталог, страница типа, чек-лист)
 
 - **Каталог** (`packages/shared/schemas` и `packages/shared/routes`): `ACTIVITY_KINDS` — ключи типов (`quiz`, `matching`, `truefalse`) и порядок показа. `GAME_TYPE_SLUGS` — адрес типа: `truefalse` → `true-false`. `gameTypePath(kind)` строит `/games/<slug>`, `parseGameTypeSlug(slug)` возвращает ключ или `null`. `newActivityPath(kind)` — адрес редактора нового задания (раздел `teacherPages.ts`, его использует `TeacherCreatePage`)
-- **`entities/activity`:** `GameTypePreview` — схема игры в стиле B (макеты `docs/design/game-types/`), `GameTypeCard` — карточка типа; в режиме кнопки её использует `ActivityTypePicker` при выборе типа у учителя. `ActivityType` = `ActivityKind` из shared
+- **`entities/activity`:** `GameTypePreview` — схема игры в стиле B, `GameTypeCard` — карточка типа; в режиме кнопки её использует `ActivityTypePicker` при выборе типа у учителя. `ActivityType` = `ActivityKind` из shared
 - **Страница `/games/<slug>`:** тонкий файл `app/pages/games/[slug].vue` → `src/pages/GameTypePage.vue`. Неизвестный slug отдаёт настоящий HTTP 404 (`parseGameTypeSlug` возвращает `null`)
 - **Библиотека по типу:** `LibraryBrowser` получает пропс `type`, список идёт с параметром `?type=` (`GET /api/library`, значения — из `ACTIVITY_KINDS`)
 - **Блок на главной:** `widgets/game-types` (`GameTypes.vue`) — карточки-ссылки на `/games/<slug>` для всех типов каталога, после `HowToStart`

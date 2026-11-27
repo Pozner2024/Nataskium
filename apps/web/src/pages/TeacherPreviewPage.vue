@@ -43,12 +43,47 @@
 </template>
 
 <script setup lang="ts">
+import { DEFAULT_INTRO_THEME_KEY, type IntroThemeKey } from '@nataskium/shared/schemas'
 import { ref } from 'vue'
 import { usePinia, useSeoMeta } from '#imports'
+import type { Activity } from '@/entities/activity'
 import { ChangePasswordForm } from '@/features/change-password'
 import { DeleteAccount } from '@/features/delete-account'
-import { ACTIVITIES_STUB, MyActivities } from '@/widgets/my-activities'
+import { MyActivities } from '@/widgets/my-activities'
 import { QuizEditor } from '@/widgets/quiz-editor'
+
+const ACTIVITIES_STUB: Activity[] = [
+  {
+    id: 'stub-1',
+    title: 'Дроби: сложение и вычитание',
+    type: 'quiz',
+    questionCount: 12,
+    gradingScale: 'five',
+    shareToken: 'stub-token-1',
+    introTheme: DEFAULT_INTRO_THEME_KEY,
+    thumbnail: { type: 'quiz', text: 'Сколько будет 1/2 + 1/4?', imageUrl: null, options: [{ text: '3/4' }, { text: '2/6' }, { text: '1/8' }, { text: '1' }] },
+  },
+  {
+    id: 'stub-2',
+    title: 'Столицы Европы',
+    type: 'matching',
+    questionCount: 8,
+    gradingScale: null,
+    shareToken: 'stub-token-2',
+    introTheme: DEFAULT_INTRO_THEME_KEY,
+    thumbnail: { type: 'matching', definitions: ['Столица Франции', 'Столица Италии', 'Столица Испании'] },
+  },
+  {
+    id: 'stub-3',
+    title: 'Животные Африки',
+    type: 'truefalse',
+    questionCount: 10,
+    gradingScale: 'letter',
+    shareToken: 'stub-token-3',
+    introTheme: DEFAULT_INTRO_THEME_KEY,
+    thumbnail: { type: 'truefalse', statement: 'Жираф — самое высокое животное на Земле' },
+  },
+]
 
 // Состояния редактора викторины задаются прямо в state Pinia: store виджета наружу не экспортируется
 const QUIZ_CASES = ['new', 'filled', 'errors', 'settings', 'settings-error', 'settings-stopwatch', 'settings-limit'] as const
@@ -59,8 +94,10 @@ interface QuizEditorPreviewState {
     title: string
     showAnswers: boolean
     gradingScale: 'ten' | 'five' | 'letter' | null
+    group: string
+    introTheme: IntroThemeKey
     timer: { mode: 'none' | 'stopwatch' } | { mode: 'limit'; seconds: number }
-    questions: { text: string; options: { text: string; isCorrect: boolean }[] }[]
+    questions: { text: string; imageId: string | null; options: { text: string; isCorrect: boolean; imageId: string | null }[] }[]
   }
   shareToken: string | null
   expandedIndex: number | null
@@ -74,23 +111,32 @@ const PREVIEW_LIMIT_SECONDS = 900
 const PREVIEW_QUESTIONS = [
   {
     text: 'Столица Франции?',
+    imageId: null,
     options: [
-      { text: 'Париж', isCorrect: true },
-      { text: 'Лион', isCorrect: false },
-      { text: 'Марсель', isCorrect: false },
-      { text: 'Ницца', isCorrect: false },
+      { text: 'Париж', isCorrect: true, imageId: null },
+      { text: 'Лион', isCorrect: false, imageId: null },
+      { text: 'Марсель', isCorrect: false, imageId: null },
+      { text: 'Ницца', isCorrect: false, imageId: null },
     ],
   },
   {
     text: 'Какие города стоят на Дунае? Отметьте все подходящие варианты, даже если сомневаетесь',
+    imageId: null,
     options: [
-      { text: 'Вена', isCorrect: true },
-      { text: 'Будапешт', isCorrect: true },
-      { text: 'Прага', isCorrect: false },
-      { text: 'Варшава', isCorrect: false },
+      { text: 'Вена', isCorrect: true, imageId: null },
+      { text: 'Будапешт', isCorrect: true, imageId: null },
+      { text: 'Прага', isCorrect: false, imageId: null },
+      { text: 'Варшава', isCorrect: false, imageId: null },
     ],
   },
-  { text: '', options: [{ text: '', isCorrect: true }, { text: '', isCorrect: false }] },
+  {
+    text: '',
+    imageId: null,
+    options: [
+      { text: '', isCorrect: true, imageId: null },
+      { text: '', isCorrect: false, imageId: null },
+    ],
+  },
 ]
 
 const pinia = usePinia()
@@ -107,8 +153,24 @@ function showQuizCase(name: QuizCase) {
   state.fieldErrors = {}
   state.expandedIndex = isNew ? 0 : 1
   state.quiz = isNew
-    ? { title: '', showAnswers: true, gradingScale: null, timer: { mode: 'none' }, questions: [structuredClone(PREVIEW_QUESTIONS[2]!)] }
-    : { title: 'Столицы Европы', showAnswers: true, gradingScale: 'ten', timer: { mode: 'none' }, questions: structuredClone(PREVIEW_QUESTIONS) }
+    ? {
+        title: '',
+        showAnswers: true,
+        gradingScale: null,
+        group: '',
+        introTheme: DEFAULT_INTRO_THEME_KEY,
+        timer: { mode: 'none' },
+        questions: [structuredClone(PREVIEW_QUESTIONS[2]!)],
+      }
+    : {
+        title: 'Столицы Европы',
+        showAnswers: true,
+        gradingScale: 'ten',
+        group: 'humanities',
+        introTheme: DEFAULT_INTRO_THEME_KEY,
+        timer: { mode: 'none' },
+        questions: structuredClone(PREVIEW_QUESTIONS),
+      }
   if (name === 'errors') {
     state.quiz.title = ''
     state.expandedIndex = 2

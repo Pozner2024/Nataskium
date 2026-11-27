@@ -7,7 +7,7 @@ import { computed } from 'vue'
 import { useRoute } from '#imports'
 import GameTypePage from '@/pages/GameTypePage.vue'
 
-definePageMeta({ name: 'game-type' })
+definePageMeta({ name: 'game-type', key: (route) => String(route.params.slug) })
 
 const route = useRoute()
 const slug = computed(() => String(route.params.slug))

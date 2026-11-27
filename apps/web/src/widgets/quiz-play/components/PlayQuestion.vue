@@ -1,7 +1,7 @@
 <template>
   <div v-if="store.question" class="play-question">
     <PlayTimerPortal>
-      <PlayTimer />
+      <PlayTimer :mode="store.timer.mode" />
     </PlayTimerPortal>
 
     <EntranceCard
@@ -84,10 +84,9 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
 import { useI18n } from '#imports'
-import { EntranceCard, PlayTimerPortal, usePlayerSound } from '@/features/play-session'
+import { EntranceCard, PlayTimer, PlayTimerPortal, usePlayerSound } from '@/features/play-session'
 import { focusInPlace } from '@/shared'
 import { usePlayStore } from '../store'
-import PlayTimer from './PlayTimer.vue'
 
 const { t } = useI18n()
 const store = usePlayStore()

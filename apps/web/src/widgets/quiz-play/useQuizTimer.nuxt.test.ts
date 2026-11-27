@@ -3,7 +3,7 @@ import { flushPromises } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { playApi } from '@/entities/quiz'
-import { usePlayStore } from './store'
+import { ANSWER_FEEDBACK_MS, usePlayStore } from './store'
 import type { PlayTimerView } from '@/features/play-session'
 import { useQuizPlayTimer } from './useQuizPlayTimer'
 
@@ -248,13 +248,11 @@ describe('useQuizTimer: интервал', () => {
     expect(setIntervalSpy).toHaveBeenCalledTimes(1)
 
     store.toggle(0)
-    await store.submit()
     await flushPromises()
     expect(store.phase).toBe('feedback')
-    await store.next()
+    await vi.waitFor(() => expect(store.current).toBe(1), { timeout: ANSWER_FEEDBACK_MS + 1000 })
     await advance(5)
     await flushPromises()
-    expect(store.current).toBe(1)
     expect(setIntervalSpy).toHaveBeenCalledTimes(1)
     expect(vi.getTimerCount()).toBe(1)
 

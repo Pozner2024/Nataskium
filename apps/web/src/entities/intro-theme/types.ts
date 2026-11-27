@@ -43,6 +43,7 @@ export type IntroEntrance = {
 // Своя у темы кодом, общая у остальных
 export type QuestionSwap = {
   enter: (targets: { card: HTMLElement; items: HTMLElement[] }) => Promise<void>
+  cancel: () => void
 }
 
 export type IntroThemeEntry = {

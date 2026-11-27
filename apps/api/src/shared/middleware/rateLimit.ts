@@ -157,7 +157,7 @@ export function createRateLimiter({ max, windowMs, maxTrackedKeys }: RateLimitOp
     nextEvictionAttemptAt = now + EVICTION_RETRY_INTERVAL_MS
     if (now - lastFullWarningAt >= FULL_WARNING_INTERVAL_MS) {
       lastFullWarningAt = now
-      console.warn('Rate limiter is full, new keys are not tracked', { trackedKeys: hits.size })
+      console.warn('Rate limiter is full, rejecting new keys', { trackedKeys: hits.size })
     }
     return false
   }
@@ -190,8 +190,11 @@ export function createRateLimiter({ max, windowMs, maxTrackedKeys }: RateLimitOp
       entry.count++
       return { allowed: true, resetAt: entry.resetAt }
     }
-    // Ключ не поместился — не отслеживаем: остаются лимиты по IP
-    if (!makeRoom(now)) return { allowed: true }
+    // Ключ не поместился (все слоты заняты заблокированными ключами) — fail-closed, иначе заполнение Map отключает лимиты
+    if (!makeRoom(now)) {
+      const retryAfter = Math.max(MIN_RETRY_AFTER_SECONDS, Math.ceil((nextEvictionAttemptAt - now) / MS_PER_SECOND))
+      return { allowed: false, retryAfterSeconds: retryAfter }
+    }
 
     const resetAt = now + windowMs
     hits.set(key, { count: 1, resetAt })

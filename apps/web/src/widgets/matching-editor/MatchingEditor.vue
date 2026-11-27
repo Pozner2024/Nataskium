@@ -122,7 +122,7 @@ import { MAX_ACTIVITIES_PER_TEACHER, MAX_MATCHING_PAIRS, MIN_MATCHING_PAIRS, QUI
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, toRaw, useTemplateRef, watch } from 'vue'
 import { NuxtLink } from '#components'
 import { navigateTo, onBeforeRouteLeave, useI18n, useLocalePath } from '#imports'
-import { PREVIEW_QUERY, playUrl } from '@/entities/quiz'
+import { playUrl } from '@/entities/quiz'
 import { GroupSelect } from '@/features/activity-settings'
 import { AppConfirmDialog, TEACHER_PATHS } from '@/shared'
 import MatchingSettings from './components/MatchingSettings.vue'
@@ -247,7 +247,7 @@ async function openSettings(): Promise<void> {
 }
 
 // «Пройти задание»: учитель проходит своё задание так, как его увидят ученики (результаты не сохраняются)
-const previewPath = computed(() => (store.shareToken === null ? '' : `/play/${encodeURIComponent(store.shareToken)}?${PREVIEW_QUERY}`))
+const previewPath = computed(() => (store.shareToken === null ? '' : localePath(`/play/${encodeURIComponent(store.shareToken)}`)))
 
 async function copyLink(): Promise<void> {
   if (store.shareToken === null) return

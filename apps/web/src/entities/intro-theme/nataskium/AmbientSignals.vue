@@ -107,6 +107,8 @@ const FLASH_KEYFRAMES: Keyframe[] = [
   { offset: 1, opacity: 0, transform: 'scale(1)' },
 ]
 
+let unmounted = false
+
 function stop() {
   for (const animation of animations) animation.cancel()
   animations = []
@@ -114,6 +116,7 @@ function stop() {
 
 function start() {
   stop()
+  if (unmounted) return
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
   routes.value.forEach((route, index) => {
     const delay = index * SIGNAL_STAGGER_MS
@@ -135,9 +138,12 @@ function start() {
 onMounted(start)
 watch(routes, async () => {
   await nextTick()
-  start()
+  if (!unmounted) start()
 })
-onBeforeUnmount(stop)
+onBeforeUnmount(() => {
+  unmounted = true
+  stop()
+})
 </script>
 
 <style scoped lang="scss">

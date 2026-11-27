@@ -1,11 +1,13 @@
 import { randomUUID } from 'node:crypto'
 import { inspect } from 'node:util'
 import { googleLinkSchema } from '@nataskium/shared/schemas'
+import { Hono } from 'hono'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { makeTokenService } from '../src/features/auth'
+import { makeAuthRouter, makeTokenService } from '../src/features/auth'
 import { makeGoogleLink } from '../src/features/auth/application/googleLink'
 import type { TeacherAccount } from '../src/features/auth/types'
 import { AppError, RateLimitedError, ServiceBusyError } from '../src/shared/errors'
+import { createRateLimiter, makeErrorHandler } from '../src/shared/middleware'
 import {
   type CallLog,
   flushBackground,
@@ -369,5 +371,95 @@ describe('googleLink: учителя удалили после привязки'
     expect(error).toMatchObject({ status: 401, message: 'Session is invalid or expired, sign in again' })
     expect(refresh.rows).toEqual([])
     await flushBackground()
+  })
+})
+
+describe('POST /api/auth/google/link: очистка cookie при ошибках', () => {
+  function mountLinkRoute(link: () => Promise<never>) {
+    const passLimiter = createRateLimiter({ max: 100, windowMs: 60_000, maxTrackedKeys: 100 })
+    const stub = async () => {
+      throw new Error('unused')
+    }
+    const router = makeAuthRouter({
+      register: stub,
+      verifyEmail: stub,
+      login: stub,
+      refreshSession: stub,
+      logout: stub,
+      logoutAll: stub,
+      getMe: stub,
+      requestPasswordReset: stub,
+      resetPassword: stub,
+      deleteAccount: stub,
+      changePassword: stub,
+      google: {
+        createAuthorizationRequest: () => {
+          throw new Error('unused')
+        },
+        signIn: stub,
+        link,
+        linkTtlSeconds: 600,
+        startReauth: stub,
+        deleteAccount: stub,
+        cancelReauth: stub,
+      },
+      requireAuth: async (_c, next) => next(),
+      webOrigin: 'http://localhost:3000',
+      clientIp: () => '127.0.0.1',
+      limiters: {
+        registerPerIp: passLimiter,
+        verifyEmailPerIp: passLimiter,
+        loginPerIp: passLimiter,
+        loginPerIpEmail: passLimiter,
+        sessionPerIp: passLimiter,
+        mePerIp: passLimiter,
+        forgotPasswordPerIp: passLimiter,
+        resetPasswordPerIp: passLimiter,
+        googleStartPerIp: passLimiter,
+        googleCallbackPerIp: passLimiter,
+        googleLinkPerIp: passLimiter,
+        googleReauthStartPerIp: passLimiter,
+        deleteAccountPerIp: passLimiter,
+        changePasswordPerIp: passLimiter,
+      },
+    })
+    const app = new Hono()
+    app.onError(makeErrorHandler(false))
+    app.route('/api/auth', router)
+    return app
+  }
+
+  it.each([
+    [401, 'Session is invalid'],
+    [409, 'Conflict'],
+  ] as const)('при статусе %i cookie __Secure-google_link очищается', async (status, message) => {
+    const app = mountLinkRoute(async () => {
+      throw new AppError(status, message)
+    })
+
+    const response = await app.request('/api/auth/google/link', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie: '__Secure-google_link=secret' },
+      body: JSON.stringify({ token: tokens.generateOpaqueToken(), password: PASSWORD }),
+    })
+
+    expect(response.status).toBe(status)
+    expect(response.headers.get('set-cookie')).toContain('__Secure-google_link=;')
+    expect(response.headers.get('set-cookie')).toContain('Max-Age=0')
+  })
+
+  it('при 400 (неверный пароль) cookie __Secure-google_link остаётся для повторного ввода', async () => {
+    const app = mountLinkRoute(async () => {
+      throw new AppError(400, 'Wrong email or password')
+    })
+
+    const response = await app.request('/api/auth/google/link', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie: '__Secure-google_link=secret' },
+      body: JSON.stringify({ token: tokens.generateOpaqueToken(), password: PASSWORD }),
+    })
+
+    expect(response.status).toBe(400)
+    expect(response.headers.get('set-cookie')).toBeNull()
   })
 })

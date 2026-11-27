@@ -1,7 +1,7 @@
 import { ACTIVITY_KINDS, type ActivityKind } from '../schemas'
 
 // Страницы игр библиотеки, без языкового префикса
-export const GAME_PAGE_PATHS = {
+const GAME_PAGE_PATHS = {
   // К адресу добавляется /<slug игры>
   type: '/games',
 } as const

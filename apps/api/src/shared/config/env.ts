@@ -1,9 +1,11 @@
 import { BlockList, isIPv4 } from 'node:net'
 import { z } from 'zod'
 
+const DEFAULT_API_HOST = '127.0.0.1'
 const DEFAULT_API_PORT = 3001
 const MIN_PORT = 1
 const MAX_PORT = 65535
+const HOST_ERROR = 'must be an IP address or localhost'
 const PORT_ERROR = `must be an integer from ${MIN_PORT} to ${MAX_PORT}`
 const DATABASE_URL_PROTOCOL = /^postgres(ql)?$/
 const MIN_SECRET_BYTES = 32
@@ -157,6 +159,8 @@ const envFieldsSchema = z.object({
   NODE_ENV: z
     .enum(['development', 'production', 'test'], { error: 'must be one of: development, production, test' })
     .default('production'),
+  // По умолчанию loopback (локально), в Docker с отдельным Caddy можно задать 0.0.0.0
+  API_HOST: z.union([z.ipv4(), z.ipv6(), z.literal('localhost')], { error: HOST_ERROR }).default(DEFAULT_API_HOST),
   // Только цифры: z.coerce.number() пропустил бы '', ' 3002 ', '1e3' и '0x10'
   API_PORT: z
     .string()

@@ -1,7 +1,6 @@
-import { navigateTo, useRoute, useSwitchLocalePath } from '#imports'
+import { navigateTo, useSwitchLocalePath } from '#imports'
 import { useCurrentLocale } from '@/shared'
 import { pickPlayLocale } from './pickPlayLocale'
-import { PREVIEW_QUERY, PREVIEW_QUERY_KEY } from './playUrl'
 
 // Язык игры при открытии задания по ссылке определяет браузер ученика, для задания любого типа.
 // Если на страницу пришли переходом внутри сайта (выбрали язык переключателем), выбор не перебивается.
@@ -13,10 +12,8 @@ function hasInAppReferrer(): boolean {
 }
 
 export function usePlayLocaleRedirect() {
-  const route = useRoute()
   const currentLocale = useCurrentLocale()
   const switchLocalePath = useSwitchLocalePath()
-  const isPreview = route.query[PREVIEW_QUERY_KEY] === '1'
 
   async function redirect(): Promise<boolean> {
     // Vue Router пишет в history.state адрес, откуда пришли (back): он есть у перехода внутри сайта
@@ -25,9 +22,9 @@ export function usePlayLocaleRedirect() {
     const locale = pickPlayLocale(navigator.languages)
     const target = switchLocalePath(locale)
     if (locale === currentLocale.value || target === '') return false
-    await navigateTo(isPreview ? `${target}?${PREVIEW_QUERY}` : target, { replace: true })
+    await navigateTo(target, { replace: true })
     return true
   }
 
-  return { isPreview, redirect }
+  return { redirect }
 }

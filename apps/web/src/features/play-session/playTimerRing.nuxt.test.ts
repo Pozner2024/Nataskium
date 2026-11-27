@@ -108,6 +108,20 @@ describe('PlayTimer: режимы limit и free (секундомер)', () => {
     const wrapper = await mountStub('none', stub({}))
     expect(wrapper.find('.play-timer').exists()).toBe(false)
   })
+
+  it('role="timer" с подписью и без aria-live на цифрах', async () => {
+    const wrapper = await mountStub('limit', stub({ remaining: 300 }))
+    expect(wrapper.attributes('role')).toBe('timer')
+    expect(wrapper.attributes('aria-label')).toBe('Таймер')
+    expect(wrapper.find('[aria-live]').exists()).toBe(false)
+    expect(wrapper.attributes('aria-live')).toBeUndefined()
+  })
+
+  it('без провайдера (inject пуст) таймер не рисуется и не падает', async () => {
+    const wrapper = await mountSuspended(PlayTimer, { props: { mode: 'limit' } })
+    mounted.push(wrapper)
+    expect(wrapper.find('.play-timer').exists()).toBe(false)
+  })
 })
 
 describe('PlayTimer: низкое время', () => {

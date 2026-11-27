@@ -72,14 +72,6 @@ describe('PlayPage: «Пропустить» у ученика', () => {
 
     expect(page.find('.matching-play').exists()).toBe(true)
   })
-
-  it('кнопка есть и без ?preview=1', async () => {
-    vi.mocked(playApi.get).mockResolvedValue(QUIZ)
-    const page = await mountPage()
-
-    expect(page.find('.play-page__preview').exists()).toBe(false)
-    expect(page.find('.intro-player__skip').exists()).toBe(true)
-  })
 })
 
 describe('PlayPage: загрузка и ошибки без интро', () => {
@@ -105,7 +97,7 @@ describe('PlayPage: загрузка и ошибки без интро', () => {
     vi.mocked(playApi.get).mockRejectedValue(new TypeError('Failed to fetch'))
     const page = await mountPage()
 
-    expect(page.find('.quiz-play__button').exists()).toBe(true)
+    expect(page.find('.play-page__button').exists()).toBe(true)
     expect(page.find('.intro-player__start-button').exists()).toBe(false)
     expect(page.find('.intro-player__skip').exists()).toBe(false)
   })
@@ -115,28 +107,5 @@ describe('PlayPage: загрузка и ошибки без интро', () => {
 
     expect(playApi.get).not.toHaveBeenCalled()
     expect(page.find('.intro-player__start-button').exists()).toBe(false)
-  })
-})
-
-describe('PlayPage: превью без панели', () => {
-  it('?preview=1: панели с «Назад» и «Предпросмотр» нет ни на стартовом экране, ни после «Начать»', async () => {
-    vi.mocked(playApi.get).mockResolvedValue(QUIZ)
-    const page = await mountPage(TOKEN, `/play/${TOKEN}?preview=1`)
-
-    expect(page.find('.play-page__back').exists()).toBe(false)
-    expect(page.find('.intro-player__toolbar').exists()).toBe(false)
-
-    await page.get('.intro-player__start-button').trigger('click')
-    await flushPromises()
-    expect(page.find('.play-page__back').exists()).toBe(false)
-    expect(page.find('.intro-player__toolbar').exists()).toBe(false)
-  })
-
-  it('без ?preview=1 кнопки «Назад» нет', async () => {
-    vi.mocked(playApi.get).mockResolvedValue(QUIZ)
-    const page = await mountPage()
-
-    expect(page.find('.play-page__back').exists()).toBe(false)
-    expect(page.find('.intro-player__toolbar').exists()).toBe(false)
   })
 })

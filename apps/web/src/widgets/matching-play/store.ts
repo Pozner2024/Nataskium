@@ -123,6 +123,7 @@ export const useMatchingPlayStore = defineStore('matching-play', () => {
 
   function reset(): void {
     epoch += 1
+    busy.value = false
     title.value = ''
     definitions.value = []
     terms.value = []

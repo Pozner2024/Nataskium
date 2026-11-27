@@ -8,7 +8,7 @@ import { hasNoUnsafeChars } from './textChars'
 export const MAX_LIBRARY_NUMBER = 2_147_483_647
 export const DEFAULT_GROUP_SLUG = 'other'
 export const LIBRARY_PAGE_SIZE = 24
-export const LIBRARY_MAX_PAGE = 200
+const LIBRARY_MAX_PAGE = 200
 export const LIBRARY_SEARCH_MIN_LENGTH = 2
 export const LIBRARY_SEARCH_MAX_LENGTH = 60
 

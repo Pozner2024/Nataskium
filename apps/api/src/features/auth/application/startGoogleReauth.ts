@@ -6,7 +6,7 @@ const CONFLICT_STATUS = 409
 const MS_PER_MINUTE = 60 * 1000
 const GOOGLE_REAUTH_TTL_MINUTES = 5
 // На выбор аккаунта в Google; столько же живёт cookie oauth
-export const GOOGLE_REAUTH_TTL_MS = GOOGLE_REAUTH_TTL_MINUTES * MS_PER_MINUTE
+const GOOGLE_REAUTH_TTL_MS = GOOGLE_REAUTH_TTL_MINUTES * MS_PER_MINUTE
 // У учителя с паролем удаление — по паролю (POST /delete-account); без Google подтвердить нечем
 const PASSWORD_ACCOUNT_MESSAGE = 'Accounts with a password are deleted with the password'
 

@@ -49,7 +49,8 @@
   --z-pre-footer: 1;
   --z-teacher-main: calc(var(--z-pre-footer) + 1);
   --z-activity-menu: calc(var(--z-teacher-main) + 1);
-  --z-player-more: calc(var(--z-activity-menu) + 1);
+  --z-play-panel-menu: calc(var(--z-activity-menu) + 1);
+  --z-player-more: calc(var(--z-play-panel-menu) + 1);
   --z-matching-tray: calc(var(--z-player-more) + 1);
   --z-player-bar: calc(var(--z-matching-tray) + 1);
   --z-player-rail: calc(var(--z-player-bar) + 1);

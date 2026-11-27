@@ -215,6 +215,7 @@ export const useQuizEditorStore = defineStore('quiz-editor', () => {
 
   // true — сохранено. Ошибки показываются у полей, expandedIndex переходит на первый неверный вопрос
   async function save(): Promise<boolean> {
+    if (saveStatus.value === 'saving') return false
     const parsed = quizInputSchema.safeParse(quiz.value)
     if (!parsed.success) {
       showFieldErrors(issuesToFieldErrors(parsed.error.issues))
@@ -222,12 +223,14 @@ export const useQuizEditorStore = defineStore('quiz-editor', () => {
     }
     fieldErrors.value = {}
     saveStatus.value = 'saving'
+    const startedEpoch = epoch
     const input = cloneQuiz(parsed.data)
     try {
       const currentId = id.value
       const response = await authorizedRequest((accessToken) =>
         currentId === null ? quizApi.create(input, accessToken) : quizApi.update(currentId, input, accessToken),
       )
+      if (startedEpoch !== epoch) return false
       const { id: quizId, shareToken: token } = response.quiz
       id.value = quizId
       shareToken.value = token
@@ -236,6 +239,7 @@ export const useQuizEditorStore = defineStore('quiz-editor', () => {
       saveStatus.value = 'saved'
       return true
     } catch (error) {
+      if (startedEpoch !== epoch) return false
       handleSaveError(error)
       return false
     }

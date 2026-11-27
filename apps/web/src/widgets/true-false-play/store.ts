@@ -65,7 +65,9 @@ export const useTrueFalsePlayStore = defineStore('true-false-play', () => {
       !timedOut.value &&
       status.value === 'ready',
   )
-  const canNavigate = computed(() => phase.value === 'question' && !busy.value && !advancing.value && status.value === 'ready')
+  const canNavigate = computed(
+    () => phase.value === 'question' && !busy.value && !advancing.value && !timedOut.value && status.value === 'ready',
+  )
   const canPrev = computed(() => canNavigate.value && viewing.value > 0)
   const canForward = computed(() => canNavigate.value && viewing.value < current.value)
 
@@ -122,6 +124,7 @@ export const useTrueFalsePlayStore = defineStore('true-false-play', () => {
   function reset(): void {
     epoch += 1
     clearAdvance()
+    busy.value = false
     title.value = ''
     statements.value = []
     current.value = 0
@@ -230,9 +233,11 @@ export const useTrueFalsePlayStore = defineStore('true-false-play', () => {
     if (canForward.value) viewing.value += 1
   }
 
-  // Уход со страницы: отложенный переход и поздние ответы запросов больше не нужны
+  // Уход со страницы: отложенный переход и поздние ответы запросов больше не нужны;
+  // следующий показ начинается с загрузки и снова получает интро и вылет (ADR 0015)
   function dispose(): void {
     reset()
+    status.value = 'loading'
   }
 
   // Ответ, не дошедший до check к концу времени, остаётся в answers: сервер всё равно оценит его при finish

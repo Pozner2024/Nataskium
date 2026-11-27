@@ -121,4 +121,22 @@ describe('useTrueFalseEditorStore: быстрые добавления и уда
     store.trueFalse.items[0]!.statement = 'Утверждение 0'
     expect(store.isDirty).toBe(false)
   })
+
+  it('двойной клик save не создаёт дубликат, а reset во время save игнорирует поздний ответ', async () => {
+    setItems(2)
+    let resolveCreate!: (value: ReturnType<typeof respond>) => void
+    const create = vi.spyOn(trueFalseApi, 'create').mockReturnValue(new Promise((resolve) => { resolveCreate = resolve }))
+
+    const first = store.save()
+    const second = store.save()
+    expect(await second).toBe(false)
+    expect(create).toHaveBeenCalledTimes(1)
+
+    const snapshot = JSON.parse(JSON.stringify(store.trueFalse))
+    store.reset()
+    resolveCreate(respond(snapshot))
+    expect(await first).toBe(false)
+    expect(store.id).toBeNull()
+    expect(store.saveStatus).toBe('idle')
+  })
 })

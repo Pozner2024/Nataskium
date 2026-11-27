@@ -45,7 +45,7 @@
             </component>
             <p v-if="!type" class="library-browser__type">{{ t(`gameTypes.${quiz.type}.name`) }}</p>
             <p class="library-browser__meta">
-              {{ groupName(quiz.groupSlug) }} · {{ countText(quiz.type, quiz.questionCount) }}
+              {{ metaText(quiz) }}
             </p>
             <p class="library-browser__grade" :class="{ 'library-browser__grade--none': !quiz.graded }">
               {{ quiz.graded ? t('library.graded') : t('library.notGraded') }}
@@ -133,6 +133,12 @@ const emptyText = computed(() => {
 
 function groupName(slug: string): string {
   return groups.value.find((item) => item.slug === slug)?.name ?? ''
+}
+
+function metaText(quiz: LibraryListItem): string {
+  const group = groupName(quiz.groupSlug)
+  const count = countText(quiz.type, quiz.questionCount)
+  return group === '' ? count : `${group} · ${count}`
 }
 
 const route = useRoute()

@@ -177,6 +177,7 @@ export const usePlayStore = defineStore('play', () => {
   function reset(): void {
     clearAdvance()
     epoch += 1
+    busy.value = false
     current.value = 0
     viewing.value = 0
     selected.value = []
@@ -350,12 +351,6 @@ export const usePlayStore = defineStore('play', () => {
     })
   }
 
-  async function next(): Promise<void> {
-    if (busy.value || reviewing.value || phase.value !== 'feedback') return
-    clearAdvance()
-    await run(goNext)
-  }
-
   function prev(): void {
     if (canPrev.value) viewing.value -= 1
   }
@@ -389,6 +384,6 @@ export const usePlayStore = defineStore('play', () => {
     timer, startedAt, timedOut, elapsedSeconds,
     title, showAnswers, questions, current, viewing, selected, answers, correct, phase, result, status, busy, advancing,
     question, isLast, canSubmit, feedback, reviewing, viewCorrect, canPrev, canForward,
-    isSelected, isDisabled, toggle, start, submit, next, prev, forward, retry, expire, holdClock, restartClock, pauseClock, resumeClock, dispose,
+    isSelected, isDisabled, toggle, start, submit, prev, forward, retry, expire, holdClock, restartClock, pauseClock, resumeClock, dispose,
   }
 })

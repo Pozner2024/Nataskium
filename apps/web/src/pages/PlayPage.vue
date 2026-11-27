@@ -12,7 +12,6 @@
       :skip-label="t('play.intro.skip')"
       :enter-fullscreen-label="t('play.intro.fullscreen')"
       :exit-fullscreen-label="t('play.intro.exitFullscreen')"
-      :collapse-label="t('play.intro.collapse')"
       :scroll-down-label="t('play.intro.scrollDown')"
       :unmute-label="t('play.intro.unmute')"
       :mute-label="t('play.intro.mute')"
@@ -24,6 +23,17 @@
       <QuizPlay v-if="view.kind === 'quiz'" :source="source" :initial="view.initial" />
       <MatchingPlay v-else-if="view.kind === 'matching' && source" :source="source" :initial="view.initial" />
       <TrueFalsePlay v-else-if="view.kind === 'truefalse' && source" :source="source" :initial="view.initial" />
+      <section v-else-if="view.kind === 'notFound'" class="play-page">
+        <div class="play-page__status">
+          <p class="play-page__alert" role="alert">{{ t('play.notFound') }}</p>
+        </div>
+      </section>
+      <section v-else-if="view.kind === 'failed'" class="play-page">
+        <div class="play-page__status">
+          <p class="play-page__alert" role="alert">{{ t('play.failed') }}</p>
+          <button class="play-page__button" type="button" @click="reload">{{ t('play.retry') }}</button>
+        </div>
+      </section>
       <section v-else class="play-page">
         <p class="play-page__message" role="status">{{ t('play.loading') }}</p>
       </section>
@@ -36,21 +46,25 @@
 import { parseQuizSlug, slugifyTitle } from '@nataskium/shared/library'
 import { libraryQuizPath } from '@nataskium/shared/routes'
 import { DEFAULT_INTRO_THEME_KEY, type IntroThemeKey } from '@nataskium/shared/schemas'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { navigateTo, useI18n, useLocalePath, useRoute, useSeoMeta } from '#imports'
 import type { PlayMatchingResponse } from '@/entities/matching'
 import type { PlayTrueFalseResponse } from '@/entities/true-false'
 import { type PlayQuizResponse, playApi, usePlayLocaleRedirect } from '@/entities/quiz'
-import { isPlaySourceValid, type PlaySource } from '@/shared'
+import { ApiError, isPlaySourceValid, type PlaySource } from '@/shared'
 import { IntroPlayer } from '@/widgets/intro-player'
 import { PlayPanel } from '@/widgets/play-panel'
 import { MatchingPlay } from '@/widgets/matching-play'
 import { QuizPlay } from '@/widgets/quiz-play'
 import { TrueFalsePlay } from '@/widgets/true-false-play'
 
+const NOT_FOUND_STATUS = 404
+
 type PlayView =
   | { kind: 'loading' }
-  | { kind: 'quiz'; initial?: PlayQuizResponse }
+  | { kind: 'notFound' }
+  | { kind: 'failed' }
+  | { kind: 'quiz'; initial: PlayQuizResponse }
   | { kind: 'matching'; initial: PlayMatchingResponse }
   | { kind: 'truefalse'; initial: PlayTrueFalseResponse }
 
@@ -76,10 +90,10 @@ const view = ref<PlayView>({ kind: 'loading' })
 // Стиль выбрал учитель; ученик может сменить его, но только пока открыта страница — выбор нигде не хранится
 const introTheme = ref<IntroThemeKey>(DEFAULT_INTRO_THEME_KEY)
 
-// Интро только у загруженного задания: у загрузки и ошибок нет названия, их показывает игра без интро
+// Интро только у загруженного задания: у загрузки и ошибок нет названия, они показываются без интро
 const intro = computed(() => {
   const current = view.value
-  if (current.kind === 'quiz' && current.initial) {
+  if (current.kind === 'quiz') {
     return { typeLabel: t('play.intro.quizType'), title: current.initial.quiz.title, hint: t('play.intro.quizHint') }
   }
   if (current.kind === 'matching') {
@@ -95,17 +109,24 @@ const intro = computed(() => {
 const RULES_KEYS = { quiz: 'quiz', matching: 'matching', truefalse: 'trueFalse' } as const
 const rules = computed(() => {
   const kind = view.value.kind
-  if (kind === 'loading' || intro.value === null) return []
+  if (kind !== 'quiz' && kind !== 'matching' && kind !== 'truefalse') return []
   const key = RULES_KEYS[kind]
   return [t(`play.rules.${key}.step1`), t(`play.rules.${key}.step2`), t(`play.rules.${key}.step3`)]
 })
 
 useSeoMeta({ robots: 'noindex, nofollow' })
 
+let unmounted = false
+let isLoading = false
+
+onBeforeUnmount(() => {
+  unmounted = true
+})
+
 // Один адрес для задания любого типа: тип известен только из ответа GET.
-// Невалидный адрес и сбой запроса отдаются QuizPlay без initial: «не найдено» и «повторить» показывает он сам
+// Ошибки первой загрузки обрабатываются здесь, чтобы повтор снова прошёл через диспетчер всех типов
 async function loadView(from: PlaySource | null): Promise<PlayView> {
-  if (!isPlaySourceValid(from)) return { kind: 'quiz' }
+  if (!isPlaySourceValid(from)) return { kind: 'notFound' }
   try {
     const response = await playApi.get(from)
     switch (response.type) {
@@ -116,8 +137,24 @@ async function loadView(from: PlaySource | null): Promise<PlayView> {
       case 'truefalse':
         return { kind: 'truefalse', initial: response }
     }
-  } catch {
-    return { kind: 'quiz' }
+  } catch (error) {
+    if (error instanceof ApiError && error.status === NOT_FOUND_STATUS) return { kind: 'notFound' }
+    return { kind: 'failed' }
+  }
+}
+
+async function reload(): Promise<void> {
+  if (isLoading || unmounted) return
+  isLoading = true
+  view.value = { kind: 'loading' }
+  try {
+    const loaded = await loadView(source)
+    if (unmounted) return
+    view.value = loaded
+    introTheme.value = teacherTheme(loaded)
+    if (source?.kind === 'library' && intro.value) await fixLibrarySlug(source.number, intro.value.title)
+  } finally {
+    isLoading = false
   }
 }
 
@@ -125,20 +162,20 @@ async function loadView(from: PlaySource | null): Promise<PlayView> {
 // задание заново. В библиотеке язык уже выбрал сам пользователь сайта — его не перебиваем
 onMounted(async () => {
   if (props.address.kind === 'share' && (await redirect())) return
-  view.value = await loadView(source)
-  introTheme.value = teacherTheme(view.value)
-  if (source?.kind === 'library' && intro.value) await fixLibrarySlug(source.number, intro.value.title)
+  if (unmounted) return
+  await reload()
 })
 
 // Устаревший или неполный slug заменяется адресом из текущего названия; ключ страницы — номер, поэтому игра не перезапускается.
 // params.slug уже раскодирован роутером: сравнение с кириллическим slug без лишнего перехода
 async function fixLibrarySlug(number: number, title: string): Promise<void> {
+  if (unmounted) return
   if (String(route.params.slug) === `${number}-${slugifyTitle(title)}`) return
   await navigateTo({ path: localePath(libraryQuizPath(number, title)), query: route.query, hash: route.hash }, { replace: true })
 }
 
 function teacherTheme(current: PlayView): IntroThemeKey {
-  if (current.kind === 'quiz') return current.initial?.quiz.introTheme ?? DEFAULT_INTRO_THEME_KEY
+  if (current.kind === 'quiz') return current.initial.quiz.introTheme
   if (current.kind === 'matching') return current.initial.matching.introTheme
   if (current.kind === 'truefalse') return current.initial.trueFalse.introTheme
   return DEFAULT_INTRO_THEME_KEY
@@ -146,10 +183,13 @@ function teacherTheme(current: PlayView): IntroThemeKey {
 </script>
 
 <style scoped lang="scss">
+@use '@/assets/styles/mixins' as *;
+
 .play-page {
   display: flex;
   flex-direction: column;
   padding: 8px var(--gutter) 24px;
+  color: var(--g-text);
 }
 
 .play-page__message {
@@ -159,5 +199,47 @@ function teacherTheme(current: PlayView): IntroThemeKey {
   font-weight: 500;
   line-height: 1.4;
   text-align: center;
+}
+
+.play-page__status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  margin-top: 32px;
+  padding: 28px 20px 24px;
+  text-align: center;
+}
+
+.play-page__alert {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+
+  &::before {
+    content: '!';
+    content: '!' / '';
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--color-orange-dark);
+    color: var(--color-white);
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1;
+  }
+}
+
+.play-page__button {
+  @include play-secondary;
 }
 </style>

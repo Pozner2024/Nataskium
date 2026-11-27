@@ -13,7 +13,6 @@ const LABELS = {
   skipLabel: 'Пропустить',
   enterFullscreenLabel: 'На весь экран',
   exitFullscreenLabel: 'Выйти',
-  collapseLabel: 'Свернуть',
   scrollDownLabel: 'Прокрутить вниз',
   unmuteLabel: 'Звук вкл',
   muteLabel: 'Звук выкл',

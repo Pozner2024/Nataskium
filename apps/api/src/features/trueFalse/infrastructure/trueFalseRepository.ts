@@ -1,4 +1,12 @@
-import { TRUE_FALSE_ACTIVITY, type TrueFalseInput, trueFalseInputSchema, timerFromColumns, timerToColumns } from '@nataskium/shared/schemas'
+import {
+  DEFAULT_INTRO_THEME_KEY,
+  TRUE_FALSE_ACTIVITY,
+  type TrueFalseInput,
+  introThemeKeySchema,
+  trueFalseInputSchema,
+  timerFromColumns,
+  timerToColumns,
+} from '@nataskium/shared/schemas'
 import type { Prisma } from '../../../generated/prisma/client'
 import { isForeignKeyViolation, isUniqueViolation } from '../../../shared/infrastructure'
 import type { TrueFalseRepository, StoredTrueFalse } from '../types'
@@ -19,6 +27,8 @@ const TRUE_FALSE_SELECT = {
 
 type TrueFalseRow = Prisma.QuizGetPayload<{ select: typeof TRUE_FALSE_SELECT }>
 
+const storedIntroThemeSchema = introThemeKeySchema.catch(DEFAULT_INTRO_THEME_KEY)
+
 // Утверждения лежат в колонке questions. Строка, не прошедшая схему, — рассинхрон данных и кода: 500
 function toStoredTrueFalse(row: TrueFalseRow): StoredTrueFalse {
   const parsed = trueFalseInputSchema.safeParse({
@@ -27,7 +37,7 @@ function toStoredTrueFalse(row: TrueFalseRow): StoredTrueFalse {
     gradingScale: row.gradingScale,
     group: row.groupSlug,
     timer: timerFromColumns(row.timerMode, row.timeLimitSeconds),
-    introTheme: row.introTheme,
+    introTheme: storedIntroThemeSchema.parse(row.introTheme),
     items: row.questions,
   })
   if (!parsed.success) throw new Error(`Stored true/false ${row.id} does not match the true/false schema`)

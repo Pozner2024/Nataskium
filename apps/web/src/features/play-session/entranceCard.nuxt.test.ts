@@ -1,8 +1,8 @@
 import { mountSuspended } from '@nuxt/test-utils/runtime'
 import { flushPromises } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
-import { defineComponent, h } from 'vue'
-import type { IntroEntrance, IntroEntranceTargets } from '@/entities/intro-theme'
+import { defineComponent, h, ref } from 'vue'
+import type { IntroEntrance, IntroEntranceTargets, QuestionSwap } from '@/entities/intro-theme'
 import { EntranceCard, PLAYER_ENTRANCE_KEY, type PlayerEntrance } from '@/features/play-session'
 
 // Над карточкой — полоса прогресса задания: дорожка сигнала не должна на неё заходить
@@ -55,5 +55,49 @@ describe('EntranceCard', () => {
     await flushPromises()
     expect(wrapper.emitted('landed')).toEqual([[true]])
     expect(wrapper.find('.entrance-card--entering').exists()).toBe(false)
+  })
+
+  it('реактивный swap и cancel: при смене темы берётся новый swap, при размонтировании активный swap отменяется', async () => {
+    const firstSwap: QuestionSwap = { enter: vi.fn(() => new Promise<void>(() => {})), cancel: vi.fn() }
+    const secondSwap: QuestionSwap = { enter: vi.fn(() => new Promise<void>(() => {})), cancel: vi.fn() }
+    let currentSwap = firstSwap
+    const framed = ref(true)
+    const swapKey = ref(0)
+
+    const SwapHost = defineComponent({
+      setup() {
+        return () => h(EntranceCard, { items: '.item', swapKey: swapKey.value }, () => [h('p', { class: 'item' }, 'вопрос')])
+      },
+    })
+
+    const wrapper = await mountSuspended(SwapHost, {
+      global: {
+        provide: {
+          [PLAYER_ENTRANCE_KEY as symbol]: {
+            get framed() {
+              return framed.value
+            },
+            take: () => null,
+            swap: () => currentSwap,
+          } satisfies PlayerEntrance,
+        },
+      },
+    })
+    await flushPromises()
+
+    swapKey.value = 1
+    await flushPromises()
+    expect(firstSwap.enter).toHaveBeenCalledTimes(1)
+
+    currentSwap = secondSwap
+    framed.value = false
+    swapKey.value = 2
+    await flushPromises()
+    expect(firstSwap.cancel).toHaveBeenCalledTimes(1)
+    expect(secondSwap.enter).toHaveBeenCalledTimes(1)
+    expect(wrapper.find('.entrance-card--framed').exists()).toBe(false)
+
+    wrapper.unmount()
+    expect(secondSwap.cancel).toHaveBeenCalledTimes(1)
   })
 })

@@ -6,7 +6,7 @@ import { playQuizNotFound } from './playErrors'
 import { quizVersion } from './quizVersion'
 
 // Связи пар в ответе нет: определения в порядке учителя, слова перемешаны заново при каждом запросе, без id (ADR-0013)
-export function toPlayMatchingResponse(matching: PlayableMatching, shuffle: PlayShuffle): PlayMatchingResponse {
+function toPlayMatchingResponse(matching: PlayableMatching, shuffle: PlayShuffle): PlayMatchingResponse {
   return {
     type: 'matching',
     matching: {

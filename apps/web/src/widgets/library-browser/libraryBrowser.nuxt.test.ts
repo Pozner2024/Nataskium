@@ -211,6 +211,41 @@ describe('LibraryBrowser', () => {
     expect(wrapper.find('.library-browser__title b').exists()).toBe(false)
   })
 
+  it('пока группы не загружены, в мета-строке карточки нет ведущей точки', async () => {
+    vi.spyOn(libraryApi, 'groups').mockReturnValue(new Promise(() => {}))
+    vi.spyOn(libraryApi, 'list').mockResolvedValue(listBody([summary(1, 'Столицы')]))
+    await mountBrowser()
+
+    const meta = wrapper.get('.library-browser__meta').text()
+    expect(meta.startsWith('·')).toBe(false)
+    expect(meta).not.toContain('·')
+  })
+
+  it('поиск во время подгрузки сбрасывает isLoadingMore и игнорирует поздний ответ loadMore', async () => {
+    let resolveMore!: (value: ReturnType<typeof listBody>) => void
+    vi.spyOn(libraryApi, 'list')
+      .mockResolvedValueOnce(listBody([summary(1, 'Первая')], true, 1))
+      .mockReturnValueOnce(new Promise((resolve) => { resolveMore = resolve }))
+      .mockResolvedValueOnce(listBody([summary(9, 'Поиск')], true, 1))
+
+    await mountBrowser()
+    await wrapper.get('.library-browser__button').trigger('click')
+    expect(wrapper.get('.library-browser__button').attributes('disabled')).toBeDefined()
+
+    await wrapper.get('input[type="search"]').setValue('Поиск')
+    await wrapper.get('form[role="search"]').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.get('.library-browser__button').attributes('disabled')).toBeUndefined()
+    expect(titleLinks().map((link) => link.text())).toEqual(['Поиск'])
+
+    resolveMore(listBody([summary(2, 'Устаревшая')], false, 2))
+    await flushPromises()
+
+    expect(titleLinks().map((link) => link.text())).toEqual(['Поиск'])
+    expect(wrapper.find('.library-browser__button').exists()).toBe(true)
+  })
+
   it('у каждой карточки — миниатюра в стиле задания', async () => {
     vi.spyOn(libraryApi, 'list').mockResolvedValue(
       listBody([

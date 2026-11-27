@@ -35,7 +35,6 @@ const LABELS = {
   skipLabel: 'Пропустить заставку',
   enterFullscreenLabel: 'На весь экран',
   exitFullscreenLabel: 'Выйти из полноэкранного режима',
-  collapseLabel: 'Свернуть',
   unmuteLabel: 'Включить звук',
   muteLabel: 'Выключить звук',
   scrollDownLabel: 'Прокрутить вниз',

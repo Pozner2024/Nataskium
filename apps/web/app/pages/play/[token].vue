@@ -6,7 +6,7 @@
 import { useRoute } from '#imports'
 import PlayPage from '@/pages/PlayPage.vue'
 
-definePageMeta({ name: 'play-token', layout: 'play' })
+definePageMeta({ name: 'play-token', layout: 'play', key: (route) => String(route.params.token) })
 
 const route = useRoute()
 const token = String(route.params.token)

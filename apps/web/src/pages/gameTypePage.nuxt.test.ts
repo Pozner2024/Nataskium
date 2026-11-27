@@ -53,4 +53,15 @@ describe('GameTypePage', () => {
 
     expect(useError().value).toMatchObject({ statusCode: NOT_FOUND_CODE })
   })
+
+  it('SPA-переход с известного типа на неизвестный выставляет ошибку 404', async () => {
+    const wrapper = await mountSuspended(GameTypePage, { props: { slug: 'matching' } })
+    await flushPromises()
+    expect(useError().value).toBeFalsy()
+
+    await wrapper.setProps({ slug: 'unknown-game' })
+    await flushPromises()
+
+    expect(useError().value).toMatchObject({ statusCode: NOT_FOUND_CODE })
+  })
 })

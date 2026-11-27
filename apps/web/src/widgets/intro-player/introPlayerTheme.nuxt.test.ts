@@ -1,11 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent, h } from 'vue'
+import { defineComponent, h, inject } from 'vue'
 import { flushPromises } from '@vue/test-utils'
 import { mountSuspended } from '@nuxt/test-utils/runtime'
+import { PLAYER_ENTRANCE_KEY, type PlayerEntrance } from '@/features/play-session'
 import { IntroPlayer } from '@/widgets/intro-player'
 
 // Сцена темы подменена: проверяется, как проигрыватель ведёт фазы, а не сама анимация
 const scene = vi.hoisted(() => ({ play: vi.fn<() => Promise<void>>(), skip: vi.fn(), finishPlay: () => {} }))
+const soundSpy = vi.hoisted(() => ({
+  created: 0,
+  dispose: vi.fn(),
+  unlock: vi.fn(),
+  setMuted: vi.fn(),
+  stop: vi.fn(),
+  play: vi.fn(),
+}))
 
 vi.mock('@/entities/intro-theme', async (importOriginal) => {
   const original = await importOriginal<typeof import('@/entities/intro-theme')>()
@@ -16,7 +25,21 @@ vi.mock('@/entities/intro-theme', async (importOriginal) => {
       return () => h('div', { class: 'scene-stub' })
     },
   })
-  return { ...original, IntroTheme }
+  return {
+    ...original,
+    IntroTheme,
+    createIntroSound: vi.fn((key: string | null | undefined) => {
+      if (!key) return null
+      soundSpy.created += 1
+      return {
+        unlock: soundSpy.unlock,
+        play: soundSpy.play,
+        setMuted: soundSpy.setMuted,
+        stop: soundSpy.stop,
+        dispose: soundSpy.dispose,
+      }
+    }),
+  }
 })
 
 const LABELS = {
@@ -27,7 +50,6 @@ const LABELS = {
   skipLabel: 'Пропустить заставку',
   enterFullscreenLabel: 'На весь экран',
   exitFullscreenLabel: 'Выйти из полноэкранного режима',
-  collapseLabel: 'Свернуть',
   unmuteLabel: 'Включить звук',
   muteLabel: 'Выключить звук',
   scrollDownLabel: 'Прокрутить вниз',
@@ -62,6 +84,12 @@ describe('IntroPlayer: тема кодом', () => {
     vi.restoreAllMocks()
     scene.play.mockReset()
     scene.skip.mockReset()
+    soundSpy.created = 0
+    soundSpy.dispose.mockReset()
+    soundSpy.unlock.mockReset()
+    soundSpy.setMuted.mockReset()
+    soundSpy.stop.mockReset()
+    soundSpy.play.mockReset()
   })
 
   it('без темы всё по-старому: статичная плата, сцены нет', async () => {
@@ -118,5 +146,32 @@ describe('IntroPlayer: тема кодом', () => {
     await clickStart(wrapper)
     await wrapper.get('[aria-label="Выключить звук"]').trigger('click')
     expect(wrapper.find('[aria-label="Включить звук"]').exists()).toBe(true)
+  })
+
+  it('смена nataskium-night → nataskium-day пересоздаёт swap, но сохраняет разблокированный themeSound без dispose', async () => {
+    let entrance: PlayerEntrance | null = null
+    const Probe = defineComponent({
+      setup() {
+        entrance = inject(PLAYER_ENTRANCE_KEY, null)
+        return () => h('p', { class: 'game' }, 'Вопрос 1')
+      },
+    })
+    const wrapper = await mountSuspended(IntroPlayer, {
+      props: { ...LABELS, introTheme: 'nataskium-night', intro: false },
+      slots: { default: () => h(Probe) },
+    })
+    const firstSwap = entrance!.swap?.()
+    expect(soundSpy.created).toBe(1)
+
+    await wrapper.setProps({ introTheme: 'nataskium-day' })
+    await flushPromises()
+
+    expect(wrapper.find('.intro-player').classes()).toContain('intro-player--light')
+    expect(soundSpy.created).toBe(1)
+    expect(soundSpy.dispose).not.toHaveBeenCalled()
+    expect(entrance!.swap?.()).not.toBe(firstSwap)
+
+    wrapper.unmount()
+    expect(soundSpy.dispose).toHaveBeenCalledTimes(1)
   })
 })

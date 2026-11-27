@@ -199,4 +199,12 @@ describe('Мои задания: да/нет', () => {
     expect(removeTrueFalse).toHaveBeenCalledWith('t1', 'access-1')
     expect(removeQuiz).not.toHaveBeenCalled()
   })
+
+  it('ссылка на прохождение сохраняет локаль учителя и не содержит ?preview=1', async () => {
+    vi.spyOn(quizApi, 'list').mockResolvedValue({ quizzes: [QUIZZES[0]!] })
+    const wrapper = await mountSuspended(TeacherActivitiesPage, { route: '/en/teacher' })
+    await flushPromises()
+
+    expect(wrapper.get('.activity-card a').attributes('href')).toBe('/en/play/tok-1')
+  })
 })

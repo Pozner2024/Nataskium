@@ -13,7 +13,7 @@ export { MIN_REMAINING_SESSION_MS, makeRefreshSession } from './application/refr
 export { PENDING_REGISTRATION_TTL_MS, makeRegister } from './application/register'
 export { PASSWORD_RESET_TTL_MS, makeRequestPasswordReset } from './application/requestPasswordReset'
 export { makeResetPassword } from './application/resetPassword'
-export { GOOGLE_REAUTH_TTL_MS, makeStartGoogleReauth } from './application/startGoogleReauth'
+export { makeStartGoogleReauth } from './application/startGoogleReauth'
 export { makeVerifyEmail } from './application/verifyEmail'
 export { makeAuthLimiters } from './infrastructure/authLimiters'
 export { makeDeviceTrust } from './infrastructure/deviceTrust'

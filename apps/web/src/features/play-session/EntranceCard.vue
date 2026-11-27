@@ -3,12 +3,12 @@
     ref="card"
     class="entrance-card"
     :class="{
-      'entrance-card--framed': entrance.framed,
+      'entrance-card--framed': entrance.framed.value,
       'entrance-card--waiting': entrance.hasEntrance && !ready,
       'entrance-card--entering': !entrance.landed.value,
     }"
   >
-    <span v-if="entrance.framed" ref="dots" class="entrance-card__dots" aria-hidden="true">
+    <span v-if="entrance.framed.value" ref="dots" class="entrance-card__dots" aria-hidden="true">
       <i class="entrance-card__dot entrance-card__dot--green" />
       <i class="entrance-card__dot entrance-card__dot--orange" />
       <i class="entrance-card__dot entrance-card__dot--blue" />
@@ -65,16 +65,20 @@ onMounted(async () => {
 })
 
 // Смена задания (swapKey): Vue обновляет содержимое на месте, затем оно появляется анимацией темы
+let unmounted = false
 watch(
   () => swapKey,
   async () => {
     await nextTick()
-    if (!entrance.swap || !card.value || !entrance.landed.value) return
-    await entrance.swap.enter({ card: card.value, items: [...card.value.querySelectorAll<HTMLElement>(items)] })
+    if (unmounted || !card.value || !entrance.landed.value) return
+    await entrance.swap({ card: card.value, items: [...card.value.querySelectorAll<HTMLElement>(items)] })
   },
 )
 
-onBeforeUnmount(entrance.cancel)
+onBeforeUnmount(() => {
+  unmounted = true
+  entrance.cancel()
+})
 </script>
 
 <style scoped lang="scss">

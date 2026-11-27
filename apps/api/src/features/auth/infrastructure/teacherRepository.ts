@@ -78,21 +78,24 @@ export function makeTeacherRepository(prisma: PrismaClient): TeacherRepository {
 
     async changePassword(teacherId, verifiedPasswordHash, passwordHash) {
       try {
-        return await prisma.$transaction(async (tx) => {
-          await lockTeacherSessions(tx, teacherId)
-          // Токены — до строки учителя, в том же порядке, что у rotate и deleteAccount: иначе взаимоблокировка
-          await tx.refreshToken.deleteMany({ where: { teacherId } })
-          const { count } = await tx.teacher.updateMany({
-            where: { id: teacherId, passwordHash: verifiedPasswordHash },
-            data: { passwordHash },
-          })
-          if (count !== 1) throw new StalePasswordHash()
-          await tx.passwordReset.deleteMany({ where: { teacherId } })
-          await tx.pendingGoogleLink.deleteMany({ where: { teacherId } })
-          // Удаление через Google — только для аккаунта без пароля: подтверждение, начатое до смены, гасится
-          await tx.pendingGoogleReauth.deleteMany({ where: { teacherId } })
-          return true
-        })
+        return await withDeleteAccountRetry(() =>
+          prisma.$transaction(async (tx) => {
+            await lockTeacherSessions(tx, teacherId)
+            // Зависимые записи — до строки учителя, в том же порядке, что у rotate, deleteAccount, completeReset
+            // и completeLink: иначе при параллельной привязке Google возможна взаимоблокировка
+            await tx.refreshToken.deleteMany({ where: { teacherId } })
+            await tx.passwordReset.deleteMany({ where: { teacherId } })
+            await tx.pendingGoogleLink.deleteMany({ where: { teacherId } })
+            // Удаление через Google — только для аккаунта без пароля: подтверждение, начатое до смены, гасится
+            await tx.pendingGoogleReauth.deleteMany({ where: { teacherId } })
+            const { count } = await tx.teacher.updateMany({
+              where: { id: teacherId, passwordHash: verifiedPasswordHash },
+              data: { passwordHash },
+            })
+            if (count !== 1) throw new StalePasswordHash()
+            return true
+          }),
+        )
       } catch (error) {
         if (error instanceof StalePasswordHash) return false
         throw error

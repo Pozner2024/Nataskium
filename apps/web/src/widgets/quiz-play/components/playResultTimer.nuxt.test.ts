@@ -1,12 +1,9 @@
 import { mountSuspended } from '@nuxt/test-utils/runtime'
 import { flushPromises } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { computed, ref } from 'vue'
 import { playApi } from '@/entities/quiz'
 import { usePlayStore } from '../store'
-import { PLAY_TIMER_KEY, type PlayTimerView } from '@/features/play-session'
 import PlayResult from './PlayResult.vue'
-import PlayTimer from './PlayTimer.vue'
 
 vi.mock('@/entities/quiz', () => ({
   playApi: { get: vi.fn(), check: vi.fn(), finish: vi.fn() },
@@ -15,15 +12,6 @@ vi.mock('@/entities/quiz', () => ({
 const TOKEN = 'abcdefghijklmnopqrstuv'
 const SOURCE = { kind: 'share', token: TOKEN } as const
 const mounted: { unmount: () => void }[] = []
-
-function view(partial: { elapsed?: number; remaining?: number | null; low?: boolean }): PlayTimerView {
-  return {
-    elapsedSeconds: computed(() => partial.elapsed ?? 0),
-    remainingSeconds: computed(() => partial.remaining ?? null),
-    isLow: computed(() => partial.low ?? false),
-    announcement: ref(''),
-  }
-}
 
 async function startQuiz(timer: unknown) {
   vi.mocked(playApi.get).mockResolvedValue({
@@ -41,68 +29,12 @@ async function startQuiz(timer: unknown) {
   return store
 }
 
-async function mountTimer(timerView: PlayTimerView | null) {
-  const wrapper = await mountSuspended(PlayTimer, { global: { provide: timerView ? { [PLAY_TIMER_KEY as symbol]: timerView } : {} } })
-  mounted.push(wrapper)
-  await flushPromises()
-  return wrapper
-}
-
 beforeEach(() => {
   vi.resetAllMocks()
 })
 
 afterEach(() => {
   for (const wrapper of mounted.splice(0)) wrapper.unmount()
-})
-
-describe('PlayTimer', () => {
-  it('лимит: показывает остаток м:сс', async () => {
-    await startQuiz({ mode: 'limit', seconds: 600 })
-    const wrapper = await mountTimer(view({ remaining: 125 }))
-    expect(wrapper.get('.play-timer__time').text()).toBe('2:05')
-  })
-
-  it('секундомер: показывает прошедшее время', async () => {
-    await startQuiz({ mode: 'stopwatch' })
-    const wrapper = await mountTimer(view({ elapsed: 222 }))
-    expect(wrapper.get('.play-timer__time').text()).toBe('3:42')
-  })
-
-  it('мало времени: текст «Осталось мало», а не только цвет', async () => {
-    await startQuiz({ mode: 'limit', seconds: 600 })
-    const wrapper = await mountTimer(view({ remaining: 30, low: true }))
-    expect(wrapper.get('.play-timer__low').text()).toBe('Осталось мало')
-    expect(wrapper.classes()).toContain('play-timer--low')
-  })
-
-  it('достаточно времени: текста «Осталось мало» нет', async () => {
-    await startQuiz({ mode: 'limit', seconds: 600 })
-    const wrapper = await mountTimer(view({ remaining: 300 }))
-    expect(wrapper.find('.play-timer__low').exists()).toBe(false)
-    expect(wrapper.text()).not.toContain('Осталось мало')
-  })
-
-  it('role="timer" с подписью и без aria-live на цифрах', async () => {
-    await startQuiz({ mode: 'limit', seconds: 600 })
-    const wrapper = await mountTimer(view({ remaining: 300 }))
-    expect(wrapper.attributes('role')).toBe('timer')
-    expect(wrapper.attributes('aria-label')).toBe('Таймер')
-    expect(wrapper.find('[aria-live]').exists()).toBe(false)
-    expect(wrapper.attributes('aria-live')).toBeUndefined()
-  })
-
-  it('режим none: таймер не рисуется', async () => {
-    await startQuiz({ mode: 'none' })
-    const wrapper = await mountTimer(view({}))
-    expect(wrapper.find('.play-timer').exists()).toBe(false)
-  })
-
-  it('без провайдера (inject пуст) таймер не рисуется и не падает', async () => {
-    await startQuiz({ mode: 'limit', seconds: 600 })
-    const wrapper = await mountTimer(null)
-    expect(wrapper.find('.play-timer').exists()).toBe(false)
-  })
 })
 
 describe('PlayResult: таймер', () => {

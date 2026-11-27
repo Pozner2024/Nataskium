@@ -128,4 +128,27 @@ describe('useTrueFalsePlayStore: граничные случаи', () => {
     expect(store.status).toBe('notFound')
     expect(store.result).toBeNull()
   })
+
+  it('dispose сбрасывает busy в false и status в loading', async () => {
+    check.mockReturnValue(new Promise(() => {}))
+    await store.start(SOURCE, trueFalse(2, true))
+    void store.answer(true)
+    expect(store.busy).toBe(true)
+
+    store.dispose()
+    expect(store.busy).toBe(false)
+    expect(store.status).toBe('loading')
+  })
+
+  it('после истечения времени листание прошлых утверждений заблокировано', async () => {
+    finish.mockReturnValue(new Promise(() => {}))
+    await store.start(SOURCE, trueFalse(2, false))
+    await pass(true)
+    expect(store.canPrev).toBe(true)
+
+    void store.expire()
+    expect(store.timedOut).toBe(true)
+    expect(store.canPrev).toBe(false)
+    expect(store.canForward).toBe(false)
+  })
 })

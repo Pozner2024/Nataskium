@@ -1,6 +1,5 @@
 import type { PlayQuizResponse } from '@nataskium/shared/schemas'
-import type { PlayImageUrl, PlayQuizSource, PlayableQuiz } from '../types'
-import { loadPlayableQuiz } from './loadPlayableQuiz'
+import type { PlayImageUrl, PlayableQuiz } from '../types'
 import { quizVersion } from './quizVersion'
 
 // Поля собираются явно: isCorrect и индексы правильных не должны попасть в ответ ни при каких правках модели.
@@ -22,11 +21,5 @@ export function toPlayQuizResponse(quiz: PlayableQuiz, imageUrl: PlayImageUrl): 
         selectCount: question.options.filter((option) => option.isCorrect).length,
       })),
     },
-  }
-}
-
-export function makeGetPlayQuiz(deps: { quizzes: PlayQuizSource; imageUrl: PlayImageUrl }) {
-  return async function getPlayQuiz(shareToken: string): Promise<PlayQuizResponse> {
-    return toPlayQuizResponse(await loadPlayableQuiz(deps.quizzes, shareToken), deps.imageUrl)
   }
 }

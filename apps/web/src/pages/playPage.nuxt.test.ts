@@ -104,23 +104,56 @@ describe('PlayPage: диспетчер по типу задания', () => {
     expect(wrapper.find('.matching-play').exists()).toBe(false)
   })
 
-  it('404 при загрузке: «не найдено» от QuizPlay', async () => {
+  it('404 при загрузке: один запрос GET и «не найдено»', async () => {
     vi.mocked(playApi.get).mockRejectedValue(new ApiError(404))
     await mountPage()
 
+    expect(playApi.get).toHaveBeenCalledTimes(1)
     expect(wrapper.find('[role="alert"]').text()).toBe('Задание не найдено или удалено')
   })
 
-  it('сбой сети: QuizPlay показывает «повторить», повтор загружает задание', async () => {
-    vi.mocked(playApi.get).mockRejectedValue(new TypeError('Failed to fetch'))
+  it('сбой сети: один запрос GET, повтор загружает сопоставление и да/нет без «не найдено»', async () => {
+    vi.mocked(playApi.get).mockRejectedValueOnce(new TypeError('Failed to fetch'))
     await mountPage()
-    expect(wrapper.find('.quiz-play__button').exists()).toBe(true)
+    expect(playApi.get).toHaveBeenCalledTimes(1)
+    expect(wrapper.find('.play-page__button').exists()).toBe(true)
 
-    vi.mocked(playApi.get).mockResolvedValue(QUIZ)
-    await wrapper.find('.quiz-play__button').trigger('click')
+    vi.mocked(playApi.get).mockResolvedValueOnce(MATCHING)
+    await wrapper.find('.play-page__button').trigger('click')
+    await flushPromises()
+    await pressStart()
+
+    expect(playApi.get).toHaveBeenCalledTimes(2)
+    expect(wrapper.find('.matching-play').exists()).toBe(true)
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+  })
+
+  it('сбой сети для да/нет: повтор загружает игру да/нет', async () => {
+    vi.mocked(playApi.get).mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    await mountPage()
+    expect(playApi.get).toHaveBeenCalledTimes(1)
+
+    vi.mocked(playApi.get).mockResolvedValueOnce(TRUE_FALSE)
+    await wrapper.find('.play-page__button').trigger('click')
+    await flushPromises()
+    await pressStart()
+
+    expect(playApi.get).toHaveBeenCalledTimes(2)
+    expect(wrapper.find('.true-false-play').exists()).toBe(true)
+  })
+
+  it('библиотека: уход со страницы до ответа API не вызывает navigateTo (fixLibrarySlug)', async () => {
+    let resolveGet!: (value: typeof QUIZ) => void
+    vi.mocked(playApi.get).mockReturnValue(new Promise((resolve) => { resolveGet = resolve }))
+    wrapper = await mountSuspended(PlayPage, {
+      props: { address: { kind: 'library', slug: '42-staryj-slug' } },
+      route: '/library/quiz/42-staryj-slug',
+    })
+    wrapper.unmount()
+    resolveGet(QUIZ)
     await flushPromises()
 
-    expect(wrapper.find('h1').text()).toBe('Столица Франции?')
+    expect(navigateToMock).not.toHaveBeenCalled()
   })
 
   it('невалидный токен: «не найдено» без запроса', async () => {
@@ -153,12 +186,5 @@ describe('PlayPage: диспетчер по типу задания', () => {
     } finally {
       window.history.replaceState({ ...state, back: null }, '')
     }
-  })
-
-  it('превью: при переходе на другой язык ?preview=1 сохраняется', async () => {
-    vi.spyOn(window.navigator, 'languages', 'get').mockReturnValue(['fr-FR'])
-    await mountPage(TOKEN, `/play/${TOKEN}?preview=1`)
-
-    expect(navigateToMock.mock.calls[0]?.[0]).toMatch(/^\/fr\/.*\?preview=1$/)
   })
 })

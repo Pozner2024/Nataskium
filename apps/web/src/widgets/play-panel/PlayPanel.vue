@@ -8,8 +8,9 @@
       </button>
       <button class="play-panel__button" type="button" @click="copyLink">{{ t('playPanel.copyLink') }}</button>
     </div>
-    <div class="play-panel__settings">
+    <div ref="settings" class="play-panel__settings">
       <button
+        ref="settingsButton"
         class="play-panel__button play-panel__button--icon"
         type="button"
         :aria-label="t('playPanel.settings')"
@@ -64,7 +65,7 @@
 <script setup lang="ts">
 import { libraryQuizPath } from '@nataskium/shared/routes'
 import { INTRO_THEME_KEYS, type IntroThemeKey } from '@nataskium/shared/schemas'
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
 import { navigateTo, useI18n, useLocalePath, useRoute, useRouter } from '#imports'
 import { restoreSession, useAuthStore } from '@/features/auth'
 import { IntroThemePreview, findTheme } from '@/entities/intro-theme'
@@ -91,6 +92,8 @@ const router = useRouter()
 const auth = useAuthStore()
 
 const styles = INTRO_THEME_KEYS.map((key) => findTheme(key))
+const settings = useTemplateRef<HTMLElement>('settings')
+const settingsButton = useTemplateRef<HTMLButtonElement>('settingsButton')
 const isSettingsOpen = ref(false)
 const isLoginOpen = ref(false)
 const copyMessage = ref('')
@@ -132,7 +135,36 @@ async function copyLink(): Promise<void> {
   }, COPY_STATUS_MS)
 }
 
-onBeforeUnmount(() => clearTimeout(resetTimer))
+function onOutsidePointer(event: PointerEvent): void {
+  if (settings.value && event.target instanceof Node && !settings.value.contains(event.target)) {
+    isSettingsOpen.value = false
+  }
+}
+
+function onEscape(event: KeyboardEvent): void {
+  if (event.key !== 'Escape') return
+  isSettingsOpen.value = false
+  settingsButton.value?.focus()
+}
+
+function detachMenuListeners(): void {
+  document.removeEventListener('pointerdown', onOutsidePointer)
+  document.removeEventListener('keydown', onEscape)
+}
+
+watch(isSettingsOpen, (open) => {
+  if (open) {
+    document.addEventListener('pointerdown', onOutsidePointer)
+    document.addEventListener('keydown', onEscape)
+  } else {
+    detachMenuListeners()
+  }
+})
+
+onBeforeUnmount(() => {
+  detachMenuListeners()
+  clearTimeout(resetTimer)
+})
 </script>
 
 <style scoped lang="scss">
@@ -264,7 +296,7 @@ onBeforeUnmount(() => clearTimeout(resetTimer))
   position: absolute;
   top: 100%;
   right: 0;
-  z-index: 1;
+  z-index: var(--z-play-panel-menu);
   display: flex;
   flex-direction: column;
   gap: 4px;

@@ -14,8 +14,8 @@
 
 <script setup lang="ts">
 import { newActivityPath, parseGameTypeSlug } from '@nataskium/shared/routes'
-import { computed } from 'vue'
-import { createError, useI18n, useLocalePath, useSeoMeta } from '#imports'
+import { computed, watch } from 'vue'
+import { createError, showError, useI18n, useLocalePath, useSeoMeta } from '#imports'
 import { GameTypePreview } from '@/entities/activity'
 import { AppButton } from '@/shared'
 import { LibraryBrowser } from '@/widgets/library-browser'
@@ -29,8 +29,12 @@ const localePath = useLocalePath()
 
 const kind = computed(() => parseGameTypeSlug(props.slug))
 
-// Неизвестный тип — настоящий 404: адреса типов известны заранее
+// Неизвестный тип — настоящий 404: адреса типов известны заранее (и при SPA-переходе тоже)
 if (kind.value === null) throw createError({ status: NOT_FOUND_CODE, fatal: true })
+
+watch(kind, (next) => {
+  if (next === null) showError(createError({ status: NOT_FOUND_CODE, fatal: true }))
+})
 
 useSeoMeta({
   title: () => (kind.value === null ? '' : t(`gameTypes.${kind.value}.name`)),

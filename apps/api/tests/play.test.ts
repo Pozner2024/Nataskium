@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { makeCheckAnswer, makeFinishQuiz, makeGetPlayQuiz } from '../src/features/play'
-import type { PlayQuizSource, PlayableQuiz } from '../src/features/play'
+import { makeCheckAnswer, makeFinishQuiz, makeGetPlayActivity } from '../src/features/play'
+import type { PlayMatchingSource, PlayQuizSource, PlayTrueFalseSource, PlayableQuiz } from '../src/features/play'
 import { AppError, ValidationError } from '../src/shared/errors'
 
 const TOKEN = 'abcdefghijklmnopqrstuv'
@@ -36,9 +36,22 @@ function setup(overrides: Partial<PlayableQuiz> = {}) {
       return token === TOKEN ? quiz : null
     },
   }
+  const emptyMatchings: PlayMatchingSource = { findByShareToken: async () => null }
+  const emptyTrueFalses: PlayTrueFalseSource = { findByShareToken: async () => null }
+  const getPlayActivity = makeGetPlayActivity({
+    quizzes,
+    matchings: emptyMatchings,
+    trueFalses: emptyTrueFalses,
+    imageUrl,
+    shuffle: (items) => [...items],
+  })
   return {
     quizzes,
-    getPlayQuiz: makeGetPlayQuiz({ quizzes, imageUrl }),
+    async getPlayQuiz(shareToken: string) {
+      const response = await getPlayActivity(shareToken)
+      if (response.type !== 'quiz') throw new Error(`Expected quiz, got ${response.type}`)
+      return response
+    },
     checkAnswer: makeCheckAnswer({ quizzes }),
     finishQuiz: makeFinishQuiz({ quizzes }),
   }
@@ -117,8 +130,15 @@ describe('getPlayQuiz', () => {
         }
       },
     }
-    const { quiz } = await makeGetPlayQuiz({ quizzes, imageUrl: () => null })(TOKEN)
-    expect(quiz.questions[0]?.imageUrl).toBeNull()
+    const response = await makeGetPlayActivity({
+      quizzes,
+      matchings: { findByShareToken: async () => null },
+      trueFalses: { findByShareToken: async () => null },
+      imageUrl: () => null,
+      shuffle: (items) => [...items],
+    })(TOKEN)
+    expect(response.type).toBe('quiz')
+    if (response.type === 'quiz') expect(response.quiz.questions[0]?.imageUrl).toBeNull()
   })
 
   it('отдаёт таймер задания', async () => {

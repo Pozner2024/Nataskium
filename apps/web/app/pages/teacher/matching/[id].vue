@@ -8,5 +8,5 @@ import MatchingEditorPage from '@/pages/MatchingEditorPage.vue'
 
 const route = useRoute()
 
-definePageMeta({ name: 'teacher-matching-edit', layout: 'teacher', middleware: 'teacher-auth' })
+definePageMeta({ name: 'teacher-matching-edit', layout: 'teacher', middleware: 'teacher-auth', key: (route) => String(route.params.id) })
 </script>

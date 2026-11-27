@@ -36,7 +36,7 @@ const normalizeWhitespace = (text: string) => text.replace(/\r\n/g, '\n').replac
 
 // Контент викторин публичен (библиотека) и виден детям: управляющие и bidi-символы отклоняются.
 // allowNewline — только для текста вопроса (textarea)
-export const safeText = (maxLength: number, allowNewline = false) =>
+const safeText = (maxLength: number, allowNewline = false) =>
   z
     .string()
     .trim()

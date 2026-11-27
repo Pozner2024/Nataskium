@@ -184,4 +184,23 @@ describe('PlayPanel: ссылка и создание', () => {
     await flushPromises()
     expect(navigateToMock).toHaveBeenCalledOnce()
   })
+
+  it('меню настроек закрывается по Escape и по клику вне меню', async () => {
+    const wrapper = await mountPanel()
+    const toggle = wrapper.get('.play-panel__button--icon')
+
+    await toggle.trigger('click')
+    expect(wrapper.find('.play-panel__menu').exists()).toBe(true)
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await flushPromises()
+    expect(wrapper.find('.play-panel__menu').exists()).toBe(false)
+
+    await toggle.trigger('click')
+    expect(wrapper.find('.play-panel__menu').exists()).toBe(true)
+
+    document.dispatchEvent(new Event('pointerdown', { bubbles: true }))
+    await flushPromises()
+    expect(wrapper.find('.play-panel__menu').exists()).toBe(false)
+  })
 })

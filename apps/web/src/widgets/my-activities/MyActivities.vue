@@ -53,7 +53,7 @@ import { NuxtLink } from '#components'
 import { useI18n, useLocalePath } from '#imports'
 import { ActivityCard, ActivityThumbnail, type Activity } from '@/entities/activity'
 import { IntroThemePreview, findTheme } from '@/entities/intro-theme'
-import { PREVIEW_QUERY, playUrl } from '@/entities/quiz'
+import { playUrl } from '@/entities/quiz'
 import { AppButton, AppEmptyState, TEACHER_PATHS, useStoredView, ViewToggle } from '@/shared'
 import ActivityMenu from './components/ActivityMenu.vue'
 import ShareLinkButton from './components/ShareLinkButton.vue'
@@ -84,9 +84,8 @@ const copied = ref<{ id: string; status: ShareLinkStatus } | null>(null)
 const announcement = ref('')
 let resetTimer: ReturnType<typeof setTimeout> | undefined
 
-// На странице задания по этой пометке появляется кнопка «Назад»
 function playPreviewPath(activity: Activity): string {
-  return `/play/${encodeURIComponent(activity.shareToken)}?${PREVIEW_QUERY}`
+  return localePath(`/play/${encodeURIComponent(activity.shareToken)}`)
 }
 
 function statusOf(id: string): ShareLinkStatus {

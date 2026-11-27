@@ -15,8 +15,8 @@ import {
 import { parseEnv, type Env } from './shared/config'
 import { createImageStorage, createPrismaClient } from './shared/infrastructure'
 
-const API_HOST = '127.0.0.1'
 const MS_PER_HOUR = 60 * 60 * 1000
+const SHUTDOWN_TIMEOUT_MS = 10_000
 const VERIFICATION_LINK_TTL_HOURS = PENDING_REGISTRATION_TTL_MS / MS_PER_HOUR
 const PASSWORD_RESET_LINK_TTL_HOURS = PASSWORD_RESET_TTL_MS / MS_PER_HOUR
 // Регистрации живут 24 часа, refresh — 14 дней: раз в час истёкшие данные не задерживаются надолго
@@ -69,10 +69,46 @@ const imageStorage = createImageStorage(env)
 // Всегда PRODUCTION_LIMITS, независимо от NODE_ENV: ослабленные лимиты передают только тесты через createApp
 const app = createApp({ env, prisma, limits: PRODUCTION_LIMITS, passwordHasher, emailSender, googleIdentity, imageStorage })
 
-serve({ fetch: app.fetch, port: env.API_PORT, hostname: API_HOST }, ({ address, port }) => {
+const schedules: Array<{ stop: () => void }> = []
+
+const server = serve({ fetch: app.fetch, port: env.API_PORT, hostname: env.API_HOST }, ({ address, port }) => {
   console.log(`API started on http://${address}:${port}`)
   // После старта сервера: первый запуск сразу, дальше раз в CLEANUP_INTERVAL_MS
-  startCleanupSchedule({ cleanup: createAuthCleanup(prisma), intervalMs: CLEANUP_INTERVAL_MS })
-  startCleanupSchedule({ cleanup: createImageCleanup(prisma, imageStorage, { reconcileStorage: env.IMAGE_STORAGE_RECONCILE }), intervalMs: IMAGE_CLEANUP_INTERVAL_MS })
-  startCleanupSchedule({ cleanup: createQuizCleanup(prisma), intervalMs: QUIZ_CLEANUP_INTERVAL_MS })
+  schedules.push(
+    startCleanupSchedule({ cleanup: createAuthCleanup(prisma), intervalMs: CLEANUP_INTERVAL_MS }),
+    startCleanupSchedule({
+      cleanup: createImageCleanup(prisma, imageStorage, { reconcileStorage: env.IMAGE_STORAGE_RECONCILE }),
+      intervalMs: IMAGE_CLEANUP_INTERVAL_MS,
+    }),
+    startCleanupSchedule({ cleanup: createQuizCleanup(prisma), intervalMs: QUIZ_CLEANUP_INTERVAL_MS }),
+  )
 })
+
+let shuttingDown = false
+async function shutdown(signal: string): Promise<void> {
+  if (shuttingDown) return
+  shuttingDown = true
+  console.log(`Received ${signal}, shutting down`)
+  for (const schedule of schedules) schedule.stop()
+  const forceExit = setTimeout(() => process.exit(1), SHUTDOWN_TIMEOUT_MS)
+  forceExit.unref()
+  try {
+    const closePromise = new Promise<void>((resolve) => server.close(() => resolve()))
+    // Закрываем простаивающие keep-alive соединения, чтобы server.close не ждал таймаута
+    if ('closeIdleConnections' in server && typeof server.closeIdleConnections === 'function') {
+      server.closeIdleConnections()
+    }
+    await closePromise
+    await prisma.$disconnect()
+    clearTimeout(forceExit)
+    process.exit(0)
+  } catch (error) {
+    console.error('Error during shutdown', error)
+    clearTimeout(forceExit)
+    process.exit(1)
+  }
+}
+
+for (const signal of ['SIGTERM', 'SIGINT'] as const) {
+  process.on(signal, () => void shutdown(signal))
+}

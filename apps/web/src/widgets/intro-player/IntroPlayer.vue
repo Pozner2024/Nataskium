@@ -170,10 +170,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, shallowRef, watch } from 'vue'
 import { AppDialog } from '@/shared'
 import { PLAYER_ENTRANCE_KEY, PLAYER_PAUSE_KEY, PLAYER_SCROLL_KEY, PLAYER_SCROLL_RELEASE_KEY, PLAYER_SOUND_KEY, PLAYER_TIMER_SLOT_KEY } from '@/features/play-session'
-import { IntroTheme, IntroThemeAmbience, createIntroEntrance, createIntroSound, createQuestionSwap, findTheme, type QuestionSwap } from '@/entities/intro-theme'
+import { IntroTheme, IntroThemeAmbience, createIntroEntrance, createIntroSound, createQuestionSwap, findTheme, type IntroSound, type QuestionSwap } from '@/entities/intro-theme'
 
 const props = withDefaults(
   defineProps<{
@@ -194,7 +194,6 @@ const props = withDefaults(
     skipLabel: string
     enterFullscreenLabel: string
     exitFullscreenLabel: string
-    collapseLabel: string
     unmuteLabel: string
     muteLabel: string
     scrollDownLabel: string
@@ -229,7 +228,8 @@ const SCROLL_END_TOLERANCE_PX = 1
 const videoRef = ref<HTMLVideoElement | null>(null)
 const themeSceneRef = ref<InstanceType<typeof IntroTheme> | null>(null)
 // Звуки темы кодом: включаются в обработчике «Начать» (жест пользователя), при пропуске и reduced motion молчат
-const themeSound = props.introTheme ? createIntroSound(props.introTheme) : null
+const themeSound = shallowRef<IntroSound | null>(props.introTheme ? createIntroSound(props.introTheme) : null)
+let soundUnlocked = false
 const isLight = computed(() => (props.introTheme ? findTheme(props.introTheme).tone === 'light' : props.theme === 'light'))
 // Без темы кадр за карточкой и «Пропустить» заранее не известен (ролик), поэтому подложка для контраста есть всегда
 const hasStartScrim = computed(() => (props.introTheme ? findTheme(props.introTheme).startScrim : true))
@@ -250,18 +250,44 @@ const scrollReleased = ref(false)
 
 // Вылет только у первого вопроса после интро (при reduced motion — плавное проявление); рамка у темы кодом на всех вопросах
 let entranceTaken = false
-// Стиль можно сменить во время игры: смена вопроса берётся у текущего стиля
+let unmounted = false
+// Стиль можно сменить во время игры: смена вопроса перестраивается под новый тон, звук сохраняется внутри того же kind
 let questionSwap: { key: string | null; swap: QuestionSwap | null } | null = null
+
+function themeKind(key: string | null | undefined) {
+  return key ? findTheme(key).kind : null
+}
+
+watch(
+  () => props.introTheme,
+  (next, prev) => {
+    if (next === prev) return
+    questionSwap?.swap?.cancel()
+    questionSwap = null
+    if (themeKind(next) === themeKind(prev)) return
+    themeSound.value?.dispose()
+    const created = next ? createIntroSound(next) : null
+    if (created) {
+      created.setMuted(isMuted.value)
+      if (soundUnlocked) created.unlock()
+    }
+    themeSound.value = created
+  },
+)
+
 provide(PLAYER_ENTRANCE_KEY, {
-  framed: !!props.introTheme && findTheme(props.introTheme).kind === 'code',
+  get framed() {
+    return !!props.introTheme && findTheme(props.introTheme).kind === 'code'
+  },
   take: () => {
     if (entranceTaken || !props.introTheme || !rootRef.value) return null
     entranceTaken = true
-    return createIntroEntrance(props.introTheme, rootRef.value, isReducedMotion(), themeSound)
+    return createIntroEntrance(props.introTheme, rootRef.value, isReducedMotion(), themeSound.value)
   },
   swap: () => {
     if (questionSwap?.key !== props.introTheme) {
-      questionSwap = { key: props.introTheme, swap: createQuestionSwap(props.introTheme, isReducedMotion(), themeSound) }
+      questionSwap?.swap?.cancel()
+      questionSwap = { key: props.introTheme, swap: createQuestionSwap(props.introTheme, isReducedMotion(), themeSound.value) }
     }
     return questionSwap.swap
   },
@@ -269,7 +295,7 @@ provide(PLAYER_ENTRANCE_KEY, {
 
 const rulesOpen = ref(false)
 provide(PLAYER_PAUSE_KEY, computed(() => rulesOpen.value && phase.value === 'done'))
-provide(PLAYER_SOUND_KEY, (name) => themeSound?.play(name))
+provide(PLAYER_SOUND_KEY, (name) => themeSound.value?.play(name))
 
 provide(PLAYER_SCROLL_KEY, scrollRef)
 provide(PLAYER_SCROLL_RELEASE_KEY, scrollReleased)
@@ -307,8 +333,9 @@ async function playThemeIntro() {
   phase.value = 'playing'
   await nextFrame()
   await nextFrame()
-  if (phase.value !== 'playing') return
+  if (unmounted || phase.value !== 'playing') return
   await themeSceneRef.value?.play()
+  if (unmounted) return
   finish()
 }
 
@@ -338,7 +365,8 @@ async function playWithSoundOrMuted(video: HTMLVideoElement) {
 function start() {
   if (props.introTheme) {
     if (!isReducedMotion()) {
-      themeSound?.unlock()
+      soundUnlocked = true
+      themeSound.value?.unlock()
       void playThemeIntro()
       return
     }
@@ -358,8 +386,11 @@ function start() {
 function skip() {
   if (props.introTheme) {
     // «Пропустить» на стартовом экране — тоже жест: звуки игры включаются, звук интро обрывается
-    if (!isReducedMotion()) themeSound?.unlock()
-    themeSound?.stop()
+    if (!isReducedMotion()) {
+      soundUnlocked = true
+      themeSound.value?.unlock()
+    }
+    themeSound.value?.stop()
     themeSceneRef.value?.skip()
     finish()
     return
@@ -376,9 +407,9 @@ function syncMuted() {
 }
 
 function toggleMuted() {
-  if (themeSound) {
+  if (themeSound.value) {
     isMuted.value = !isMuted.value
-    themeSound.setMuted(isMuted.value)
+    themeSound.value.setMuted(isMuted.value)
     return
   }
   if (videoRef.value) videoRef.value.muted = !videoRef.value.muted
@@ -442,7 +473,9 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  themeSound?.dispose()
+  unmounted = true
+  questionSwap?.swap?.cancel()
+  themeSound.value?.dispose()
   document.removeEventListener('fullscreenchange', syncFullscreen)
   resizeObserver?.disconnect()
 })

@@ -11,7 +11,7 @@ const ARGON2_TIME_COST = 2
 const ARGON2_PARALLELISM = 1
 
 // Минимум OWASP для argon2id. Те же параметры у dummy-хэша — иначе время сверки выдало бы, есть ли учитель
-export const ARGON2_OPTIONS = {
+const ARGON2_OPTIONS = {
   algorithm: ARGON2ID_ALGORITHM,
   memoryCost: ARGON2_MEMORY_COST_KIB,
   timeCost: ARGON2_TIME_COST,

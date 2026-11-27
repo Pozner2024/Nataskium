@@ -24,7 +24,22 @@ const DEV_API_PORT = 3001
 
 export default defineNuxtConfig({
   compatibilityDate: '2026-10-20',
-  modules: ['@nuxt/fonts', '@nuxt/eslint', '@pinia/nuxt', '@nuxtjs/i18n'],
+  modules: [
+    '@nuxt/fonts',
+    '@nuxt/eslint',
+    '@pinia/nuxt',
+    '@nuxtjs/i18n',
+    (_options, nuxt) => {
+      // Dev-страницы вырезаются из любой не-dev/не-test сборки, независимо от NODE_ENV
+      if (nuxt.options.dev || nuxt.options.test) return
+      nuxt.hook('pages:extend', (pages) => {
+        for (const path of DEV_ONLY_PATHS) {
+          const index = pages.findIndex((page) => page.path === path)
+          if (index !== -1) pages.splice(index, 1)
+        }
+      })
+    },
+  ],
   fonts: {
     families: [
       { name: 'Unbounded', provider: 'google', weights: [500, 700] },
@@ -49,15 +64,6 @@ export default defineNuxtConfig({
       // Только заход на корень: остальные адреса уже говорят, какой язык нужен
       redirectOn: 'root',
       fallbackLocale: DEFAULT_LOCALE,
-    },
-  },
-  hooks: {
-    'pages:extend'(pages) {
-      if (process.env.NODE_ENV !== 'production') return
-      for (const path of DEV_ONLY_PATHS) {
-        const index = pages.findIndex((page) => page.path === path)
-        if (index !== -1) pages.splice(index, 1)
-      }
     },
   },
   typescript: {

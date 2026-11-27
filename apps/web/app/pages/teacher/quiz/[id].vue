@@ -8,5 +8,5 @@ import QuizEditorPage from '@/pages/QuizEditorPage.vue'
 
 const route = useRoute()
 
-definePageMeta({ name: 'teacher-quiz-edit', layout: 'teacher', middleware: 'teacher-auth' })
+definePageMeta({ name: 'teacher-quiz-edit', layout: 'teacher', middleware: 'teacher-auth', key: (route) => String(route.params.id) })
 </script>

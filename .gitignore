@@ -6,6 +6,7 @@ dist/
 .nuxt/
 .output/
 .data/
+.nuxtrc
 
 # Prisma Client генерируется в postinstall
 apps/api/src/generated/
@@ -38,4 +39,3 @@ playwright-report/
 
 # Макеты из визуального компаньона Superpowers
 .superpowers/
-apps/web/public/intro/test.mp4
